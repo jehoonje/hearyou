@@ -7,12 +7,15 @@ import { invalidateKeywordsCache } from "./fetchKeywords";
 let isAnalyzing = false;
 let stopRecognitionFunc: (() => void) | null = null;
 
+// 키워드 처리를 위한 상태 관리
+let lastProcessedKeywords = new Set<string>(); // 이미 처리된 키워드
+let lastKeywordTime = Date.now();              // 마지막 키워드 처리 시간
+const KEYWORD_COOLDOWN = 1000;                // 키워드 재감지 대기 시간 (10초)
+
 export const startAudioAnalysis = async (
-  onUpdate: (
-    volume: number,
-    transcript: string,
-    detectedKeywords: string[]
-  ) => void
+  onVolumeUpdate: (volume: number) => void,
+  onTranscriptUpdate: (transcript: string) => void,
+  onKeywordsUpdate: (keywords: string[]) => void
 ) => {
   if (isAnalyzing) {
     console.warn("오디오 분석이 이미 실행 중입니다.");
@@ -20,33 +23,37 @@ export const startAudioAnalysis = async (
   }
 
   isAnalyzing = true;
-
+  
+  // 분석 시작 시 초기화
+  lastProcessedKeywords.clear();
+  lastKeywordTime = Date.now();
+  
+  // 트랜스크립트 타이머 변수
+  let transcriptResetTimer: NodeJS.Timeout | null = null;
+  
   try {
-    // Try with simple constraints first
+    // 오디오 스트림 설정 (코드 생략...)
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: true  // Use minimal constraints initially
+        audio: true
       });
     } catch (initialError : any) {
       console.warn("기본 오디오 접근 실패:", initialError);
       
-      // If no device or permission denied, show specific error
       if (initialError.name === 'NotFoundError') {
         throw new Error("마이크를 찾을 수 없습니다. 마이크가 연결되어 있는지 확인하세요.");
       } else if (initialError.name === 'NotAllowedError') {
         throw new Error("마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.");
       }
       
-      // Re-throw other errors
       throw initialError;
     }
 
-    // Audio context setup
+    // 오디오 컨텍스트 및 분석기 설정 (코드 생략...)
     const audioContext = new AudioContext();
     const source = audioContext.createMediaStreamSource(stream);
 
-    // Setup audio processing chain with error handling
     let analyser;
     try {
       // 음성 강화를 위한 필터 체인 추가
@@ -72,20 +79,14 @@ export const startAudioAnalysis = async (
     } catch (filterError) {
       console.warn("고급 오디오 필터링 실패, 기본 설정 사용:", filterError);
       
-      // Fallback to basic analyzer if advanced processing fails
       analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 512;
       source.connect(analyser);
     }
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
-    let latestTranscript = "";
-    let confirmedKeywords: string[] = [];
-    const recentVolumes: number[] = [];
-
-    // Rest of your existing code...
     let silenceTimer = 0;
     let lastVoiceTime = Date.now();
     const SILENCE_THRESHOLD = 15;
@@ -93,102 +94,132 @@ export const startAudioAnalysis = async (
     resetKeywordTracker();
 
     stopRecognitionFunc = startSpeechRecognition(
-      (transcript, isFinal, confidence) => {
-        // Your existing callback code...
+      async (transcript, isFinal, confidence) => {
         if (transcript.trim() !== "") {
-          latestTranscript = transcript;
+          // 이전 타이머가 있으면 취소
+          if (transcriptResetTimer) {
+            clearTimeout(transcriptResetTimer);
+            transcriptResetTimer = null;
+          }
+          
+          // 새 트랜스크립트 설정 (이전 내용은 완전히 대체)
+          onTranscriptUpdate(transcript);
+          
+          // 3초 후 트랜스크립트 초기화 타이머 설정
+          transcriptResetTimer = setTimeout(() => {
+            console.log('트랜스크립트 타이머 종료, 초기화');
+            onTranscriptUpdate('');
+            transcriptResetTimer = null;
+          }, 1000);
+          
           lastVoiceTime = Date.now();
           silenceTimer = 0;
 
           const minConfidence = isFinal ? 0.3 : 0.4;
 
           if (confidence >= minConfidence) {
-            const keywords = analyzeKeywords(transcript, isFinal, confidence);
+            // 키워드 분석 수행
+            const detectedKeywords = analyzeKeywords(transcript, isFinal, confidence);
 
-            if (keywords.length > 0) {
-              confirmedKeywords = Array.from(
-                new Set([...confirmedKeywords, ...keywords])
-              );
-
-              keywords.forEach(async (keyword) => {
-                await saveKeyword(keyword);
-              });
-
-              invalidateKeywordsCache();
+            if (detectedKeywords.length > 0) {
+              console.log('감지된 키워드 목록:', detectedKeywords);
+              
+              // 현재 시간 확인
+              const now = Date.now();
+              
+              // 재감지 쿨다운 확인 (10초 이상 지났으면 이전 처리 기록 초기화)
+              if (now - lastKeywordTime > KEYWORD_COOLDOWN) {
+                console.log('키워드 쿨다운 만료, 처리 기록 초기화');
+                lastProcessedKeywords.clear();
+                lastKeywordTime = now;
+              }
+              
+              // 가장 최근 감지된 한 개의 키워드만 처리
+              // 하나의 키워드만 선택 (마지막 키워드)
+              const latestKeyword = detectedKeywords[detectedKeywords.length - 1];
+              
+              // 이미 처리되었는지 확인
+              if (!lastProcessedKeywords.has(latestKeyword)) {
+                console.log('새로 처리할 키워드:', latestKeyword);
+                
+                // 단일 키워드 배열로 UI에 전달
+                onKeywordsUpdate([latestKeyword]);
+                
+                // DB에 저장 (한 번에 하나만)
+                try {
+                  const success = await saveKeyword(latestKeyword);
+                  console.log(`키워드 '${latestKeyword}' 저장: ${success ? '성공' : '실패'}`);
+                  
+                  // 성공적으로 처리된 키워드는 목록에 추가
+                  if (success) {
+                    lastProcessedKeywords.add(latestKeyword);
+                  }
+                } catch (error) {
+                  console.error(`키워드 저장 오류:`, error);
+                }
+                
+                // 캐시 무효화
+                invalidateKeywordsCache();
+              } else {
+                console.log(`키워드 '${latestKeyword}'는 이미 처리되었습니다.`);
+              }
             }
           }
         }
       }
     );
 
-    // Continue with your volume calculation function...
-    const calculateVolumeAndKeywords = () => {
-      // Your existing calculation code...
+    // 볼륨 계산 함수
+    const calculateVolume = () => {
       if (!isAnalyzing) return;
 
       analyser.getByteFrequencyData(dataArray);
 
-      let voiceSum = 0;
       let totalSum = 0;
-      const voiceFreqMinBin = Math.floor(
-        (300 * bufferLength) / audioContext.sampleRate
-      );
-      const voiceFreqMaxBin = Math.floor(
-        (3400 * bufferLength) / audioContext.sampleRate
-      );
-
       for (let i = 0; i < bufferLength; i++) {
-        const value = dataArray[i];
-        totalSum += value;
-
-        if (i >= voiceFreqMinBin && i <= voiceFreqMaxBin) {
-          voiceSum += value * 1.5;
-        }
+        totalSum += dataArray[i];
       }
-
       const currentVolume = totalSum / bufferLength;
-      const voiceVolume =
-        voiceFreqMaxBin > voiceFreqMinBin
-          ? voiceSum / (voiceFreqMaxBin - voiceFreqMinBin)
-          : 0;
-
-      const isVoiceActive = voiceVolume > SILENCE_THRESHOLD;
-
-      if (isVoiceActive) {
+      
+      // 볼륨 업데이트 (키워드와 트랜스크립트는 변경하지 않음)
+      onVolumeUpdate(currentVolume);
+      
+      // 침묵 시간 계산
+      if (currentVolume > SILENCE_THRESHOLD) {
         lastVoiceTime = Date.now();
         silenceTimer = 0;
       } else {
         silenceTimer = Date.now() - lastVoiceTime;
       }
-
-      recentVolumes.push(Math.max(currentVolume, voiceVolume));
-      if (recentVolumes.length > 5) {
-        recentVolumes.shift();
+      
+      // 침묵이 3초 이상 지속되면 트랜스크립트와 키워드 초기화 (더 짧게 변경)
+      if (silenceTimer > 1000) {
+        if (transcriptResetTimer) {
+          clearTimeout(transcriptResetTimer);
+          transcriptResetTimer = null;
+        }
+        onTranscriptUpdate('');
+        onKeywordsUpdate([]);
       }
-      const averageVolume =
-        recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length;
-
-      onUpdate(averageVolume, latestTranscript, confirmedKeywords);
-
-      if (silenceTimer > 3000) {
-        confirmedKeywords = [];
-      }
-
+      
       if (isAnalyzing) {
-        requestAnimationFrame(calculateVolumeAndKeywords);
+        requestAnimationFrame(calculateVolume);
       }
     };
 
-    calculateVolumeAndKeywords();
+    calculateVolume();
 
     return () => {
       isAnalyzing = false;
       if (stopRecognitionFunc) {
         stopRecognitionFunc();
       }
+      
+      if (transcriptResetTimer) {
+        clearTimeout(transcriptResetTimer);
+      }
 
       stream.getTracks().forEach((track) => track.stop());
-
       if (audioContext.state !== "closed") {
         audioContext.close();
       }
@@ -196,10 +227,9 @@ export const startAudioAnalysis = async (
   } catch (error) {
     console.error("오디오 분석 시작 오류:", error);
     isAnalyzing = false;
-    
-    // Set a specific error message for the UI
-    onUpdate(0, "", []);
+    onVolumeUpdate(0);
+    onTranscriptUpdate('');
+    onKeywordsUpdate([]);
     return () => {};
   }
 };
-

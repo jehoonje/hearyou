@@ -34,7 +34,8 @@ export const startSpeechRecognition = (
     console.warn('음성 인식 문법 설정 실패 (기능에 영향 없음):', e);
   }
 
-  let finalTranscript = '';
+  // 여기를 수정 - 누적되지 않도록 변경
+  // finalTranscript 변수를 매 인식 세션마다 초기화
   let interimTranscript = '';
   let lastInterimTime = 0;
   const INTERIM_UPDATE_INTERVAL = 300;
@@ -48,6 +49,9 @@ export const startSpeechRecognition = (
   recognition.onresult = (event: any) => {
     const allResults: { text: string, confidence: number }[] = [];
     
+    // 현재 세션의 트랜스크립트만 처리
+    let currentTranscript = '';
+    
     for (let i = event.resultIndex; i < event.results.length; i++) {
       for (let j = 0; j < event.results[i].length; j++) {
         allResults.push({
@@ -60,8 +64,9 @@ export const startSpeechRecognition = (
         const bestResult = allResults
           .sort((a, b) => b.confidence - a.confidence)[0];
         
-        finalTranscript += bestResult.text;
-        onTranscript(finalTranscript, true, bestResult.confidence);
+        // 누적하지 않고 현재 인식된 결과만 사용
+        currentTranscript = bestResult.text;
+        onTranscript(currentTranscript, true, bestResult.confidence);
         interimTranscript = '';
       } else {
         interimTranscript = allResults.map(r => r.text).join(' ');
@@ -83,7 +88,7 @@ export const startSpeechRecognition = (
       setTimeout(() => {
         restartAttempts = 0; // 일정 시간 후 다시 시도할 수 있도록 카운터 초기화
         safelyRestartRecognition();
-      }, 5000); // 5초 후 다시 시도
+      }, 2000); // 5초 후 다시 시도
       return;
     }
     
@@ -103,7 +108,7 @@ export const startSpeechRecognition = (
     }
   };
 
-  // 오류 처리 개선
+  // 나머지 코드는 동일...
   recognition.onerror = (event: any) => {
     console.error('음성 인식 오류:', event.error);
     

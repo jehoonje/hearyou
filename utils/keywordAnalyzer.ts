@@ -41,17 +41,16 @@ const fuzzyMatch = (text: string, keyword: string): number => {
   const similarityScore = Math.max(0, 1 - distance / Math.max(text.length, keyword.length));
   
   // 일정 유사도 이상이면 매칭으로 간주
-  return similarityScore > 0.7 ? similarityScore : 0;
+  return similarityScore > 0.6 ? similarityScore : 0;
 };
 
 // 키워드 후보와 확정 키워드를 관리하는 클래스
 class KeywordTracker {
   private candidates: Map<string, { count: number, timestamp: number, score: number }> = new Map();
   private confirmedKeywords: Set<string> = new Set();
-  private readonly CONFIRMATION_THRESHOLD = 1.5; // 낮춤: 민감도 증가
-  private readonly CANDIDATE_EXPIRY = 15000; // 늘림: 후보 유지 시간 증가 (15초)
-  private readonly MIN_SIMILARITY_SCORE = 0.65; // 유사도 임계값
-  
+  private readonly CONFIRMATION_THRESHOLD = 1.2; // 낮춤: 민감도 증가 (1.5 → 1.2)
+  private readonly CANDIDATE_EXPIRY = 1000; // 늘림: 후보 유지 시간 증가 (15초)
+  private readonly MIN_SIMILARITY_SCORE = 0.6; // 유사도 임계값 낮춤 (0.65 → 0.6)ㅋ
   addCandidate(keyword: string, similarityScore: number = 1.0): void {
     const now = Date.now();
     const currentData = this.candidates.get(keyword);

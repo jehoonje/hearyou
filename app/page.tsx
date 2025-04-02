@@ -7,7 +7,11 @@ import { useAudioStore } from '../store/useAudioStore';
 import { fetchKeywords, Keyword } from '../utils/fetchKeywords';
 
 export default function Home() {
-  const { setAudioData, clearKeywords, volume, transcript, keywords } = useAudioStore();
+  const { 
+    volume, transcript, keywords, 
+    setVolume, setTranscript, setKeywords, clearKeywords
+  } = useAudioStore();
+  
   const [keywordList, setKeywordList] = useState<Keyword[]>([]);
   const [stopAnalysis, setStopAnalysis] = useState<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,25 +20,47 @@ export default function Home() {
 
   // 새로 감지된 키워드 표시용
   const [newKeywords, setNewKeywords] = useState<string[]>([]);
-  
+  const [keywordTimerId, setKeywordTimerId] = useState<NodeJS.Timeout | null>(null);
+
   // 키워드 감지 시 이펙트 표시
-  useEffect(() => {
-    if (keywords.length > 0) {
-      setNewKeywords(keywords);
-      // 5초 후 새 키워드 표시 제거 (더 오래 표시)
-      const timer = setTimeout(() => {
-        setNewKeywords([]);
-      }, 5000);
-      return () => clearTimeout(timer);
+useEffect(() => {
+  // 이전 타이머가 있으면 제거
+  if (keywordTimerId) {
+    clearTimeout(keywordTimerId);
+    setKeywordTimerId(null);
+  }
+  
+  if (keywords.length > 0) {
+    console.log('키워드 감지됨, UI 표시:', keywords);
+    
+    // 항상 가장 최근의 키워드 한 개만 표시
+    // (keywords 배열에는 이미 하나의 키워드만 있어야 함)
+    setNewKeywords([...keywords]);
+    
+    // 3초 후 키워드 UI 및 저장소 키워드 초기화
+    const timerId = setTimeout(() => {
+      console.log('키워드 표시 시간 만료, 초기화');
+      setNewKeywords([]);
+      clearKeywords(); // 저장소의 키워드도 초기화
+    }, 1000);
+    
+    setKeywordTimerId(timerId);
+  }
+  
+  // 컴포넌트 언마운트 시 타이머 정리
+  return () => {
+    if (keywordTimerId) {
+      clearTimeout(keywordTimerId);
     }
-  }, [keywords]);
+  };
+}, [keywords, clearKeywords]);
 
   // 음성 활동 감지 효과
   useEffect(() => {
-    if (volume > 20) { // 볼륨 임계값 더 낮게 설정
+    if (volume > 15) {
       setListening(true);
       setLastSoundTime(Date.now());
-    } else if (Date.now() - lastSoundTime > 1500) { // 1.5초 침묵 후 비활성화
+    } else if (Date.now() - lastSoundTime > 1500) {
       setListening(false);
     }
   }, [volume]);
@@ -43,18 +69,19 @@ export default function Home() {
   useEffect(() => {
     const startAnalysis = async () => {
       try {
-        const stop = await startAudioAnalysis((volume, transcript, detectedKeywords) => {
-          setAudioData(volume, transcript, detectedKeywords);
-        });
+        const stop = await startAudioAnalysis(
+          // 각 상태 업데이트를 위한 개별 콜백
+          (volume) => setVolume(volume),
+          (transcript) => setTranscript(transcript),
+          (keywords) => setKeywords(keywords)
+        );
         
         if (stop) {
           setStopAnalysis(() => stop);
           setListening(true);
-          // Clear error if successful
           if (error) setError(null);
         }
       } catch (err: any) {
-        // More descriptive error message
         const errorMessage = err.message || '마이크 접근에 실패했습니다. 권한과 연결 상태를 확인해주세요.';
         setError(errorMessage);
         console.error(err);
@@ -68,9 +95,9 @@ export default function Home() {
         stopAnalysis();
       }
     };
-  }, [setAudioData]);
+  }, [setVolume, setTranscript, setKeywords]);
 
-  // 키워드 목록 조회 - 더 자주 갱신
+  // 키워드 목록 조회
   const loadKeywords = useCallback(async () => {
     const keywords = await fetchKeywords();
     if (keywords) {
@@ -78,10 +105,10 @@ export default function Home() {
     }
   }, []);
 
-  // 주기적으로 키워드 목록 갱신 (더 자주)
+  // 주기적으로 키워드 목록 갱신
   useEffect(() => {
     loadKeywords();
-    const interval = setInterval(loadKeywords, 2000); // 2초마다 갱신
+    const interval = setInterval(loadKeywords, 2000);
     return () => clearInterval(interval);
   }, [loadKeywords]);
 
@@ -112,11 +139,11 @@ export default function Home() {
                           ${transcript ? 'text-white' : 'text-gray-400 italic'}`}>
               {transcript || '음성 대기 중... (말씀해 보세요)'}
             </p>
-            {volume > 10 && !transcript && (
+            {/* {volume > 10 && !transcript && (
               <p className="text-xs text-yellow-400 mt-1 animate-pulse">
                 소리가 감지되었지만 아직 음성으로 인식되지 않았습니다. 조금 더 크게 말씀해 보세요.
               </p>
-            )}
+            )} */}
           </div>
           
           {newKeywords.length > 0 && (

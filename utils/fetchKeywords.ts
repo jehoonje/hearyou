@@ -32,14 +32,19 @@ export const fetchKeywords = async (): Promise<Keyword[] | null> => {
     const { data, error } = await supabase
       .from('keywords')
       .select('id, keyword, count, created_at')
-      .order('count', { ascending: false });
+      .order('count', { ascending: false })
+      .limit(50); // 최대 50개까지만 조회 (성능 개선)
 
     if (error) {
       console.error('[키워드 조회] 데이터베이스 오류:', error);
       throw error;
     }
     
-    console.log(`[키워드 조회] ${data.length}개 키워드 조회됨`);
+    console.log(`[키워드 조회] ${data?.length || 0}개 키워드 조회됨`);
+
+    if (!data || data.length === 0) {
+      return [];
+    }
 
     // 중복 키워드 통합
     const groupedData = Object.values(
@@ -56,7 +61,7 @@ export const fetchKeywords = async (): Promise<Keyword[] | null> => {
         }
         return acc;
       }, {})
-    );
+    ).sort((a, b) => b.count - a.count); // 내림차순 정렬 보장
 
     // 캐시 업데이트
     cachedKeywords = groupedData;
