@@ -21,21 +21,7 @@ export const startSpeechRecognition = (
   let restartAttempts = 0;
   const MAX_RESTART_ATTEMPTS = 5;
   
-  try {
-    if ((recognition as any).speechRecognitionList) {
-      const speechRecognitionList = new (window as any).SpeechGrammarList();
-      const keywords = ['안녕', '피자', '여행', '구매', '쇼핑', '호텔', '영화', '음식'];
-      const grammar = '#JSGF V1.0; grammar keywords; public <keyword> = ' + 
-        keywords.join(' | ') + ' ;';
-      speechRecognitionList.addFromString(grammar, 1);
-      (recognition as any).grammars = speechRecognitionList;
-    }
-  } catch (e) {
-    console.warn('음성 인식 문법 설정 실패 (기능에 영향 없음):', e);
-  }
-
-  // 여기를 수정 - 누적되지 않도록 변경
-  // finalTranscript 변수를 매 인식 세션마다 초기화
+  // 누적되지 않도록 변경
   let interimTranscript = '';
   let lastInterimTime = 0;
   const INTERIM_UPDATE_INTERVAL = 300;
@@ -88,7 +74,7 @@ export const startSpeechRecognition = (
       setTimeout(() => {
         restartAttempts = 0; // 일정 시간 후 다시 시도할 수 있도록 카운터 초기화
         safelyRestartRecognition();
-      }, 2000); // 5초 후 다시 시도
+      }, 2000); // 2초 후 다시 시도
       return;
     }
     
@@ -108,7 +94,6 @@ export const startSpeechRecognition = (
     }
   };
 
-  // 나머지 코드는 동일...
   recognition.onerror = (event: any) => {
     console.error('음성 인식 오류:', event.error);
     
@@ -132,7 +117,6 @@ export const startSpeechRecognition = (
     }
   };
 
-  // 종료 처리 개선
   recognition.onend = () => {
     console.log('음성 인식이 종료되었습니다.');
     isRecognitionActive = false;
@@ -168,3 +152,4 @@ export const startSpeechRecognition = (
     }
   };
 };
+
