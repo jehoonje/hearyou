@@ -7,10 +7,8 @@ import { invalidateKeywordsCache } from "./fetchKeywords";
 let isAnalyzing = false;
 let stopRecognitionFunc: (() => void) | null = null;
 
-// 키워드 처리를 위한 상태 관리
-let lastProcessedKeywords = new Set<string>(); // 이미 처리된 키워드
-let lastKeywordTime = Date.now();              // 마지막 키워드 처리 시간
-const KEYWORD_COOLDOWN = 1000;                // 키워드 재감지 대기 시간 (10초)
+// 이미 저장된 키워드 추적 (중복 방지)
+let processedKeywords = new Set<string>();
 
 export const startAudioAnalysis = async (
   onVolumeUpdate: (volume: number) => void,
@@ -24,15 +22,14 @@ export const startAudioAnalysis = async (
 
   isAnalyzing = true;
   
-  // 분석 시작 시 초기화
-  lastProcessedKeywords.clear();
-  lastKeywordTime = Date.now();
+  // 분석 시작시 초기화
+  processedKeywords.clear();
   
   // 트랜스크립트 타이머 변수
   let transcriptResetTimer: NodeJS.Timeout | null = null;
   
   try {
-    // 오디오 스트림 설정 (코드 생략...)
+    // 오디오 스트림 설정
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -50,7 +47,7 @@ export const startAudioAnalysis = async (
       throw initialError;
     }
 
-    // 오디오 컨텍스트 및 분석기 설정 (코드 생략...)
+    // 오디오 컨텍스트 및 분석기 설정
     const audioContext = new AudioContext();
     const source = audioContext.createMediaStreamSource(stream);
 
@@ -102,7 +99,7 @@ export const startAudioAnalysis = async (
             transcriptResetTimer = null;
           }
           
-          // 새 트랜스크립트 설정 (이전 내용은 완전히 대체)
+          // 새 트랜스크립트 설정
           onTranscriptUpdate(transcript);
           
           // 3초 후 트랜스크립트 초기화 타이머 설정
@@ -110,59 +107,43 @@ export const startAudioAnalysis = async (
             console.log('트랜스크립트 타이머 종료, 초기화');
             onTranscriptUpdate('');
             transcriptResetTimer = null;
-          }, 1000);
+          }, 3000);
           
           lastVoiceTime = Date.now();
           silenceTimer = 0;
 
-          const minConfidence = isFinal ? 0.3 : 0.4;
+          // 빈도 기반 키워드 분석 수행
+          const detectedKeywords = analyzeKeywords(transcript, isFinal, confidence);
 
-          if (confidence >= minConfidence) {
-            // 키워드 분석 수행
-            const detectedKeywords = analyzeKeywords(transcript, isFinal, confidence);
-
-            if (detectedKeywords.length > 0) {
-              console.log('감지된 키워드 목록:', detectedKeywords);
+          if (detectedKeywords.length > 0) {
+            console.log('감지된 키워드 목록 (30초 내 2회 이상 언급):', detectedKeywords);
+            
+            // 이미 처리되지 않은 키워드만 필터링
+            const newKeywords = detectedKeywords.filter(
+              keyword => !processedKeywords.has(keyword)
+            );
+            
+            if (newKeywords.length > 0) {
+              // 감지된 키워드를 UI에 표시
+              onKeywordsUpdate(newKeywords);
               
-              // 현재 시간 확인
-              const now = Date.now();
-              
-              // 재감지 쿨다운 확인 (10초 이상 지났으면 이전 처리 기록 초기화)
-              if (now - lastKeywordTime > KEYWORD_COOLDOWN) {
-                console.log('키워드 쿨다운 만료, 처리 기록 초기화');
-                lastProcessedKeywords.clear();
-                lastKeywordTime = now;
-              }
-              
-              // 가장 최근 감지된 한 개의 키워드만 처리
-              // 하나의 키워드만 선택 (마지막 키워드)
-              const latestKeyword = detectedKeywords[detectedKeywords.length - 1];
-              
-              // 이미 처리되었는지 확인
-              if (!lastProcessedKeywords.has(latestKeyword)) {
-                console.log('새로 처리할 키워드:', latestKeyword);
-                
-                // 단일 키워드 배열로 UI에 전달
-                onKeywordsUpdate([latestKeyword]);
-                
-                // DB에 저장 (한 번에 하나만)
+              // 감지된 키워드를 DB에 저장
+              for (const keyword of newKeywords) {
                 try {
-                  const success = await saveKeyword(latestKeyword);
-                  console.log(`키워드 '${latestKeyword}' 저장: ${success ? '성공' : '실패'}`);
+                  const success = await saveKeyword(keyword);
+                  console.log(`키워드 '${keyword}' 저장: ${success ? '성공' : '실패'}`);
                   
-                  // 성공적으로 처리된 키워드는 목록에 추가
                   if (success) {
-                    lastProcessedKeywords.add(latestKeyword);
+                    // 처리된 키워드로 표시
+                    processedKeywords.add(keyword);
                   }
                 } catch (error) {
                   console.error(`키워드 저장 오류:`, error);
                 }
-                
-                // 캐시 무효화
-                invalidateKeywordsCache();
-              } else {
-                console.log(`키워드 '${latestKeyword}'는 이미 처리되었습니다.`);
               }
+              
+              // 캐시 무효화
+              invalidateKeywordsCache();
             }
           }
         }
@@ -181,7 +162,7 @@ export const startAudioAnalysis = async (
       }
       const currentVolume = totalSum / bufferLength;
       
-      // 볼륨 업데이트 (키워드와 트랜스크립트는 변경하지 않음)
+      // 볼륨 업데이트
       onVolumeUpdate(currentVolume);
       
       // 침묵 시간 계산
@@ -192,8 +173,8 @@ export const startAudioAnalysis = async (
         silenceTimer = Date.now() - lastVoiceTime;
       }
       
-      // 침묵이 3초 이상 지속되면 트랜스크립트와 키워드 초기화 (더 짧게 변경)
-      if (silenceTimer > 1000) {
+      // 침묵이 3초 이상 지속되면 트랜스크립트와 키워드 초기화
+      if (silenceTimer > 3000) {
         if (transcriptResetTimer) {
           clearTimeout(transcriptResetTimer);
           transcriptResetTimer = null;
