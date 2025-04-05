@@ -30,7 +30,7 @@ export const startAudioAnalysis = async (
   
   try {
     // 오디오 스트림 설정
-    let stream;
+    let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: true
@@ -51,7 +51,7 @@ export const startAudioAnalysis = async (
     const audioContext = new AudioContext();
     const source = audioContext.createMediaStreamSource(stream);
 
-    let analyser;
+    let analyser: AnalyserNode;
     try {
       // 음성 강화를 위한 필터 체인 추가
       const lowPassFilter = audioContext.createBiquadFilter();
