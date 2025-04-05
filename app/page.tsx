@@ -184,7 +184,7 @@ export default function Home() {
   );
 
   return (
-    <div className="w-[375px] h-[808px] bg-black text-white mx-auto overflow-hidden relative">
+    <div className="w-[375px] h-[668px] bg-black text-white mx-auto overflow-hidden relative">
       {/* 로딩 화면 */}
       {isLoading && <LoadingScreen />}
       
