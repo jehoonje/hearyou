@@ -1,9 +1,33 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* globals.css 파일에 추가 */
 
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* 모노틱 디자인을 위한 폰트 설정 */
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* 텍스트 그림자 효과 */
+.text-shadow {
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+}
+
+/* 부드러운 스크롤바 커스터마이징 */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 10px;
 }
