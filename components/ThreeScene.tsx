@@ -8,92 +8,86 @@ interface ThreeSceneProps {
   volume: number;
 }
 
-// Three.js 시각화 컴포넌트 수정
-const ParticleCloud = ({ volume }: { volume: number }) => {
-  const pointsRef = useRef<THREE.Points | null>(null);
-  const geometry = useRef<THREE.BufferGeometry | null>(null);
-  const material = useRef<THREE.PointsMaterial | null>(null);
-  const particleCount = 2000;
+// 원형 파동 컴포넌트 수정 - 항상 표시되며 볼륨에 따라 크기만 변화
+const CircularWave = ({ volume }: { volume: number }) => {
+  const groupRef = useRef<THREE.Group>(null);
   
-  // 초기 위치 및 색상을 메모이제이션
-  const { positions, colors } = useMemo(() => {
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-
-    for (let i = 0; i < particleCount; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 10;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
-
-      colors[i * 3] = 0.5;
-      colors[i * 3 + 1] = 0.8;
-      colors[i * 3 + 2] = 1.0;
+  // 파동 애니메이션을 위한 링 생성
+  const rings = useMemo(() => {
+    const result = [];
+    for (let i = 0; i < 5; i++) {
+      result.push({
+        geometry: new THREE.RingGeometry(1, 1.03, 64),
+        initialScale: 0.5 + i * 0.3, // 기본 크기 설정 (더 작게)
+        phase: i * Math.PI / 3, // 각 링마다 위상차 부여
+        baseColor: [0.2, 0.5 + i * 0.1, 1.0], // 파란색 계열로 설정
+      });
     }
+    return result;
+  }, []);
+  
+  // 파동 애니메이션
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
     
-    return { positions, colors };
-  }, [particleCount]);
-
-  // 포인트 클라우드 초기화
-  useEffect(() => {
-    geometry.current = new THREE.BufferGeometry();
-    geometry.current.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.current.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-    material.current = new THREE.PointsMaterial({
-      size: 0.05,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.5,
+    // 볼륨에 상관없이 기본 애니메이션 효과를 위한 최소값 설정
+    const baseIntensity = 0.3;
+    // 볼륨에 따른 추가 강도
+    const volumeIntensity = THREE.MathUtils.lerp(0, 0.7, Math.min(1, volume / 100));
+    // 결합된 강도
+    const totalIntensity = baseIntensity + volumeIntensity;
+    
+    // 시간 계산
+    const time = clock.getElapsedTime();
+    
+    rings.forEach((ring, i) => {
+      const child = groupRef.current!.children[i];
+      if (child && child instanceof THREE.Mesh) {
+        // 크기 애니메이션 - 볼륨에 따라 변화하지만 기본 크기 유지
+        const baseScale = ring.initialScale;
+        const volumeScale = (volume / 300) * ring.initialScale; // 볼륨에 비례한 크기 추가
+        const wave = Math.sin(time * 1.5 + ring.phase) * 0.1 * totalIntensity;
+        
+        const scale = baseScale + volumeScale + wave;
+        child.scale.set(scale, scale, 1);
+        
+        // 색상 및 불투명도 애니메이션
+        const material = child.material as THREE.MeshBasicMaterial;
+        if (material && material.type === 'MeshBasicMaterial') {
+          // 볼륨이 낮을 때도 기본 색상 강도 유지
+          const baseColorIntensity = 0.6;
+          const volumeColorIntensity = volume / 200;
+          const colorIntensity = baseColorIntensity + volumeColorIntensity;
+          
+          material.color.setRGB(
+            ring.baseColor[0] * colorIntensity,
+            ring.baseColor[1] * colorIntensity,
+            ring.baseColor[2] * colorIntensity
+          );
+          
+          // 기본 불투명도 + 볼륨에 따른 변화
+          const baseOpacity = 0.2 + (i * 0.02);
+          const volumeOpacity = volume / 400;
+          material.opacity = baseOpacity + volumeOpacity + Math.sin(time * 1.5 + i) * 0.1;
+        }
+      }
     });
-
-    return () => {
-      if (geometry.current) geometry.current.dispose();
-      if (material.current) material.current.dispose();
-    };
-  }, [positions, colors]);
-
-  // 볼륨에 따른 애니메이션
-  useFrame(() => {
-    if (!geometry.current) return;
-    
-    const positions = geometry.current.attributes.position.array as Float32Array;
-    const smoothedVolume = THREE.MathUtils.lerp(0.0001, 0.001, Math.min(1, volume / 100));
-    
-    for (let i = 0; i < particleCount; i++) {
-      // 각 파티클마다 서로 다른 애니메이션 패턴
-      const xPos = positions[i * 3];
-      const time = Date.now() * smoothedVolume;
-      
-      // Y 위치를 사인 웨이브로 애니메이션
-      positions[i * 3 + 1] += Math.sin(xPos * 0.5 + time * 0.001) * 0.01;
-      
-      // 볼륨이 높을 때 파티클 확산
-      if (volume > 40) {
-        positions[i * 3] += (Math.random() - 0.5) * 0.02 * (volume / 100);
-        positions[i * 3 + 2] += (Math.random() - 0.5) * 0.02 * (volume / 100);
-      }
-      
-      // 경계 체크 - 너무 멀리 가지 않도록
-      if (Math.abs(positions[i * 3]) > 5) {
-        positions[i * 3] *= 0.95;
-      }
-      if (Math.abs(positions[i * 3 + 1]) > 5) {
-        positions[i * 3 + 1] *= 0.95;
-      }
-      if (Math.abs(positions[i * 3 + 2]) > 5) {
-        positions[i * 3 + 2] *= 0.95;
-      }
-    }
-    
-    geometry.current.attributes.position.needsUpdate = true;
   });
-
-  // primitive 컴포넌트 대신 bufferGeometry와 pointsMaterial 직접 사용
+  
   return (
-    <points ref={pointsRef}>
-      {geometry.current && <bufferGeometry attach="geometry" {...geometry.current} />}
-      {material.current && <pointsMaterial attach="material" {...material.current} />}
-    </points>
+    <group ref={groupRef} position={[0, 0, -0.5]}>
+      {rings.map((ring, i) => (
+        <mesh key={i} position={[0, 0, -0.05 * i]}>
+          <primitive object={ring.geometry} attach="geometry" />
+          <meshBasicMaterial 
+            transparent 
+            opacity={0.3} 
+            side={THREE.DoubleSide}
+            color={new THREE.Color(ring.baseColor[0], ring.baseColor[1], ring.baseColor[2])}
+          />
+        </mesh>
+      ))}
+    </group>
   );
 };
 
@@ -105,7 +99,7 @@ const ThreeScene = ({ volume }: ThreeSceneProps) => {
       gl={{ antialias: true }}
     >
       <ambientLight intensity={0.5} />
-      <ParticleCloud volume={volume} />
+      <CircularWave volume={volume} />
     </Canvas>
   );
 };
