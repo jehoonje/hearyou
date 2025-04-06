@@ -21,12 +21,23 @@ export const saveKeyword = async (keyword: string): Promise<boolean> => {
     if (!supabase) {
       throw new Error("Supabase 클라이언트가 초기화되지 않았습니다");
     }
+    
+    // 현재 인증된 사용자 확인
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !userData.user) {
+      log('인증된 사용자가 없습니다. 키워드를 저장할 수 없습니다.');
+      return false;
+    }
+    
+    const userId = userData.user.id;
 
-    // 키워드 존재 여부 확인
+    // 해당 사용자의 키워드 존재 여부 확인
     const { data, error: fetchError } = await supabase
       .from("keywords")
       .select("id, count")
       .eq("keyword", normalizedKeyword)
+      .eq("user_id", userId)
       .single();
 
     if (fetchError && fetchError.code !== "PGRST116") {
@@ -52,11 +63,15 @@ export const saveKeyword = async (keyword: string): Promise<boolean> => {
       log(`업데이트 성공: "${normalizedKeyword}" (count: ${newCount})`);
     } else {
       // 새 키워드 삽입
-      log(`새 키워드 삽입: "${normalizedKeyword}"`);
+      log(`새 키워드 삽입: "${normalizedKeyword}" (user_id: ${userId})`);
 
       const { error: insertError } = await supabase
         .from("keywords")
-        .insert([{ keyword: normalizedKeyword, count: 1 }]);
+        .insert([{ 
+          keyword: normalizedKeyword, 
+          count: 1,
+          user_id: userId 
+        }]);
 
       if (insertError) {
         log(`삽입 오류: ${insertError.message}`);

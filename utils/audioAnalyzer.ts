@@ -7,8 +7,24 @@ import { invalidateKeywordsCache } from "./fetchKeywords";
 let isAnalyzing = false;
 let stopRecognitionFunc: (() => void) | null = null;
 
-// 이미 저장된 키워드 추적 (중복 방지)
-let processedKeywords = new Set<string>();
+// 이미 저장된 키워드 추적 (시간 기반 필터링을 위해 Map으로 변경)
+// 키: 키워드, 값: 마지막 감지 시간(timestamp)
+let processedKeywords = new Map<string, number>();
+
+// 키워드 재감지 시간 간격 (밀리초 단위, 기본값 30초)
+const KEYWORD_REDETECTION_INTERVAL = 30 * 1000;
+
+// 오래된 키워드 제거 함수 (5분 이상 감지되지 않은 키워드 제거)
+const cleanupOldKeywords = () => {
+  const now = Date.now();
+  const CLEANUP_THRESHOLD = 5 * 60 * 1000; // 5분
+  
+  processedKeywords.forEach((timestamp, keyword) => {
+    if (now - timestamp > CLEANUP_THRESHOLD) {
+      processedKeywords.delete(keyword);
+    }
+  });
+};
 
 export const startAudioAnalysis = async (
   onVolumeUpdate: (volume: number) => void,
@@ -27,6 +43,9 @@ export const startAudioAnalysis = async (
   
   // 트랜스크립트 타이머 변수
   let transcriptResetTimer: NodeJS.Timeout | null = null;
+  
+  // 주기적인 키워드 정리를 위한 타이머 설정
+  const cleanupInterval = setInterval(cleanupOldKeywords, 60 * 1000); // 1분마다 실행
   
   try {
     // 오디오 스트림 설정
@@ -118,12 +137,19 @@ export const startAudioAnalysis = async (
           if (detectedKeywords.length > 0) {
             console.log('감지된 키워드 목록 (30초 내 2회 이상 언급):', detectedKeywords);
             
-            // 이미 처리되지 않은 키워드만 필터링
-            const newKeywords = detectedKeywords.filter(
-              keyword => !processedKeywords.has(keyword)
-            );
+            const now = Date.now();
+            
+            // 시간 기반 필터링: 마지막 감지 시간으로부터 일정 시간이 지났거나 처음 감지된 키워드만 처리
+            const newKeywords = detectedKeywords.filter(keyword => {
+              const lastDetectedTime = processedKeywords.get(keyword);
+              
+              // 처음 감지되었거나, 마지막 감지 시간으로부터 지정된 간격이 지났으면 처리
+              return !lastDetectedTime || (now - lastDetectedTime > KEYWORD_REDETECTION_INTERVAL);
+            });
             
             if (newKeywords.length > 0) {
+              console.log('새로 처리할 키워드:', newKeywords);
+              
               // 감지된 키워드를 UI에 표시
               onKeywordsUpdate(newKeywords);
               
@@ -134,8 +160,8 @@ export const startAudioAnalysis = async (
                   console.log(`키워드 '${keyword}' 저장: ${success ? '성공' : '실패'}`);
                   
                   if (success) {
-                    // 처리된 키워드로 표시
-                    processedKeywords.add(keyword);
+                    // 현재 시간으로 마지막 감지 시간 업데이트
+                    processedKeywords.set(keyword, now);
                   }
                 } catch (error) {
                   console.error(`키워드 저장 오류:`, error);
@@ -144,6 +170,8 @@ export const startAudioAnalysis = async (
               
               // 캐시 무효화
               invalidateKeywordsCache();
+            } else {
+              console.log('모든 키워드가 최근에 이미 처리되었습니다. 재감지까지 대기 중...');
             }
           }
         }
@@ -192,6 +220,10 @@ export const startAudioAnalysis = async (
 
     return () => {
       isAnalyzing = false;
+      
+      // 정리 타이머 정지
+      clearInterval(cleanupInterval);
+      
       if (stopRecognitionFunc) {
         stopRecognitionFunc();
       }
@@ -208,6 +240,7 @@ export const startAudioAnalysis = async (
   } catch (error) {
     console.error("오디오 분석 시작 오류:", error);
     isAnalyzing = false;
+    clearInterval(cleanupInterval); // 오류 발생 시에도 타이머 정리
     onVolumeUpdate(0);
     onTranscriptUpdate('');
     onKeywordsUpdate([]);
