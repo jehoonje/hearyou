@@ -1,6 +1,7 @@
 import { startSpeechRecognition } from "./speechRecognizer";
 import { analyzeKeywords, resetKeywordTracker } from "./keywordAnalyzer";
 import { saveKeyword } from "./saveKeyword";
+import { Keyword } from '../types'; 
 import { invalidateKeywordsCache } from "./fetchKeywords";
 
 // 음성 분석 모듈의 상태
@@ -12,13 +13,13 @@ let stopRecognitionFunc: (() => void) | null = null;
 let processedKeywords = new Map<string, number>();
 
 // 키워드 재감지 시간 간격 (밀리초 단위, 기본값 30초)
-const KEYWORD_REDETECTION_INTERVAL = 30 * 1000;
+const KEYWORD_REDETECTION_INTERVAL = 3 * 1000;
 
 // 오래된 키워드 제거 함수 (5분 이상 감지되지 않은 키워드 제거)
 const cleanupOldKeywords = () => {
   const now = Date.now();
   const CLEANUP_THRESHOLD = 5 * 60 * 1000; // 5분
-  
+
   processedKeywords.forEach((timestamp, keyword) => {
     if (now - timestamp > CLEANUP_THRESHOLD) {
       processedKeywords.delete(keyword);
@@ -27,42 +28,53 @@ const cleanupOldKeywords = () => {
 };
 
 export const startAudioAnalysis = async (
+  userId: string,
   onVolumeUpdate: (volume: number) => void,
   onTranscriptUpdate: (transcript: string) => void,
-  onKeywordsUpdate: (keywords: string[]) => void
+  onKeywordsUpdate: (keywords: string[]) => void,
+  onKeywordSaved?: (keyword: Keyword) => void // 새로 추가
 ) => {
   if (isAnalyzing) {
     console.warn("오디오 분석이 이미 실행 중입니다.");
     return () => {};
   }
 
+  if (!userId) {
+    console.error("오디오 분석을 시작하려면 사용자 ID가 필요합니다.");
+    return () => {};
+  }
+
   isAnalyzing = true;
-  
+
   // 분석 시작시 초기화
   processedKeywords.clear();
-  
+
   // 트랜스크립트 타이머 변수
   let transcriptResetTimer: NodeJS.Timeout | null = null;
-  
+
   // 주기적인 키워드 정리를 위한 타이머 설정
   const cleanupInterval = setInterval(cleanupOldKeywords, 60 * 1000); // 1분마다 실행
-  
+
   try {
     // 오디오 스트림 설정
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: true
+        audio: true,
       });
-    } catch (initialError : any) {
+    } catch (initialError: any) {
       console.warn("기본 오디오 접근 실패:", initialError);
-      
-      if (initialError.name === 'NotFoundError') {
-        throw new Error("마이크를 찾을 수 없습니다. 마이크가 연결되어 있는지 확인하세요.");
-      } else if (initialError.name === 'NotAllowedError') {
-        throw new Error("마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.");
+
+      if (initialError.name === "NotFoundError") {
+        throw new Error(
+          "마이크를 찾을 수 없습니다. 마이크가 연결되어 있는지 확인하세요."
+        );
+      } else if (initialError.name === "NotAllowedError") {
+        throw new Error(
+          "마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요."
+        );
       }
-      
+
       throw initialError;
     }
 
@@ -94,7 +106,7 @@ export const startAudioAnalysis = async (
       gainNode.connect(analyser);
     } catch (filterError) {
       console.warn("고급 오디오 필터링 실패, 기본 설정 사용:", filterError);
-      
+
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 512;
       source.connect(analyser);
@@ -117,61 +129,81 @@ export const startAudioAnalysis = async (
             clearTimeout(transcriptResetTimer);
             transcriptResetTimer = null;
           }
-          
+
           // 새 트랜스크립트 설정
           onTranscriptUpdate(transcript);
-          
+
           // 3초 후 트랜스크립트 초기화 타이머 설정
           transcriptResetTimer = setTimeout(() => {
-            console.log('트랜스크립트 타이머 종료, 초기화');
-            onTranscriptUpdate('');
+            console.log("트랜스크립트 타이머 종료, 초기화");
+            onTranscriptUpdate("");
             transcriptResetTimer = null;
           }, 3000);
-          
+
           lastVoiceTime = Date.now();
           silenceTimer = 0;
 
           // 빈도 기반 키워드 분석 수행
-          const detectedKeywords = analyzeKeywords(transcript, isFinal, confidence);
+          const detectedKeywords = analyzeKeywords(
+            transcript,
+            isFinal,
+            confidence
+          );
 
           if (detectedKeywords.length > 0) {
-            console.log('감지된 키워드 목록 (30초 내 2회 이상 언급):', detectedKeywords);
-            
+            console.log(
+              "감지된 키워드 목록 (30초 내 2회 이상 언급):",
+              detectedKeywords
+            );
+
             const now = Date.now();
-            
-            // 시간 기반 필터링: 마지막 감지 시간으로부터 일정 시간이 지났거나 처음 감지된 키워드만 처리
-            const newKeywords = detectedKeywords.filter(keyword => {
+
+            // 시간 기반 필터링
+            const newKeywords = detectedKeywords.filter((keyword) => {
               const lastDetectedTime = processedKeywords.get(keyword);
-              
-              // 처음 감지되었거나, 마지막 감지 시간으로부터 지정된 간격이 지났으면 처리
-              return !lastDetectedTime || (now - lastDetectedTime > KEYWORD_REDETECTION_INTERVAL);
+              return (
+                !lastDetectedTime ||
+                now - lastDetectedTime > KEYWORD_REDETECTION_INTERVAL
+              );
             });
-            
+
             if (newKeywords.length > 0) {
-              console.log('새로 처리할 키워드:', newKeywords);
-              
+              console.log("새로 처리할 키워드:", newKeywords);
+
               // 감지된 키워드를 UI에 표시
               onKeywordsUpdate(newKeywords);
-              
-              // 감지된 키워드를 DB에 저장
+
+              // 감지된 키워드를 DB에 저장하고 UI 즉시 업데이트
               for (const keyword of newKeywords) {
                 try {
-                  const success = await saveKeyword(keyword);
-                  console.log(`키워드 '${keyword}' 저장: ${success ? '성공' : '실패'}`);
-                  
-                  if (success) {
+                  console.log(
+                    `키워드 저장 시도: ${keyword}, 사용자 ID: ${userId}`
+                  );
+                  const savedKeyword = await saveKeyword(keyword, userId); // 저장된 키워드 정보 반환
+
+                  if (savedKeyword) {
+                    console.log(`키워드 '${keyword}' 저장 성공:`, savedKeyword);
+                    // 저장된 키워드 콜백 실행
+                    if (onKeywordSaved) {
+                      onKeywordSaved(savedKeyword);
+                    }
+
                     // 현재 시간으로 마지막 감지 시간 업데이트
                     processedKeywords.set(keyword, now);
+                  } else {
+                    console.log(`키워드 '${keyword}' 저장 실패`);
                   }
                 } catch (error) {
                   console.error(`키워드 저장 오류:`, error);
                 }
               }
-              
+
               // 캐시 무효화
-              invalidateKeywordsCache();
+              invalidateKeywordsCache(userId);
             } else {
-              console.log('모든 키워드가 최근에 이미 처리되었습니다. 재감지까지 대기 중...');
+              console.log(
+                "모든 키워드가 최근에 이미 처리되었습니다. 재감지까지 대기 중..."
+              );
             }
           }
         }
@@ -189,10 +221,10 @@ export const startAudioAnalysis = async (
         totalSum += dataArray[i];
       }
       const currentVolume = totalSum / bufferLength;
-      
+
       // 볼륨 업데이트
       onVolumeUpdate(currentVolume);
-      
+
       // 침묵 시간 계산
       if (currentVolume > SILENCE_THRESHOLD) {
         lastVoiceTime = Date.now();
@@ -200,17 +232,17 @@ export const startAudioAnalysis = async (
       } else {
         silenceTimer = Date.now() - lastVoiceTime;
       }
-      
+
       // 침묵이 3초 이상 지속되면 트랜스크립트와 키워드 초기화
       if (silenceTimer > 3000) {
         if (transcriptResetTimer) {
           clearTimeout(transcriptResetTimer);
           transcriptResetTimer = null;
         }
-        onTranscriptUpdate('');
+        onTranscriptUpdate("");
         onKeywordsUpdate([]);
       }
-      
+
       if (isAnalyzing) {
         requestAnimationFrame(calculateVolume);
       }
@@ -220,14 +252,14 @@ export const startAudioAnalysis = async (
 
     return () => {
       isAnalyzing = false;
-      
+
       // 정리 타이머 정지
       clearInterval(cleanupInterval);
-      
+
       if (stopRecognitionFunc) {
         stopRecognitionFunc();
       }
-      
+
       if (transcriptResetTimer) {
         clearTimeout(transcriptResetTimer);
       }
@@ -242,7 +274,7 @@ export const startAudioAnalysis = async (
     isAnalyzing = false;
     clearInterval(cleanupInterval); // 오류 발생 시에도 타이머 정리
     onVolumeUpdate(0);
-    onTranscriptUpdate('');
+    onTranscriptUpdate("");
     onKeywordsUpdate([]);
     return () => {};
   }

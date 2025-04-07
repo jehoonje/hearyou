@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { useSearchParams } from "next/navigation";
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export function useAuth(initialSession: Session | null = null) {
   const searchParams = useSearchParams();
@@ -58,7 +58,9 @@ export function useAuth(initialSession: Session | null = null) {
 
     const checkUser = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         setUser(session?.user || null);
       } catch (error) {
         console.error("사용자 세션 확인 오류:", error);
@@ -81,108 +83,105 @@ export function useAuth(initialSession: Session | null = null) {
   }, [searchParams, initialSession, supabase]);
 
   // 로그인 처리
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    resetFormErrors();
+  const handleLogin = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      resetFormErrors();
 
-    // 입력값 검증
-    if (!email.trim()) {
-      setEmailError("이메일을 입력해주세요");
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      setEmailError("유효한 이메일 주소를 입력하세요");
-      return;
-    }
-
-    if (!password.trim()) {
-      setPasswordError("비밀번호를 입력해주세요");
-      return;
-    }
-
-    setAuthLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        if (error.message.includes("Invalid login")) {
-          setAuthError("이메일 또는 비밀번호가 올바르지 않습니다");
-        } else {
-          setAuthError(error.message);
-        }
+      // 입력값 검증
+      if (!email.trim()) {
+        setEmailError("이메일을 입력해주세요");
+        return;
       }
-    } catch (err: any) {
-      setAuthError(err.message || "로그인 중 오류가 발생했습니다.");
-    } finally {
-      setAuthLoading(false);
-    }
-  }, [email, password, resetFormErrors, validateEmail, supabase]);
+
+      if (!validateEmail(email)) {
+        setEmailError("유효한 이메일 주소를 입력하세요");
+        return;
+      }
+
+      if (!password.trim()) {
+        setPasswordError("비밀번호를 입력해주세요");
+        return;
+      }
+
+      setAuthLoading(true);
+
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          if (error.message.includes("Invalid login")) {
+            setAuthError("이메일 또는 비밀번호가 올바르지 않습니다");
+          } else {
+            setAuthError(error.message);
+          }
+        }
+      } catch (err: any) {
+        setAuthError(err.message || "로그인 중 오류가 발생했습니다.");
+      } finally {
+        setAuthLoading(false);
+      }
+    },
+    [email, password, resetFormErrors, validateEmail, supabase]
+  );
 
   // 회원가입 처리
-  const handleSignUp = useCallback(async (e: React.FormEvent) => {
+  // AuthProvider.tsx 내의 handleSignUp 함수 개선
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     resetFormErrors();
-
-    // 입력값 검증
-    let isValid = true;
-
-    if (!username.trim()) {
-      setUsernameError("사용자 이름을 입력해주세요");
-      isValid = false;
-    }
-
-    if (!email.trim()) {
-      setEmailError("이메일을 입력해주세요");
-      isValid = false;
-    } else if (!validateEmail(email)) {
-      setEmailError("유효한 이메일 주소를 입력하세요");
-      isValid = false;
-    }
-
-    if (!password.trim()) {
-      setPasswordError("비밀번호를 입력해주세요");
-      isValid = false;
-    } else if (password.length < 6) {
-      setPasswordError("비밀번호는 최소 6자 이상이어야 합니다");
-      isValid = false;
-    }
-
-    if (!isValid) return;
-
     setAuthLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log("회원가입 시도:", { email, username });
+
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            username
-          }
-        }
+            username,
+          },
+        },
       });
 
       if (error) {
+        console.error("회원가입 오류:", error);
         if (error.message.includes("already registered")) {
           setEmailError("이미 등록된 이메일 주소입니다");
         } else {
           setAuthError(error.message);
         }
       } else {
+        console.log("회원가입 성공:", data);
+
+        // 사용자 정보 검증
+        if (data && data.user) {
+          console.log("생성된 사용자 정보:", {
+            id: data.user.id,
+            email: data.user.email,
+            created_at: data.user.created_at,
+          });
+
+          // 사용자 메타데이터 확인
+          console.log("사용자 메타데이터:", data.user.user_metadata);
+        } else {
+          console.warn("사용자 데이터가 반환되지 않았습니다.");
+        }
+
         // 회원가입 성공 시 이메일 확인 모달 표시
         setShowVerificationModal(true);
       }
     } catch (err: any) {
+      console.error("회원가입 예외:", err);
       setAuthError(err.message || "회원가입 중 오류가 발생했습니다.");
     } finally {
       setAuthLoading(false);
     }
-  }, [email, password, username, resetFormErrors, validateEmail, supabase]);
+  };
 
   // 로그아웃 처리
   const handleLogout = useCallback(async () => {
@@ -226,6 +225,6 @@ export function useAuth(initialSession: Session | null = null) {
     handleSignUp,
     handleLogout,
     resetFormErrors,
-    handleVerificationComplete
+    handleVerificationComplete,
   };
 }
