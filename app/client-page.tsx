@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Session } from '@supabase/supabase-js';
 import ThreeScene from "../components/ThreeScene";
+import ThreeDTitle from "../components/auth/ThreeDTitle"; 
 import LoadingScreen from "../components/ui/LoadingScreen";
 import LoginForm from "../components/auth/LoginForm";
 import VerificationModal from "../components/auth/VerificationModal";
@@ -115,6 +116,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
               handleSignUp={auth.handleSignUp}
               resetFormErrors={auth.resetFormErrors}
               user={auth.user}
+              isContentVisible={contentVisible}
             />
           </div>
         ) : (

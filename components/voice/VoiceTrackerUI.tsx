@@ -37,7 +37,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
     <div className="p-4 flex-shrink-0 pointer-events-auto">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-mono font-bold flex items-center text-shadow">
-          Voice Tracker
+          Universe
           {listening && (
             <span
               className="ml-2 inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse"
@@ -54,7 +54,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
             onClick={onLogout}
             className="text-xs bg-gray-800 hover:bg-gray-700 text-white font-mono py-1 px-2 rounded"
           >
-            로그아웃
+            Sign Out
           </button>
         </div>
       </div>
