@@ -545,7 +545,7 @@ const QuasarJet = ({ volume }: { volume: number }) => {
     // const { baseColor, midColor, endColor } = particleAttributes; // 이 줄은 제거하거나 주석 처리
     const time = clock.elapsedTime;
 
-    const normalizedVolume = (volume >= 40) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);

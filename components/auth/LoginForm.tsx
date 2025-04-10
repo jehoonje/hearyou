@@ -201,7 +201,7 @@ const LoginForm = memo<LoginFormProps>(({
            initial={{ opacity: 0, y: -10 }}
            animate={{ opacity: 1, y: 0 }}
            exit={{ opacity: 0, y: -10 }} // Add exit animation for messages
-           className="mb-4 p-3 w-full rounded-md text-sm font-mono bg-green-500/30 text-green-200"
+           className="p-3 w-full rounded-md text-sm font-mono bg-green-500/30 text-green-200"
          >
            {authMessage}
          </motion.div>
@@ -211,7 +211,7 @@ const LoginForm = memo<LoginFormProps>(({
            initial={{ opacity: 0, y: -10 }}
            animate={{ opacity: 1, y: 0 }}
            exit={{ opacity: 0, y: -10 }} // Add exit animation for messages
-           className="mb-4 p-3 w-full rounded-md text-sm font-mono bg-red-500/30 text-red-200"
+           className="p-3 w-full rounded-md text-sm font-mono bg-red-500/30 text-red-200"
          >
            {authError}
          </motion.div>
@@ -220,7 +220,7 @@ const LoginForm = memo<LoginFormProps>(({
 
       {/* Container for elements that animate in/out */}
       {/* Increased margin-top (mt-8) and adjusted min-height */}
-      <div className="w-full mt-8 relative" style={{ minHeight: '280px' }}>
+      <div className="w-full mt-2 relative" style={{ minHeight: '322px' }}>
         <AnimatePresence mode='wait'> {/* Use mode='wait' for smoother transitions */}
 
           {/* Initial Buttons */}
