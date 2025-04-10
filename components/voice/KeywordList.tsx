@@ -7,8 +7,8 @@ interface KeywordListProps {
 
 const KeywordList = memo<KeywordListProps>(({ keywordList }) => (
   <div className="bg-transparent p-3 rounded-lg border border-gray-700/50">
-    <h2 className="text-base font-mono font-semibold mb-1 text-shadow">
-      기록된 키워드:
+    <h2 className="text-base font-mono font-semibold text-sm mb-1 text-shadow">
+      Keywords
     </h2>
     {keywordList.length > 0 ? (
       <ul className="mt-1 max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900">

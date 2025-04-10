@@ -15,12 +15,13 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.38.0",
+    "framer-motion": "^12.6.3",
     "next": "14.0.3",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-modal": "^3.16.3",
     "tailwindcss": "3.3.0",
-    "three": "^0.158.0",
+    "three": "^0.159.0",
     "three-stdlib": "^2.28.5",
     "zustand": "4.4.0"
   },
@@ -29,9 +30,12 @@
     "@types/react": "18.2.0",
     "@types/react-dom": "18.2.0",
     "@types/react-modal": "^3.16.3",
-    "@types/three": "^0.158.0",
+    "@types/three": "^0.159.0",
     "autoprefixer": "10.4.0",
     "postcss": "8.4.0",
     "typescript": "5.2.2"
+  },
+  "overrides": {
+    "three-mesh-bvh": "0.8.0"
   }
 }
