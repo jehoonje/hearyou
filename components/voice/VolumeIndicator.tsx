@@ -7,7 +7,7 @@ interface VolumeIndicatorProps {
 const VolumeIndicator = memo<VolumeIndicatorProps>(({ volume }) => (
   <div className="mt-4 text-xs flex items-center justify-between">
     <div className="text-gray-300 font-mono text-shadow">
-      볼륨 레벨:{" "}
+      Volume Level:{" "}
       <span
         className={volume > 30 ? "text-green-400" : "text-gray-300"}
       >

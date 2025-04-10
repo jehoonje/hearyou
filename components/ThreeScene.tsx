@@ -3,6 +3,8 @@
 import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { shaderMaterial } from '@react-three/drei'; // shaderMaterial import 추가
+
 
 interface ThreeSceneProps {
   volume: number;
@@ -551,7 +553,7 @@ const QuasarJet = ({ volume }: { volume: number }) => {
     let spawnedCount = 0;
 
     const safeDelta = Math.min(delta, 0.05);
-    const baseSpeed = 0.05 * 2.0;
+    const baseSpeed = 0.05 * 3.5;
     const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
     // *** minSizeFactor 계산은 material.size (MAX_PARTICLE_SIZE) 변경에 맞춰 업데이트됨 ***
     const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0; // 0으로 나누기 방지 강화

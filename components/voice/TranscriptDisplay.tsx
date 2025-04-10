@@ -14,7 +14,7 @@ const TranscriptDisplay = memo<TranscriptDisplayProps>(({ transcript }) => (
               }`}
   >
     <h2 className="text-base font-mono font-semibold mb-1 text-shadow">
-      인식된 음성:
+      
     </h2>
     <p
       className={`text-sm font-mono min-h-[40px] rounded p-2 bg-black/20
