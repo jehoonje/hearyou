@@ -10,6 +10,21 @@ interface ThreeSceneProps {
   volume: number;
 }
 
+interface CircularWaveProps {
+  volume: number;
+  interactionData: {
+    color: THREE.Color | null;
+    intensity: number;
+    timestamp: number; // To potentially track freshness
+  };
+}
+
+interface QuasarJetProps {
+  volume: number;
+  onParticleDeath: (color: THREE.Color) => void; // Callback prop
+}
+
+
 // 드래그 컨트롤 구현
 const CameraControls = () => {
   const { camera, gl } = useThree();
@@ -391,22 +406,25 @@ const ParticleEffect = ({ volume }: { volume: number }) => {
 };
 
 // --- 상수 정의 ---
-const ENTRY_LENGTH = 3.5;
-const EXIT_LENGTH = 5;
-const TRANSITION_ZONE_LENGTH = 8;
+const ENTRY_LENGTH = 3.2;
+const EXIT_LENGTH = -0.1;
+const TRANSITION_ZONE_LENGTH = 10;
 const MAX_PARTICLES = 4000;
 const BASE_SPAWN_RATE = 2000;
 const MIN_RADIUS = 0.03;
 const END_RADIUS_FACTOR = 80.0;
 const FADE_IN_DURATION = 0.08;
 const FADE_OUT_DURATION = 0.02;
-const MAX_PARTICLE_SIZE = 0.01; // 기본 최대 크기를 줄여봅니다.
-const MIN_PARTICLE_SIZE = 0.0015; // 최소 크기도 비례하여 줄입니다.
+const MAX_PARTICLE_SIZE = 0.015;
+const MIN_PARTICLE_SIZE = 0.0015;
 const SIZE_CHANGE_POWER = 15;
 const HUE_VARIATION = 0.05;
-const PARTICLE_ROTATION_SPEED = 0.5;
-const WOBBLE_INTENSITY_FACTOR = 0.05;
-// --- 상수 정의 끝 ---
+const PARTICLE_ROTATION_SPEED = 0.1;
+const WOBBLE_INTENSITY_FACTOR = 0;
+const LIFETIME_ACCELERATION_FACTOR = 10; // 수명 가속도 계수 (값이 클수록 끝에서 더 빨라짐)
+const LIFETIME_ACCELERATION_POWER = 2;    // 수명 가속도 지수 (값이 클수록 가속이 끝에 집중됨)
+const MAX_EFFECTIVE_LIFETIME = 1;     // 파티클 비활성화 기준 수명 (가속도 계산에 사용)
+
 
 // Easing 함수 (easeInOutQuad)
 const easeInOutQuad = (t: number): number => {
@@ -419,14 +437,50 @@ const smoothstep = (x: number, edge0: number, edge1: number): number => {
   return t * t * (3 - 2 * t);
 };
 
+// --- 원형 텍스처 생성 함수 (오류 처리 수정) ---
+const createCircleTexture = (size: number, color: string): THREE.CanvasTexture => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+
+  // *** 오류 처리 수정: 컨텍스트 없으면 에러 발생 ***
+  if (!context) {
+    console.error("Failed to get 2D context for circle texture.");
+    // 호환되지 않는 Texture 대신 에러를 발생시켜 문제 인지
+    throw new Error("Could not create 2D context for CanvasTexture");
+  }
+
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const radius = size / 2;
+
+  const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+  // CSS 색상 문자열에서 알파 값 분리 및 적용 (예: #FFFFFF -> #FFFFFFXX)
+  const baseColor = color.slice(0, 7); // #RRGGBB 부분
+  gradient.addColorStop(0, `${baseColor}FF`);   // 중심: 완전 불투명
+  gradient.addColorStop(0.5, `${baseColor}CC`); // 중간: 약간 투명
+  gradient.addColorStop(1, `${baseColor}00`);   // 가장자리: 완전 투명
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  // CanvasTexture 생성 및 반환 (이제 항상 CanvasTexture 타입)
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+};
+// --- 원형 텍스처 생성 함수 끝 ---
+
+
 const QuasarJet = ({ volume }: { volume: number }) => {
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 
-  // 파티클 데이터 풀 생성 (useMemo 위치는 여기, 컴포넌트 최상위)
+  // 파티클 데이터 풀 생성 (이전과 동일)
   const particleAttributes = useMemo(() => {
-    console.log("Initializing Enhanced QuasarJet Particle Pool (No Texture):", MAX_PARTICLES);
-    // ... (이전과 동일한 초기화 로직) ...
+    // ... (파티클 초기화 로직) ...
+    console.log("Initializing Enhanced QuasarJet Particle Pool (Circle Texture):", MAX_PARTICLES);
     const positions = new Float32Array(MAX_PARTICLES * 3);
     const colors = new Float32Array(MAX_PARTICLES * 4);
     const lifetimes = new Float32Array(MAX_PARTICLES);
@@ -455,17 +509,28 @@ const QuasarJet = ({ volume }: { volume: number }) => {
       randomFactors[i3 + 1] = Math.random() * Math.PI * 2;
       randomFactors[i3 + 2] = 0.6 + Math.random() * 0.8;
       randomFactors[i3 + 3] = (Math.random() - 0.5) * HUE_VARIATION * 2;
-      sizes[i] = 1.0; // 초기값은 중요하지 않음, 어차피 계산됨
-      rotationSpeeds[i] = (Math.random() - 0.05) * PARTICLE_ROTATION_SPEED * 2;
+      sizes[i] = 1.0;
+      rotationSpeeds[i] = (Math.random() - 0.5) * PARTICLE_ROTATION_SPEED * 2;
     }
     return { positions, colors, lifetimes, activeState, initDirections, randomFactors, sizes, rotationSpeeds, baseColor, midColor, endColor };
-  }, [HUE_VARIATION, PARTICLE_ROTATION_SPEED]); // 의존성 배열은 그대로 유지
+  }, [HUE_VARIATION, PARTICLE_ROTATION_SPEED]);
 
-  // 지오메트리 설정 (useEffect는 여기에 위치)
+  // 원형 텍스처 생성 (useMemo 사용)
+  const circleTexture = useMemo(() => {
+      try {
+          return createCircleTexture(64, '#FFFFFF'); // 64x64 흰색 원
+      } catch (error) {
+          console.error("Failed to create circle texture in useMemo:", error);
+          // 텍스처 생성 실패 시 null 반환 또는 다른 기본 텍스처 반환
+          return null; // 또는 new THREE.Texture() 등 상황에 맞는 처리
+      }
+  }, []); // 의존성 배열 비어있음 (최초 1회 실행)
+
+
+  // 지오메트리 설정 (이전과 동일)
   useEffect(() => {
     const geometry = geometryRef.current;
     if (!geometry || !particleAttributes) return;
-    // ... (이전과 동일한 setAttribute 로직) ...
     geometry.setAttribute('position', new THREE.BufferAttribute(particleAttributes.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(particleAttributes.colors, 4));
     geometry.setAttribute('size', new THREE.BufferAttribute(particleAttributes.sizes, 1));
@@ -474,20 +539,23 @@ const QuasarJet = ({ volume }: { volume: number }) => {
     geometry.boundingBox = null;
   }, [particleAttributes]);
 
-  // 파티클 머티리얼 (useMemo는 여기에 위치)
+  // 파티클 머티리얼 (map 속성 추가, circleTexture가 null일 경우 대비)
   const material = useMemo(() => new THREE.PointsMaterial({
-    size: MAX_PARTICLE_SIZE, // 조정된 기본 크기 사용
+    size: MAX_PARTICLE_SIZE,
     vertexColors: true,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true,
-  }), []); // MAX_PARTICLE_SIZE가 상수이므로 의존성 배열 필요 없음
+    map: circleTexture, // 텍스처 적용 (null일 경우 map이 설정되지 않음)
+    // alphaTest: 0.01,
+  }), [circleTexture]); // circleTexture 의존성 추가
 
-  // 누적 스폰 카운터 (useRef는 여기에 위치)
+  // 나머지 코드 (spawnCounter, curveParams, calculateRadius, useMemo hooks, useFrame)는 이전과 동일
+  // 누적 스폰 카운터
   const spawnCounter = useRef(0);
 
-  // 하이퍼볼라 곡선 파라미터 계산 (useMemo는 여기에 위치)
+  // 하이퍼볼라 곡선 파라미터 계산
   const curveParams = useMemo(() => {
     const minRadiusSquared = MIN_RADIUS * MIN_RADIUS;
     const maxRadius = MIN_RADIUS * END_RADIUS_FACTOR;
@@ -498,11 +566,10 @@ const QuasarJet = ({ volume }: { volume: number }) => {
       k = (maxRadiusSquared - minRadiusSquared) / (referenceLength * referenceLength);
     }
     k = Math.max(0, k);
-    // console.log(`Corrected Curve Params: k=${k.toFixed(4)}, minRadius=${MIN_RADIUS}, maxRadius=${maxRadius.toFixed(2)}`);
     return { minRadiusSquared, k };
-  }, [MIN_RADIUS, END_RADIUS_FACTOR, ENTRY_LENGTH, EXIT_LENGTH]); // 관련 상수 의존성
+  }, [MIN_RADIUS, END_RADIUS_FACTOR, ENTRY_LENGTH, EXIT_LENGTH]);
 
-  // z 위치에 따른 제트 반경 계산 함수 (useCallback은 여기에 위치)
+  // z 위치에 따른 제트 반경 계산 함수
   const calculateRadius = useCallback((z: number): number => {
     const { minRadiusSquared, k } = curveParams;
     const halfTransition = TRANSITION_ZONE_LENGTH / 2;
@@ -517,35 +584,34 @@ const QuasarJet = ({ volume }: { volume: number }) => {
         finalRadius = hyperbolicRadius;
     }
     return Math.max(MIN_RADIUS, finalRadius);
-  }, [curveParams, TRANSITION_ZONE_LENGTH, MIN_RADIUS]); // 관련 의존성
+  }, [curveParams, TRANSITION_ZONE_LENGTH, MIN_RADIUS]);
 
-  // *** useMemo 훅들을 useFrame 밖, 컴포넌트 최상위 레벨로 이동 ***
+  // useMemo 훅들
   const tempColor = useMemo(() => new THREE.Color(), []);
-  // particleAttributes가 변경될 때만 clone 실행하도록 최적화
   const currentBaseColor = useMemo(() => particleAttributes.baseColor.clone(), [particleAttributes.baseColor]);
   const currentMidColor = useMemo(() => particleAttributes.midColor.clone(), [particleAttributes.midColor]);
   const currentEndColor = useMemo(() => particleAttributes.endColor.clone(), [particleAttributes.endColor]);
+
 
   // 애니메이션 루프
   useFrame(({ clock }, delta) => {
     const geometry = geometryRef.current;
     const points = pointsRef.current;
-    // particleAttributes가 아직 준비되지 않았으면 실행 중지
-    if (!geometry || !points || !geometry.attributes.position || !geometry.attributes.color || !geometry.attributes.size || !particleAttributes) return;
+     // 텍스처 로딩 실패 시 또는 초기화 중일 때 실행 방지 강화
+    if (!geometry || !points || !material || !geometry.attributes.position || !geometry.attributes.color || !geometry.attributes.size || !particleAttributes) return;
+
 
     const positions = geometry.attributes.position.array as Float32Array;
     const colors = geometry.attributes.color.array as Float32Array;
-    const sizes = geometry.attributes.size.array as Float32Array; // 크기 배율 배열
+    const sizes = geometry.attributes.size.array as Float32Array;
     const lifetimes = particleAttributes.lifetimes;
     const activeState = particleAttributes.activeState;
     const initDirections = particleAttributes.initDirections;
     const randomFactors = particleAttributes.randomFactors;
     const rotationSpeeds = particleAttributes.rotationSpeeds;
-    // 이제 particleAttributes에서 직접 base/mid/endColor를 참조하지 않고, 위에서 memoized된 current*Color 사용
-    // const { baseColor, midColor, endColor } = particleAttributes; // 이 줄은 제거하거나 주석 처리
-    const time = clock.elapsedTime;
 
-    const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const time = clock.elapsedTime;
+    const normalizedVolume = (volume >= 35) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
@@ -555,10 +621,7 @@ const QuasarJet = ({ volume }: { volume: number }) => {
     const safeDelta = Math.min(delta, 0.05);
     const baseSpeed = 0.05 * 3.5;
     const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
-    // *** minSizeFactor 계산은 material.size (MAX_PARTICLE_SIZE) 변경에 맞춰 업데이트됨 ***
-    const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0; // 0으로 나누기 방지 강화
-
-    // *** tempColor, current*Color 는 루프 밖에서 이미 정의됨 ***
+    const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0;
 
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const i3 = i * 3;
@@ -567,19 +630,23 @@ const QuasarJet = ({ volume }: { volume: number }) => {
 
       // 1. 활성 파티클 업데이트
       if (activeState[i] === 1) {
-        const lifetimeSpeedFactor = randomFactors[i3 + 2];
-        lifetimes[i] += safeDelta * baseSpeed * lifetimeSpeedFactor;
+        const currentLifetime = lifetimes[i];
+        const baseLifetimeSpeedFactor = randomFactors[i3 + 2];
+        const lifetimeProgress = Math.min(1, currentLifetime / MAX_EFFECTIVE_LIFETIME);
+        const accelerationMultiplier = 1.0 + LIFETIME_ACCELERATION_FACTOR * Math.pow(lifetimeProgress, LIFETIME_ACCELERATION_POWER);
+        const currentSpeedFactor = baseLifetimeSpeedFactor * accelerationMultiplier;
+        lifetimes[i] += safeDelta * baseSpeed * currentSpeedFactor;
 
-        if (lifetimes[i] >= 0.45) {
+        if (lifetimes[i] >= MAX_EFFECTIVE_LIFETIME) {
             activeState[i] = 0;
             colors[i4 + 3] = 0;
             positions[i3 + 2] = Infinity;
-            sizes[i] = minSizeFactor; // 비활성화 시 크기 리셋
+            sizes[i] = minSizeFactor;
             continue;
         }
 
-        const currentLifetime = lifetimes[i];
-        const easedLifetime = easeInOutQuad(currentLifetime);
+        const normalizedLifetime = Math.min(1.0, lifetimes[i] / MAX_EFFECTIVE_LIFETIME);
+        const easedLifetime = easeInOutQuad(normalizedLifetime);
         const currentZ = THREE.MathUtils.lerp(-ENTRY_LENGTH, EXIT_LENGTH, easedLifetime);
         const currentRadius = calculateRadius(currentZ);
 
@@ -604,20 +671,13 @@ const QuasarJet = ({ volume }: { volume: number }) => {
         positions[i3 + 1] = currentY;
         positions[i3 + 2] = currentZ;
 
-        // 색상 계산 (memoized된 current*Color 사용)
         const hueOffset = randomFactors[i3 + 3];
-        // 매번 clone 대신 offsetHSL 적용
         const particleBaseColor = tempColor.copy(currentBaseColor).offsetHSL(hueOffset, 0, 0);
-        // 중간색은 흰색이므로 HSL 변화 없음 (만약 midColor가 흰색이 아니라면 아래처럼 적용)
-        // const particleMidColor = tempColor.copy(currentMidColor).offsetHSL(hueOffset, 0, 0);
         const particleEndColor = tempColor.copy(currentEndColor).offsetHSL(hueOffset, 0, 0);
-
-
         let phase: number;
-        if (easedLifetime < 0.1) {
+        if (easedLifetime < 0.5) {
           phase = easedLifetime * 2;
-          // lerpColors는 첫 번째 인자를 수정하므로, 임시 색상 객체 사용
-          tempColor.copy(particleBaseColor).lerp(currentMidColor, phase); // midColor는 hue 변화 없으므로 currentMidColor 직접 사용
+          tempColor.copy(particleBaseColor).lerp(currentMidColor, phase);
         } else {
           phase = (easedLifetime - 0.5) * 2;
           tempColor.copy(currentMidColor).lerp(particleEndColor, phase);
@@ -626,25 +686,22 @@ const QuasarJet = ({ volume }: { volume: number }) => {
         colors[i4 + 1] = tempColor.g;
         colors[i4 + 2] = tempColor.b;
 
-        // 알파 계산
         let alpha = 1.0;
-        if (currentLifetime < FADE_IN_DURATION) {
-          alpha = currentLifetime / FADE_IN_DURATION;
-        } else if (currentLifetime > 1.0 - FADE_OUT_DURATION) {
-          alpha = (1.0 - currentLifetime) / FADE_OUT_DURATION;
+        const currentAbsoluteLifetime = lifetimes[i];
+        if (currentAbsoluteLifetime < FADE_IN_DURATION) {
+            alpha = currentAbsoluteLifetime / FADE_IN_DURATION;
+        } else if (currentAbsoluteLifetime > MAX_EFFECTIVE_LIFETIME - FADE_OUT_DURATION) {
+            alpha = (MAX_EFFECTIVE_LIFETIME - currentAbsoluteLifetime) / FADE_OUT_DURATION;
         }
         colors[i4 + 3] = THREE.MathUtils.clamp(alpha, 0, 1);
 
-        // 크기 비율 계산
         let normalizedDist = 0;
         if (maxDist > 1e-6) {
             normalizedDist = Math.abs(currentZ) / maxDist;
         }
         normalizedDist = Math.min(normalizedDist, 1.0);
         const sizeProgress = Math.pow(normalizedDist, SIZE_CHANGE_POWER);
-        // *** 크기 비율(Factor)이므로 0~1 범위를 가짐 ***
         const currentSizeFactor = THREE.MathUtils.lerp(minSizeFactor, 1.0, sizeProgress);
-        // *** geometry.attributes.size에는 이 Factor 값을 저장 ***
         sizes[i] = currentSizeFactor;
 
       // 2. 비활성 파티클 -> 활성 파티클 (생성)
@@ -664,23 +721,20 @@ const QuasarJet = ({ volume }: { volume: number }) => {
         positions[i3 + 1] = initDirY * initialRadius * randomRadiusFactor;
         positions[i3 + 2] = initialZ;
 
-        // 초기 색상 (memoized된 currentBaseColor 사용)
         const hueOffset = randomFactors[i3 + 3];
         tempColor.copy(currentBaseColor).offsetHSL(hueOffset, 0, 0);
         colors[i4 + 0] = tempColor.r;
         colors[i4 + 1] = tempColor.g;
         colors[i4 + 2] = tempColor.b;
-        colors[i4 + 3] = 0; // 페이드 인 시작
-
-        // 초기 크기 비율 설정
+        colors[i4 + 3] = 0;
         sizes[i] = minSizeFactor;
       }
     } // End of particle loop
 
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.color.needsUpdate = true;
-    geometry.attributes.size.needsUpdate = true; // size 속성 업데이트 필요
-  });
+    geometry.attributes.size.needsUpdate = true;
+  }); // End of useFrame
 
   return (
     <points ref={pointsRef} material={material}>
