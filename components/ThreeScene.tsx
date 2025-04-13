@@ -221,7 +221,6 @@ const StarField = () => {
 };
 
 
-
 // 원형 파동 컴포넌트 - 더욱 느리고 부드러운 모션 적용
 const CircularWave = ({ volume }: { volume: number }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -658,7 +657,7 @@ const QuasarJet = ({ volume }: { volume: number }) => {
     const rotationSpeeds = particleAttributes.rotationSpeeds;
 
     const time = clock.elapsedTime;
-    const normalizedVolume = (volume >= 35) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const normalizedVolume = (volume >= 30) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
