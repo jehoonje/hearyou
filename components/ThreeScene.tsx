@@ -544,9 +544,9 @@ const ParticleEffect = memo(({ volume }: { volume: number }) => { // React.memo 
 });
 ParticleEffect.displayName = 'ParticleEffect'; // 디버깅을 위한 displayName 추가
 
-// --- 상수 정의 ---
+// --- QuasarJet 상수 정의 (변경 없음) ---
 const ENTRY_LENGTH = 3.2;
-const EXIT_LENGTH = -0.1;
+const EXIT_LENGTH = -0.1; // 종료 지점 Z좌표 조정됨
 const TRANSITION_ZONE_LENGTH = 10;
 const MAX_PARTICLES = 4000;
 const BASE_SPAWN_RATE = 2000;
@@ -558,76 +558,68 @@ const MAX_PARTICLE_SIZE = 0.015;
 const MIN_PARTICLE_SIZE = 0.0015;
 const SIZE_CHANGE_POWER = 15;
 const HUE_VARIATION = 0.05;
-const PARTICLE_ROTATION_SPEED = 0.1;
-const WOBBLE_INTENSITY_FACTOR = 0;
-const LIFETIME_ACCELERATION_FACTOR = 10; // 수명 가속도 계수 (값이 클수록 끝에서 더 빨라짐)
-const LIFETIME_ACCELERATION_POWER = 2;    // 수명 가속도 지수 (값이 클수록 가속이 끝에 집중됨)
-const MAX_EFFECTIVE_LIFETIME = 1;     // 파티클 비활성화 기준 수명 (가속도 계산에 사용)
+const JET_HORIZONTAL_ANGLE_OFFSET = -0.2; // 예: Math.PI / 8; // 양수 = 오른쪽으로 치우침
+const JET_VERTICAL_ANGLE_OFFSET = 0.2; 
+const PARTICLE_ROTATION_SPEED = 0.1; // 텍스처 사용 시 영향 적음
+const WOBBLE_INTENSITY_FACTOR = 0; // Wobble 비활성화됨
+const LIFETIME_ACCELERATION_FACTOR = 10;
+const LIFETIME_ACCELERATION_POWER = 2;
+const MAX_EFFECTIVE_LIFETIME = 1;
 
 
-// Easing 함수 (easeInOutQuad)
+// Easing 함수 (변경 없음)
 const easeInOutQuad = (t: number): number => {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 };
 
-// Smoothstep 유틸리티 함수
+// Smoothstep 유틸리티 함수 (변경 없음)
 const smoothstep = (x: number, edge0: number, edge1: number): number => {
   const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 };
 
-// --- 원형 텍스처 생성 함수 (오류 처리 수정) ---
+// 원형 텍스처 생성 함수 (변경 없음)
 const createCircleTexture = (size: number, color: string): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const context = canvas.getContext('2d');
-
-  // *** 오류 처리 수정: 컨텍스트 없으면 에러 발생 ***
   if (!context) {
     console.error("Failed to get 2D context for circle texture.");
-    // 호환되지 않는 Texture 대신 에러를 발생시켜 문제 인지
     throw new Error("Could not create 2D context for CanvasTexture");
   }
-
   const centerX = size / 2;
   const centerY = size / 2;
   const radius = size / 2;
-
   const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-  // CSS 색상 문자열에서 알파 값 분리 및 적용 (예: #FFFFFF -> #FFFFFFXX)
-  const baseColor = color.slice(0, 7); // #RRGGBB 부분
-  gradient.addColorStop(0, `${baseColor}FF`);   // 중심: 완전 불투명
-  gradient.addColorStop(0.5, `${baseColor}CC`); // 중간: 약간 투명
-  gradient.addColorStop(1, `${baseColor}00`);   // 가장자리: 완전 투명
-
+  const baseColor = color.slice(0, 7);
+  gradient.addColorStop(0, `${baseColor}FF`);
+  gradient.addColorStop(0.5, `${baseColor}CC`);
+  gradient.addColorStop(1, `${baseColor}00`);
   context.fillStyle = gradient;
   context.fillRect(0, 0, size, size);
-
-  // CanvasTexture 생성 및 반환 (이제 항상 CanvasTexture 타입)
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   return texture;
 };
-// --- 원형 텍스처 생성 함수 끝 ---
 
-
-const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
+// *** QuasarJet 컴포넌트 수정 ***
+const QuasarJet = ({ volume }: { volume: number }) => {
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
+  const { camera } = useThree(); // 카메라 객체 가져오기
 
-  // 파티클 데이터 풀 생성 (이전과 동일)
+  // 파티클 데이터 풀 생성 (변경 없음)
   const particleAttributes = useMemo(() => {
-    // ... (파티클 초기화 로직) ...
-    console.log("Initializing Enhanced QuasarJet Particle Pool (Circle Texture):", MAX_PARTICLES);
+    console.log("Initializing QuasarJet Particle Pool (Dynamic Axis):", MAX_PARTICLES);
     const positions = new Float32Array(MAX_PARTICLES * 3);
     const colors = new Float32Array(MAX_PARTICLES * 4);
     const lifetimes = new Float32Array(MAX_PARTICLES);
     const activeState = new Float32Array(MAX_PARTICLES);
-    const initDirections = new Float32Array(MAX_PARTICLES * 2);
+    const initDirections = new Float32Array(MAX_PARTICLES * 2); // 로컬 XY 평면 방향
     const randomFactors = new Float32Array(MAX_PARTICLES * 4);
     const sizes = new Float32Array(MAX_PARTICLES);
-    const rotationSpeeds = new Float32Array(MAX_PARTICLES);
+    const rotationSpeeds = new Float32Array(MAX_PARTICLES); // 로컬 XY 평면 회전 속도
 
     const baseColor = new THREE.Color("#9400D3");
     const midColor = new THREE.Color("#FFFFFF");
@@ -641,32 +633,30 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       colors[i4 + 3] = 0;
       lifetimes[i] = 0;
       activeState[i] = 0;
-      const angleXY = Math.random() * Math.PI * 2;
+      const angleXY = Math.random() * Math.PI * 2; // 로컬 평면에서의 초기 각도
       initDirections[i2 + 0] = Math.cos(angleXY);
       initDirections[i2 + 1] = Math.sin(angleXY);
-      randomFactors[i3 + 0] = Math.random() * Math.PI * 2;
-      randomFactors[i3 + 1] = Math.random() * Math.PI * 2;
-      randomFactors[i3 + 2] = 0.6 + Math.random() * 0.8;
-      randomFactors[i3 + 3] = (Math.random() - 0.5) * HUE_VARIATION * 2;
+      randomFactors[i3 + 0] = Math.random() * Math.PI * 2; // Wobble X 위상 (현재 비활성화)
+      randomFactors[i3 + 1] = Math.random() * Math.PI * 2; // Wobble Y 위상 (현재 비활성화)
+      randomFactors[i3 + 2] = 0.6 + Math.random() * 0.8; // 수명 속도 계수
+      randomFactors[i3 + 3] = (Math.random() - 0.5) * HUE_VARIATION * 2; // 색조 변화
       sizes[i] = 1.0;
-      rotationSpeeds[i] = (Math.random() - 0.5) * PARTICLE_ROTATION_SPEED * 2;
+      rotationSpeeds[i] = (Math.random() - 0.5) * PARTICLE_ROTATION_SPEED * 2; // 로컬 평면 회전 속도
     }
     return { positions, colors, lifetimes, activeState, initDirections, randomFactors, sizes, rotationSpeeds, baseColor, midColor, endColor };
   }, [HUE_VARIATION, PARTICLE_ROTATION_SPEED]);
 
-  // 원형 텍스처 생성 (useMemo 사용)
+  // 원형 텍스처 생성 (변경 없음)
   const circleTexture = useMemo(() => {
       try {
-          return createCircleTexture(64, '#FFFFFF'); // 64x64 흰색 원
+          return createCircleTexture(64, '#FFFFFF');
       } catch (error) {
           console.error("Failed to create circle texture in useMemo:", error);
-          // 텍스처 생성 실패 시 null 반환 또는 다른 기본 텍스처 반환
-          return null; // 또는 new THREE.Texture() 등 상황에 맞는 처리
+          return null;
       }
-  }, []); // 의존성 배열 비어있음 (최초 1회 실행)
+  }, []);
 
-
-  // 지오메트리 설정 (이전과 동일)
+  // 지오메트리 설정 (변경 없음)
   useEffect(() => {
     const geometry = geometryRef.current;
     if (!geometry || !particleAttributes) return;
@@ -678,7 +668,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     geometry.boundingBox = null;
   }, [particleAttributes]);
 
-  // 파티클 머티리얼 (map 속성 추가, circleTexture가 null일 경우 대비)
+  // 파티클 머티리얼 (변경 없음)
   const material = useMemo(() => new THREE.PointsMaterial({
     size: MAX_PARTICLE_SIZE,
     vertexColors: true,
@@ -686,38 +676,42 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true,
-    map: circleTexture, // 텍스처 적용 (null일 경우 map이 설정되지 않음)
-    // alphaTest: 0.01,
-  }), [circleTexture]); // circleTexture 의존성 추가
+    map: circleTexture,
+  }), [circleTexture]);
 
-  // 나머지 코드 (spawnCounter, curveParams, calculateRadius, useMemo hooks, useFrame)는 이전과 동일
-  // 누적 스폰 카운터
+  // 누적 스폰 카운터 (변경 없음)
   const spawnCounter = useRef(0);
 
-  // 하이퍼볼라 곡선 파라미터 계산
+  // --- 하이퍼볼라 곡선 파라미터 계산 (로컬 Z 기준, 변경 없음) ---
   const curveParams = useMemo(() => {
     const minRadiusSquared = MIN_RADIUS * MIN_RADIUS;
     const maxRadius = MIN_RADIUS * END_RADIUS_FACTOR;
     const maxRadiusSquared = maxRadius * maxRadius;
-    const referenceLength = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
+    // 로컬 Z 범위 (-ENTRY_LENGTH ~ EXIT_LENGTH) 에서 양 끝 중 절대값이 큰 쪽 기준
+    const referenceLength = Math.max(Math.abs(ENTRY_LENGTH), Math.abs(EXIT_LENGTH));
     let k = 0;
     if (referenceLength > 1e-6) {
+      // 중심(z=0)에서 멀어질수록 반경 증가
       k = (maxRadiusSquared - minRadiusSquared) / (referenceLength * referenceLength);
     }
     k = Math.max(0, k);
     return { minRadiusSquared, k };
   }, [MIN_RADIUS, END_RADIUS_FACTOR, ENTRY_LENGTH, EXIT_LENGTH]);
 
-  // z 위치에 따른 제트 반경 계산 함수
-  const calculateRadius = useCallback((z: number): number => {
+  // --- 로컬 z 위치에 따른 제트 반경 계산 함수 (로컬 Z 기준, 변경 없음) ---
+  const calculateRadius = useCallback((localZ: number): number => {
     const { minRadiusSquared, k } = curveParams;
+    // Transition zone은 로컬 Z 기준 0 근처에서 적용
     const halfTransition = TRANSITION_ZONE_LENGTH / 2;
-    const absZ = Math.abs(z);
-    const hyperbolicRadiusSquared = minRadiusSquared + k * z * z;
+    const absLocalZ = Math.abs(localZ);
+
+    const hyperbolicRadiusSquared = minRadiusSquared + k * localZ * localZ;
     const hyperbolicRadius = Math.sqrt(hyperbolicRadiusSquared);
+
     let finalRadius: number;
-    if (absZ <= halfTransition && halfTransition > 1e-6) {
-        const t = smoothstep(absZ, 0, halfTransition);
+    // 중심 근처 트랜지션
+    if (absLocalZ <= halfTransition && halfTransition > 1e-6) {
+        const t = smoothstep(absLocalZ, 0, halfTransition);
         finalRadius = THREE.MathUtils.lerp(MIN_RADIUS, hyperbolicRadius, t);
     } else {
         finalRadius = hyperbolicRadius;
@@ -725,21 +719,35 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     return Math.max(MIN_RADIUS, finalRadius);
   }, [curveParams, TRANSITION_ZONE_LENGTH, MIN_RADIUS]);
 
-  // useMemo 훅들
+  // useMemo 훅들 (벡터 객체들 추가)
   const tempColor = useMemo(() => new THREE.Color(), []);
   const currentBaseColor = useMemo(() => particleAttributes.baseColor.clone(), [particleAttributes.baseColor]);
   const currentMidColor = useMemo(() => particleAttributes.midColor.clone(), [particleAttributes.midColor]);
   const currentEndColor = useMemo(() => particleAttributes.endColor.clone(), [particleAttributes.endColor]);
+  const viewDir = useMemo(() => new THREE.Vector3(), []);
+  const camUp = useMemo(() => new THREE.Vector3(), []);    // 카메라의 월드 Up 벡터
+  const camRight = useMemo(() => new THREE.Vector3(), []); // 카메라의 월드 Right 벡터
+  const modifiedViewDir = useMemo(() => new THREE.Vector3(), []); // 각도 조정된 뷰 방향
+  const worldStartPoint = useMemo(() => new THREE.Vector3(), []);
+  const worldEndPoint = useMemo(() => new THREE.Vector3(), []);
+  const axisVector = useMemo(() => new THREE.Vector3(), []);
+  const pointOnAxis = useMemo(() => new THREE.Vector3(), []);
+  const localX = useMemo(() => new THREE.Vector3(), []);
+  const localY = useMemo(() => new THREE.Vector3(), []);
+  const offset = useMemo(() => new THREE.Vector3(), []);
+  const tempVec = useMemo(() => new THREE.Vector3(), []);
+  const worldUp = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const worldX = useMemo(() => new THREE.Vector3(1, 0, 0), []);
 
 
-  // 애니메이션 루프
+  // 애니메이션 루프 (파티클 위치 계산 로직 수정)
+  // 애니메이션 루프 (동적 축 계산 로직 수정)
   useFrame(({ clock }, delta) => {
     const geometry = geometryRef.current;
     const points = pointsRef.current;
-     // 텍스처 로딩 실패 시 또는 초기화 중일 때 실행 방지 강화
-    if (!geometry || !points || !material || !geometry.attributes.position || !geometry.attributes.color || !geometry.attributes.size || !particleAttributes) return;
+    if (!geometry || !points || !material || !geometry.attributes.position || !geometry.attributes.color || !geometry.attributes.size || !particleAttributes || !camera) return;
 
-
+    // ... (속성 배열, 시간, 볼륨, 스폰율 등 가져오기 - 이전과 동일) ...
     const positions = geometry.attributes.position.array as Float32Array;
     const colors = geometry.attributes.color.array as Float32Array;
     const sizes = geometry.attributes.size.array as Float32Array;
@@ -750,7 +758,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const rotationSpeeds = particleAttributes.rotationSpeeds;
 
     const time = clock.elapsedTime;
-    const normalizedVolume = (volume >= 30) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
@@ -759,9 +767,48 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
 
     const safeDelta = Math.min(delta, 0.05);
     const baseSpeed = 0.05 * 3.5;
-    const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
     const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0;
 
+
+    // --- 매 프레임 동적 축 및 시작 방향 계산 ---
+    // 1. 카메라 시선 방향 (카메라 위치 -> 원점)의 반대 벡터
+    viewDir.copy(camera.position).normalize().negate();
+
+    // 2. 카메라의 실제 월드 'Up' 벡터 계산 (카메라 회전 적용)
+    camUp.copy(worldUp).applyQuaternion(camera.quaternion).normalize(); // camera.up 대신 worldUp 사용 및 회전 적용
+
+    // 3. 카메라의 월드 'Right' 벡터 계산
+    camRight.crossVectors(viewDir, camUp).normalize(); // Forward x Up = Right (순서 변경으로 Right 방향 맞춤)
+
+    // 4. 시작 방향 각도 조정: 원본 viewDir를 기준으로 회전
+    modifiedViewDir.copy(viewDir); // 원본 복사
+    // 수평 회전 (카메라 Up 벡터 기준) - Offset만큼 회전
+    modifiedViewDir.applyAxisAngle(camUp, JET_HORIZONTAL_ANGLE_OFFSET);
+    // 수직 회전 (카메라 Right 벡터 기준) - Offset만큼 회전
+    // 중요: 수평 회전 후 변경된 Right 벡터가 아닌, 원래 계산된 camRight를 사용해야 의도대로 작동
+    modifiedViewDir.applyAxisAngle(camRight, JET_VERTICAL_ANGLE_OFFSET);
+    modifiedViewDir.normalize(); // 회전 후 정규화
+
+    // 5. 월드 시작점: *수정된* 시작 방향으로 ENTRY_LENGTH 만큼 떨어진 곳
+    worldStartPoint.copy(modifiedViewDir).multiplyScalar(-ENTRY_LENGTH); // ENTRY_LENGTH 부호 확인 필요 (음수이면 반대방향)
+
+    // 6. 월드 끝점: 고정 (0, 0, EXIT_LENGTH)
+    worldEndPoint.set(0, 0, EXIT_LENGTH);
+
+    // 7. 축 벡터: 시작점에서 끝점 방향
+    axisVector.subVectors(worldEndPoint, worldStartPoint).normalize();
+
+    // 8. 축에 수직인 로컬 X, Y 기저 벡터 계산 (이전과 동일)
+    if (Math.abs(axisVector.dot(worldUp)) > 0.999) {
+        localX.crossVectors(axisVector, worldX).normalize();
+    } else {
+        localX.crossVectors(axisVector, worldUp).normalize();
+    }
+    localY.crossVectors(axisVector, localX).normalize();
+    // --- 축 계산 끝 ---
+
+
+    // 파티클 루프 (이전과 대부분 동일, 스폰 위치 계산 시 worldStartPoint 사용)
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const i3 = i * 3;
       const i4 = i * 4;
@@ -769,6 +816,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
 
       // 1. 활성 파티클 업데이트
       if (activeState[i] === 1) {
+        // ... (수명 계산, 비활성화 체크 등은 변경 없음) ...
         const currentLifetime = lifetimes[i];
         const baseLifetimeSpeedFactor = randomFactors[i3 + 2];
         const lifetimeProgress = Math.min(1, currentLifetime / MAX_EFFECTIVE_LIFETIME);
@@ -784,32 +832,25 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
             continue;
         }
 
+        // 위치 계산
         const normalizedLifetime = Math.min(1.0, lifetimes[i] / MAX_EFFECTIVE_LIFETIME);
         const easedLifetime = easeInOutQuad(normalizedLifetime);
-        const currentZ = THREE.MathUtils.lerp(-ENTRY_LENGTH, EXIT_LENGTH, easedLifetime);
-        const currentRadius = calculateRadius(currentZ);
-
+        pointOnAxis.copy(worldStartPoint).lerp(worldEndPoint, easedLifetime); // 축 상 위치
+        const currentLocalZ = THREE.MathUtils.lerp(-ENTRY_LENGTH, EXIT_LENGTH, easedLifetime); // 로컬 Z
+        const currentRadius = calculateRadius(currentLocalZ); // 반경
         const initialAngle = Math.atan2(initDirections[i2 + 1], initDirections[i2 + 0]);
         const rotationAngle = rotationSpeeds[i] * time;
         const currentAngle = initialAngle + rotationAngle;
-        const rotatedDirX = Math.cos(currentAngle);
-        const rotatedDirY = Math.sin(currentAngle);
+        const localRotatedDirX = Math.cos(currentAngle);
+        const localRotatedDirY = Math.sin(currentAngle);
+        offset.copy(localX).multiplyScalar(localRotatedDirX)
+              .addScaledVector(localY, localRotatedDirY)
+              .multiplyScalar(currentRadius); // 로컬 오프셋
+        positions[i3 + 0] = pointOnAxis.x + offset.x; // 최종 위치
+        positions[i3 + 1] = pointOnAxis.y + offset.y;
+        positions[i3 + 2] = pointOnAxis.z + offset.z;
 
-        let currentX = rotatedDirX * currentRadius;
-        let currentY = rotatedDirY * currentRadius;
-
-        const randomPhaseX = randomFactors[i3 + 0];
-        const randomPhaseY = randomFactors[i3 + 1];
-        const wobbleFrequency = time * 1.5;
-        const wobbleStrengthFactor = maxDist > 1e-6 ? Math.abs(currentZ) / maxDist : 0;
-        const wobbleAmplitude = currentRadius * WOBBLE_INTENSITY_FACTOR * (0.5 + wobbleStrengthFactor);
-        currentX += Math.sin(wobbleFrequency + randomPhaseX) * wobbleAmplitude;
-        currentY += Math.cos(wobbleFrequency + randomPhaseY) * wobbleAmplitude;
-
-        positions[i3 + 0] = currentX;
-        positions[i3 + 1] = currentY;
-        positions[i3 + 2] = currentZ;
-
+        // ... (색상, 알파, 크기 계산은 변경 없음) ...
         const hueOffset = randomFactors[i3 + 3];
         const particleBaseColor = tempColor.copy(currentBaseColor).offsetHSL(hueOffset, 0, 0);
         const particleEndColor = tempColor.copy(currentEndColor).offsetHSL(hueOffset, 0, 0);
@@ -835,13 +876,16 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
         colors[i4 + 3] = THREE.MathUtils.clamp(alpha, 0, 1);
 
         let normalizedDist = 0;
-        if (maxDist > 1e-6) {
-            normalizedDist = Math.abs(currentZ) / maxDist;
+        const totalDist = Math.abs(EXIT_LENGTH - (-ENTRY_LENGTH));
+        if (totalDist > 1e-6) {
+            const maxAbsLocalZ = Math.max(Math.abs(ENTRY_LENGTH), Math.abs(EXIT_LENGTH));
+            normalizedDist = Math.abs(currentLocalZ) / maxAbsLocalZ;
         }
         normalizedDist = Math.min(normalizedDist, 1.0);
         const sizeProgress = Math.pow(normalizedDist, SIZE_CHANGE_POWER);
         const currentSizeFactor = THREE.MathUtils.lerp(minSizeFactor, 1.0, sizeProgress);
         sizes[i] = currentSizeFactor;
+
 
       // 2. 비활성 파티클 -> 활성 파티클 (생성)
       } else if (spawnedCount < numToSpawnInt) {
@@ -849,17 +893,22 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
         lifetimes[i] = 0;
         spawnedCount++;
 
-        const initialZ = -ENTRY_LENGTH;
-        const initialRadius = calculateRadius(initialZ);
+        // 스폰 위치 계산 (worldStartPoint 기준, 로컬 오프셋 적용)
+        const initialLocalZ = -ENTRY_LENGTH;
+        const initialRadius = calculateRadius(initialLocalZ);
         const initDirX = initDirections[i2 + 0];
         const initDirY = initDirections[i2 + 1];
         const biasedRandom = Math.pow(Math.random(), 2.5);
         const randomRadiusFactor = 0.05 + biasedRandom * 0.95;
+        // 스폰 시점의 로컬 X, Y 기저 사용
+        offset.copy(localX).multiplyScalar(initDirX)
+              .addScaledVector(localY, initDirY)
+              .multiplyScalar(initialRadius * randomRadiusFactor);
+        positions[i3 + 0] = worldStartPoint.x + offset.x;
+        positions[i3 + 1] = worldStartPoint.y + offset.y;
+        positions[i3 + 2] = worldStartPoint.z + offset.z;
 
-        positions[i3 + 0] = initDirX * initialRadius * randomRadiusFactor;
-        positions[i3 + 1] = initDirY * initialRadius * randomRadiusFactor;
-        positions[i3 + 2] = initialZ;
-
+        // ... (초기 색상, 알파, 크기 설정은 변경 없음) ...
         const hueOffset = randomFactors[i3 + 3];
         tempColor.copy(currentBaseColor).offsetHSL(hueOffset, 0, 0);
         colors[i4 + 0] = tempColor.r;
@@ -870,6 +919,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       }
     } // End of particle loop
 
+    // 속성 업데이트 필요 알림 (변경 없음)
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.color.needsUpdate = true;
     geometry.attributes.size.needsUpdate = true;
@@ -880,8 +930,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       <bufferGeometry ref={geometryRef} />
     </points>
   );
-});
-QuasarJet.displayName = 'QuasarJet'; // 디버깅을 위한 displayName 추가
+};// 디버깅을 위한 displayName 추가
 
 
 // 발광 효과를 위한 후처리 (블룸 대체)
