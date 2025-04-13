@@ -611,7 +611,7 @@ const QuasarJet = ({ volume }: { volume: number }) => {
     const rotationSpeeds = particleAttributes.rotationSpeeds;
 
     const time = clock.elapsedTime;
-    const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const normalizedVolume = (volume >= 35) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);

@@ -25,43 +25,28 @@ const MAX_CLICK_DRAG_THRESHOLD = 10;
 // --- 상수 정의 끝 ---
 
 function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null }) {
-  // 로딩 상태 관리
+  // --- 상태 및 훅 (변경 없음) ---
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [contentVisible, setContentVisible] = useState(false);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 인증 관련 상태 및 함수
   const auth = useAuth();
-
-  // 키워드 관련 상태 관리
   const { keywordList, addOrUpdateKeyword } = useKeywords(auth.user, isLoading, initialKeywords);
-
-  // 키워드 저장 시 즉시 UI에 반영하는 콜백 함수
   const handleKeywordSaved = useCallback((savedKeyword: Keyword) => {
-    console.log('키워드 저장 완료, UI 즉시 업데이트:', savedKeyword);
     addOrUpdateKeyword(savedKeyword);
   }, [addOrUpdateKeyword]);
-
-  // 오디오 분석 관련 상태 관리
   const { volume, transcript, listening, newKeywords, error } = useAudioAnalysis(
-    !!auth.user,
-    isLoading,
-    auth.user,
-    handleKeywordSaved
+    !!auth.user, isLoading, auth.user, handleKeywordSaved
   );
-
-  // UI 토글 상태 및 로직
   const [isUIVisible, setIsUIVisible] = useState(true);
   const clickStartTimeRef = useRef(0);
   const clickStartPositionRef = useRef({ x: 0, y: 0 });
   const isDraggingForToggleRef = useRef(false);
+  // --- 상태 및 훅 끝 ---
 
+  // --- 이벤트 핸들러 수정 ---
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (isLoading || !contentVisible || auth.showVerificationModal) return;
-    // event.target을 확인하여 실제 UI 요소에서 시작된 이벤트인지 확인 가능 (필요시)
-    // console.log('Pointer Down Target:', event.target);
-
     clickStartTimeRef.current = Date.now();
     clickStartPositionRef.current = { x: event.clientX, y: event.clientY };
     isDraggingForToggleRef.current = false;
@@ -69,8 +54,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (isLoading || !contentVisible || auth.showVerificationModal) return;
-    if (clickStartTimeRef.current === 0) return;
-    if (isDraggingForToggleRef.current) return;
+    if (clickStartTimeRef.current === 0 || isDraggingForToggleRef.current) return;
 
     const currentX = event.clientX;
     const currentY = event.clientY;
@@ -89,22 +73,23 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
     if (clickStartTimeRef.current === 0) return;
 
     const clickDuration = Date.now() - clickStartTimeRef.current;
+    const targetElement = event.target as Element; // 클릭된 실제 요소
 
-    // 드래그하지 않았고, 클릭 시간이 짧으면 UI 토글
-    // 추가 조건: 클릭 이벤트가 UI 요소 내부(자식 포함)에서 발생했는지 확인 (선택적)
-    // event.target을 사용하여 이것이 실제 UI 요소인지, 아니면 빈 배경인지 구분 가능
-    // 예: if (!isDraggingForToggleRef.current && clickDuration < MAX_CLICK_DURATION && event.target === event.currentTarget) { ... }
-    // 위 예시는 클릭이 정확히 최상위 div에서 발생했을 때만 토글 (배경 클릭 시)
+    // *** 클릭 대상 확인 로직 추가 ***
+    // 클릭된 요소 또는 그 조상 중에 data-interactive-ui 속성이 있는지 확인
+    const clickedInsideInteractiveUI = targetElement.closest('[data-interactive-ui="true"]');
 
-    if (!isDraggingForToggleRef.current && clickDuration < MAX_CLICK_DURATION) {
-        // 배경 클릭 시에만 토글하도록 하려면 event.target 비교 로직 추가 필요
-        // 지금은 영역 내 어디든 짧은 클릭 시 토글
-        setIsUIVisible(prev => !prev);
+    // 토글 조건: 드래그 안 함 + 클릭 시간 짧음 + *인터랙티브 UI 내부 클릭 아님*
+    if (!isDraggingForToggleRef.current && clickDuration < MAX_CLICK_DURATION && !clickedInsideInteractiveUI) {
+      setIsUIVisible(prev => !prev);
     }
 
+    // 상태 초기화
     clickStartTimeRef.current = 0;
     isDraggingForToggleRef.current = false;
   };
+  // --- 이벤트 핸들러 수정 끝 ---
+
 
   // 로딩 처리 useEffect (변경 없음)
   useEffect(() => {
@@ -139,7 +124,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
+      onPointerLeave={handlePointerUp} // 영역 벗어나도 Up 처리
     >
       {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
 
@@ -149,7 +134,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
 
       <div
         className={`w-full h-full relative transition-opacity duration-1000 ${
-          contentVisible ? "opacity-100" : "opacity-0 pointer-events-none" // 로딩 후 컨텐츠 보일때만 이벤트 받음
+          contentVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
         {/* 3D 배경 씬 */}
@@ -157,16 +142,19 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
           <ThreeScene volume={auth.user ? volume : 0} />
         </div>
 
-        {/* UI 요소들을 감싸는 컨테이너 (페이드 효과 + 이벤트 통과 기본 설정) */}
+        {/* UI 요소들을 감싸는 컨테이너 */}
         <div
-          className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${ // 기본적으로 none
-            isUIVisible ? 'opacity-100' : 'opacity-0' // 투명도만 제어
+          className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${
+            isUIVisible ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          {/* UI 컴포넌트들에만 조건부로 pointer-events-auto 적용 */}
+          {/* UI 컴포넌트들에만 조건부로 pointer-events-auto 적용 및 data 속성 추가 */}
           {!auth.user ? (
             // 로그인 폼 컨테이너
-            <div className={`absolute inset-0 flex items-center justify-center p-4 ${isUIVisible ? 'pointer-events-auto' : ''}`}>
+            <div
+              className={`absolute inset-0 flex items-center justify-center p-4 ${isUIVisible ? 'pointer-events-auto' : ''}`}
+              data-interactive-ui="true" // *** 식별자 추가 ***
+            >
               <LoginForm
                 // ... props
                 authView={auth.authView}
@@ -194,8 +182,11 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
               />
             </div>
           ) : (
-            // VoiceTrackerUI 컨테이너 (필요하다면 div로 감싸고 클래스 적용)
-             <div className={`${isUIVisible ? 'pointer-events-auto' : ''}`}>
+            // VoiceTrackerUI 컨테이너
+             <div
+               className={`${isUIVisible ? 'pointer-events-auto' : ''}`}
+               data-interactive-ui="true" // *** 식별자 추가 ***
+             >
                <VoiceTrackerUI
                  // ... props
                  volume={volume}
@@ -222,3 +213,4 @@ export default function ClientPage({ initialSession, initialKeywords }: ClientPa
     </AuthProvider>
   );
 }
+
