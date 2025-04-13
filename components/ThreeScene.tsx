@@ -24,30 +24,60 @@ interface QuasarJetProps {
   onParticleDeath: (color: THREE.Color) => void; // Callback prop
 }
 
+// --- 상수 추가 ---
+const DAMPING_FACTOR = 0.95; // 감쇠 계수 (값이 1에 가까울수록 천천히 멈춤)
+const MIN_VELOCITY = 0.0001; // 감쇠를 멈출 최소 속도 임계값
+// --- 상수 추가 끝 ---
 
 // 드래그 컨트롤 구현
 const CameraControls = () => {
   const { camera, gl } = useThree();
   const isDraggingRef = useRef(false);
   const previousPositionRef = useRef({ x: 0, y: 0 });
-  // 카메라 회전값(각도)을 ref로 관리 (상태 대신 사용)
-  // 초기 각도는 초기 카메라 위치에 맞춰 설정하거나 0으로 시작
   const rotationRef = useRef({ x: 0, y: 0 });
-  const radiusRef = useRef(7); // 카메라와 원점 사이의 거리
+  const radiusRef = useRef(7);
 
-  // 초기 카메라 위치에서 초기 각도 계산 (선택적)
+  // --- Ref 추가 ---
+  const velocityRef = useRef({ x: 0, y: 0 }); // 각속도 저장용 Ref
+  const isDampingRef = useRef(false); // 감쇠 애니메이션 활성 상태 Ref
+  // --- Ref 추가 끝 ---
+
+  // --- 카메라 위치 업데이트 로직 추출 ---
+  const updateCameraPosition = useCallback(() => {
+    const radius = radiusRef.current;
+    const phi = rotationRef.current.x; // 수직 각도
+    const theta = rotationRef.current.y; // 수평 각도
+
+    // 수직 각도 제한 (기존 로직과 동일하게 적용)
+    rotationRef.current.x = Math.max(
+        -Math.PI / 2 + 0.1,
+        Math.min(Math.PI / 2 - 0.1, phi)
+    );
+
+    // 구면 좌표계 -> 직교 좌표계 변환
+    camera.position.x = radius * Math.cos(rotationRef.current.x) * Math.sin(theta);
+    camera.position.y = radius * Math.sin(rotationRef.current.x);
+    camera.position.z = radius * Math.cos(rotationRef.current.x) * Math.cos(theta);
+    camera.lookAt(0, 0, 0); // 항상 원점 보기
+  }, [camera]); // camera는 일반적으로 불변
+  // --- 카메라 위치 업데이트 로직 추출 끝 ---
+
   useEffect(() => {
       const initialPos = camera.position;
-      radiusRef.current = initialPos.length(); // 초기 거리 설정
-      rotationRef.current.x = Math.asin(initialPos.y / radiusRef.current);
+      radiusRef.current = initialPos.length();
+      // 초기 각도 계산 시 제한 적용
+      const initialPhi = Math.asin(initialPos.y / radiusRef.current);
+      rotationRef.current.x = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, initialPhi));
       rotationRef.current.y = Math.atan2(initialPos.x, initialPos.z);
-  }, [camera]); // 최초 마운트 시 실행
+      updateCameraPosition(); // 초기 위치 설정 반영
+  }, [camera, updateCameraPosition]); // updateCameraPosition 의존성 추가
 
-  // 이벤트 핸들러들을 useCallback으로 감싸 불필요한 재생성 방지
   const handlePointerDown = useCallback((clientX: number, clientY: number) => {
     isDraggingRef.current = true;
+    isDampingRef.current = false; // 드래그 시작 시 감쇠 중지
+    velocityRef.current = { x: 0, y: 0 }; // 속도 초기화
     previousPositionRef.current = { x: clientX, y: clientY };
-    gl.domElement.style.cursor = 'grabbing'; // 드래그 중 커서 변경
+    gl.domElement.style.cursor = 'grabbing';
   }, [gl.domElement.style]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
@@ -56,70 +86,89 @@ const CameraControls = () => {
     const deltaX = clientX - previousPositionRef.current.x;
     const deltaY = clientY - previousPositionRef.current.y;
 
-    // Ref 값을 직접 업데이트
-    rotationRef.current.y += deltaX * 0.005;
-    // 수직 회전 각도 제한 (-PI/2 ~ PI/2 범위 근처)
-    rotationRef.current.x = Math.max(
-        -Math.PI / 2 + 0.1,
-        Math.min(Math.PI / 2 - 0.1, rotationRef.current.x + deltaY * 0.005)
-    );
+    // 각도 변화량 계산
+    const deltaRotY = deltaX * 0.005;
+    const deltaRotX = deltaY * 0.005;
 
-    // 구면 좌표계를 사용하여 카메라 위치 계산
-    const radius = radiusRef.current;
-    const phi = rotationRef.current.x; // 수직 각도 (latitude)
-    const theta = rotationRef.current.y; // 수평 각도 (longitude)
+    // 회전값 업데이트
+    rotationRef.current.y += deltaRotY;
+    rotationRef.current.x += deltaRotX; // 각도 제한은 updateCameraPosition에서 처리
 
-    camera.position.x = radius * Math.cos(phi) * Math.sin(theta);
-    camera.position.y = radius * Math.sin(phi);
-    camera.position.z = radius * Math.cos(phi) * Math.cos(theta);
+    // --- 속도(각도 변화량) 저장 ---
+    velocityRef.current.y = deltaRotY;
+    velocityRef.current.x = deltaRotX;
+    // --- 속도 저장 끝 ---
 
-    camera.lookAt(0, 0, 0); // 항상 원점을 바라보도록 설정
+    // 카메라 위치 즉시 업데이트
+    updateCameraPosition();
 
     previousPositionRef.current = { x: clientX, y: clientY };
-  }, [camera]); // camera 객체는 일반적으로 변경되지 않음
+  }, [updateCameraPosition]); // updateCameraPosition 의존성 추가
 
   const handlePointerUp = useCallback(() => {
     if (isDraggingRef.current) {
         isDraggingRef.current = false;
-        gl.domElement.style.cursor = 'grab'; // 커서 원래대로
+        gl.domElement.style.cursor = 'grab';
+
+        // --- 감쇠 시작 조건 확인 ---
+        // 마지막 속도의 크기 계산 (간단히 절대값 합 사용)
+        const speed = Math.abs(velocityRef.current.x) + Math.abs(velocityRef.current.y);
+        if (speed > MIN_VELOCITY) {
+            isDampingRef.current = true; // 속도가 충분하면 감쇠 시작
+        } else {
+            velocityRef.current = { x: 0, y: 0 }; // 속도 매우 작으면 초기화
+            isDampingRef.current = false;
+        }
+        // --- 감쇠 시작 조건 확인 끝 ---
     }
   }, [gl.domElement.style]);
+
+  // --- 감쇠 처리 로직 (useFrame) ---
+  useFrame(() => {
+    if (isDampingRef.current) {
+      // 속도를 현재 회전값에 적용
+      rotationRef.current.y += velocityRef.current.y;
+      rotationRef.current.x += velocityRef.current.x;
+
+      // 속도 감쇠
+      velocityRef.current.y *= DAMPING_FACTOR;
+      velocityRef.current.x *= DAMPING_FACTOR;
+
+      // 카메라 위치 업데이트
+      updateCameraPosition();
+
+      // 속도가 임계값 미만이면 감쇠 중지
+      const speed = Math.abs(velocityRef.current.x) + Math.abs(velocityRef.current.y);
+      if (speed < MIN_VELOCITY) {
+        isDampingRef.current = false;
+        velocityRef.current = { x: 0, y: 0 };
+      }
+    }
+  });
+  // --- 감쇠 처리 로직 끝 ---
 
 
   useEffect(() => {
     const canvas = gl.domElement;
-    canvas.style.cursor = 'grab'; // 초기 커서 설정
+    canvas.style.cursor = 'grab';
 
-    // 마우스 이벤트
     const handleMouseDown = (e: MouseEvent) => handlePointerDown(e.clientX, e.clientY);
     const handleMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY);
-    // mouseup은 window에 달아야 드래그 중 캔버스 벗어나도 인식됨
     const handleMouseUp = () => handlePointerUp();
-
-    // 터치 이벤트
     const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
-      }
+      if (e.touches.length === 1) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
     };
     const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        // 터치 이동 시 기본 스크롤 동작 방지 (선택적)
-        // e.preventDefault();
-        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-      }
+      if (e.touches.length === 1) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
     };
-     // touchend는 window에 달아야 함
     const handleTouchEnd = () => handlePointerUp();
 
-
     canvas.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove); // Move 이벤트는 window에
-    window.addEventListener('mouseup', handleMouseUp);     // Up 이벤트는 window에
-
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false }); // passive:false 로 preventDefault 가능하게
-    window.addEventListener('touchmove', handleTouchMove);   // Move 이벤트는 window에
-    window.addEventListener('touchend', handleTouchEnd);     // End 이벤트는 window에
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: true }); // passive: true 권장 (스크롤 방지 불필요 시)
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       canvas.removeEventListener('mousedown', handleMouseDown);
@@ -128,11 +177,9 @@ const CameraControls = () => {
       canvas.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
-      canvas.style.cursor = 'default'; // 컴포넌트 언마운트 시 커서 복원
+      canvas.style.cursor = 'default';
     };
-    // 의존성 배열 간소화: 핸들러 함수들을 useCallback으로 감쌌으므로 gl만 필요할 수 있음
-    // 또는 핸들러 함수들을 의존성 배열에 포함 (useCallback 사용 시 안정적)
-  }, [gl, handlePointerDown, handlePointerMove, handlePointerUp]);
+  }, [gl, handlePointerDown, handlePointerMove, handlePointerUp]); // 핸들러 함수 의존성 추가
 
   return null;
 };
