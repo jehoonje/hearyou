@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState, memo } from 'react'; // memo import 추가
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { shaderMaterial } from '@react-three/drei'; // shaderMaterial import 추가
@@ -12,132 +12,162 @@ interface ThreeSceneProps {
 
 interface CircularWaveProps {
   volume: number;
-  interactionData: {
-    color: THREE.Color | null;
-    intensity: number;
-    timestamp: number; // To potentially track freshness
-  };
+  // interactionData 제거 (사용되지 않음)
+}
+
+// PacManProps 인터페이스 추가
+interface PacManProps {
+    volume: number;
 }
 
 interface QuasarJetProps {
   volume: number;
-  onParticleDeath: (color: THREE.Color) => void; // Callback prop
+  // onParticleDeath 제거 (사용되지 않음)
 }
 
 // --- 상수 추가 ---
 const DAMPING_FACTOR = 0.95; // 감쇠 계수 (값이 1에 가까울수록 천천히 멈춤)
 const MIN_VELOCITY = 0.0001; // 감쇠를 멈출 최소 속도 임계값
+const MIN_ZOOM_RADIUS = 2; // 최소 줌 거리
+const MAX_ZOOM_RADIUS = 20; // 최대 줌 거리
+const PINCH_SENSITIVITY = 1.0; // 핀치 감도 조절 (필요에 따라 조절)
 // --- 상수 추가 끝 ---
 
+const getDistance = (p1: Touch, p2: Touch): number => {
+  const dx = p1.clientX - p2.clientX;
+  const dy = p1.clientY - p2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
 // 드래그 컨트롤 구현
-const CameraControls = () => {
+const CameraControls = memo(() => {
   const { camera, gl } = useThree();
   const isDraggingRef = useRef(false);
   const previousPositionRef = useRef({ x: 0, y: 0 });
   const rotationRef = useRef({ x: 0, y: 0 });
-  const radiusRef = useRef(7);
+  const radiusRef = useRef(7); // 초기 카메라 거리
 
-  // --- Ref 추가 ---
-  const velocityRef = useRef({ x: 0, y: 0 }); // 각속도 저장용 Ref
-  const isDampingRef = useRef(false); // 감쇠 애니메이션 활성 상태 Ref
-  // --- Ref 추가 끝 ---
+  const velocityRef = useRef({ x: 0, y: 0 });
+  const isDampingRef = useRef(false);
 
-  // --- 카메라 위치 업데이트 로직 추출 ---
+  // --- 핀치 줌 관련 Ref 추가 ---
+  const isPinchingRef = useRef(false);
+  const initialPinchDistanceRef = useRef(0);
+  const initialRadiusOnPinchRef = useRef(radiusRef.current); // 핀치 시작 시점의 반경 저장
+  // --- 핀치 줌 관련 Ref 추가 끝 ---
+
+
   const updateCameraPosition = useCallback(() => {
-    const radius = radiusRef.current;
-    const phi = rotationRef.current.x; // 수직 각도
-    const theta = rotationRef.current.y; // 수평 각도
+    // --- 줌 제한 적용 ---
+    radiusRef.current = Math.max(
+        MIN_ZOOM_RADIUS,
+        Math.min(MAX_ZOOM_RADIUS, radiusRef.current)
+    );
+    // --- 줌 제한 적용 끝 ---
 
-    // 수직 각도 제한 (기존 로직과 동일하게 적용)
+    const radius = radiusRef.current;
+    const phi = rotationRef.current.x;
+    const theta = rotationRef.current.y;
+
     rotationRef.current.x = Math.max(
         -Math.PI / 2 + 0.1,
         Math.min(Math.PI / 2 - 0.1, phi)
     );
 
-    // 구면 좌표계 -> 직교 좌표계 변환
     camera.position.x = radius * Math.cos(rotationRef.current.x) * Math.sin(theta);
     camera.position.y = radius * Math.sin(rotationRef.current.x);
     camera.position.z = radius * Math.cos(rotationRef.current.x) * Math.cos(theta);
-    camera.lookAt(0, 0, 0); // 항상 원점 보기
-  }, [camera]); // camera는 일반적으로 불변
-  // --- 카메라 위치 업데이트 로직 추출 끝 ---
+    camera.lookAt(0, 0, 0);
+  }, [camera]); // MIN_ZOOM_RADIUS, MAX_ZOOM_RADIUS는 상수이므로 의존성 배열에 불필요
 
   useEffect(() => {
       const initialPos = camera.position;
-      radiusRef.current = initialPos.length();
-      // 초기 각도 계산 시 제한 적용
+      // 초기 radiusRef 값 설정 시에도 제한 적용
+      radiusRef.current = Math.max(
+          MIN_ZOOM_RADIUS,
+          Math.min(MAX_ZOOM_RADIUS, initialPos.length())
+      );
       const initialPhi = Math.asin(initialPos.y / radiusRef.current);
       rotationRef.current.x = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, initialPhi));
       rotationRef.current.y = Math.atan2(initialPos.x, initialPos.z);
-      updateCameraPosition(); // 초기 위치 설정 반영
+      updateCameraPosition();
   }, [camera, updateCameraPosition]); // updateCameraPosition 의존성 추가
 
+  // --- 핸들러 수정: 드래그/핀치 상태 관리 ---
   const handlePointerDown = useCallback((clientX: number, clientY: number) => {
     isDraggingRef.current = true;
-    isDampingRef.current = false; // 드래그 시작 시 감쇠 중지
-    velocityRef.current = { x: 0, y: 0 }; // 속도 초기화
+    isPinchingRef.current = false; // 드래그 시작 시 핀치 중지
+    isDampingRef.current = false;
+    velocityRef.current = { x: 0, y: 0 };
     previousPositionRef.current = { x: clientX, y: clientY };
     gl.domElement.style.cursor = 'grabbing';
   }, [gl.domElement.style]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
-    if (!isDraggingRef.current) return;
+    if (!isDraggingRef.current) return; // 드래그 중이 아니면 이동 처리 안 함
 
     const deltaX = clientX - previousPositionRef.current.x;
     const deltaY = clientY - previousPositionRef.current.y;
 
-    // 각도 변화량 계산
     const deltaRotY = deltaX * 0.005;
     const deltaRotX = deltaY * 0.005;
 
-    // 회전값 업데이트
     rotationRef.current.y += deltaRotY;
-    rotationRef.current.x += deltaRotX; // 각도 제한은 updateCameraPosition에서 처리
+    rotationRef.current.x += deltaRotX;
 
-    // --- 속도(각도 변화량) 저장 ---
     velocityRef.current.y = deltaRotY;
     velocityRef.current.x = deltaRotX;
-    // --- 속도 저장 끝 ---
 
-    // 카메라 위치 즉시 업데이트
     updateCameraPosition();
 
     previousPositionRef.current = { x: clientX, y: clientY };
-  }, [updateCameraPosition]); // updateCameraPosition 의존성 추가
+  }, [updateCameraPosition]);
 
   const handlePointerUp = useCallback(() => {
     if (isDraggingRef.current) {
         isDraggingRef.current = false;
         gl.domElement.style.cursor = 'grab';
 
-        // --- 감쇠 시작 조건 확인 ---
-        // 마지막 속도의 크기 계산 (간단히 절대값 합 사용)
         const speed = Math.abs(velocityRef.current.x) + Math.abs(velocityRef.current.y);
         if (speed > MIN_VELOCITY) {
-            isDampingRef.current = true; // 속도가 충분하면 감쇠 시작
+            isDampingRef.current = true;
         } else {
-            velocityRef.current = { x: 0, y: 0 }; // 속도 매우 작으면 초기화
+            velocityRef.current = { x: 0, y: 0 };
             isDampingRef.current = false;
         }
-        // --- 감쇠 시작 조건 확인 끝 ---
     }
+    // 핀치 상태도 여기서 초기화할 수 있지만, touchend에서 처리하는 것이 더 명확
+    // isPinchingRef.current = false;
   }, [gl.domElement.style]);
 
-  // --- 감쇠 처리 로직 (useFrame) ---
+  // --- 핀치 처리 로직 추가 ---
+  const handlePinchMove = useCallback((touches: TouchList) => {
+    if (touches.length !== 2) return; // 반드시 두 개의 터치 포인트
+
+    const currentDistance = getDistance(touches[0], touches[1]);
+    const initialDistance = initialPinchDistanceRef.current;
+
+    if (initialDistance > 0) { // 초기 거리가 설정된 경우에만 계산
+        const scale = initialDistance / currentDistance; // 거리가 가까워지면 scale > 1 (줌 인)
+        const newRadius = initialRadiusOnPinchRef.current * scale * PINCH_SENSITIVITY;
+
+        // 새로운 반경 업데이트 (updateCameraPosition 내에서 제한 적용됨)
+        radiusRef.current = newRadius;
+        updateCameraPosition(); // 카메라 위치 즉시 업데이트
+    }
+  }, [updateCameraPosition]); // PINCH_SENSITIVITY는 상수
+
+  // --- 감쇠 처리 로직 (기존과 동일) ---
   useFrame(() => {
     if (isDampingRef.current) {
-      // 속도를 현재 회전값에 적용
       rotationRef.current.y += velocityRef.current.y;
       rotationRef.current.x += velocityRef.current.x;
 
-      // 속도 감쇠
       velocityRef.current.y *= DAMPING_FACTOR;
       velocityRef.current.x *= DAMPING_FACTOR;
 
-      // 카메라 위치 업데이트
       updateCameraPosition();
 
-      // 속도가 임계값 미만이면 감쇠 중지
       const speed = Math.abs(velocityRef.current.x) + Math.abs(velocityRef.current.y);
       if (speed < MIN_VELOCITY) {
         isDampingRef.current = false;
@@ -145,50 +175,110 @@ const CameraControls = () => {
       }
     }
   });
-  // --- 감쇠 처리 로직 끝 ---
 
-
+  // --- 이벤트 리스너 useEffect 수정 ---
   useEffect(() => {
     const canvas = gl.domElement;
     canvas.style.cursor = 'grab';
 
+    // --- 마우스 이벤트 ---
     const handleMouseDown = (e: MouseEvent) => handlePointerDown(e.clientX, e.clientY);
     const handleMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY);
-    const handleMouseUp = () => handlePointerUp();
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
-    };
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 1) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-    };
-    const handleTouchEnd = () => handlePointerUp();
+    const handleMouseUp = () => handlePointerUp(); // handlePointerUp은 마우스 전용으로 유지
 
+    // --- 터치 이벤트 ---
+    const handleTouchStart = (e: TouchEvent) => {
+      // e.preventDefault(); // 스크롤 방지 필요 시 활성화. 단, passive:false 필요
+      if (e.touches.length === 1) {
+          // 싱글 터치: 드래그 시작
+          isPinchingRef.current = false; // 핀치 모드 해제
+          handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
+      } else if (e.touches.length === 2) {
+          // 더블 터치: 핀치 시작
+          isDraggingRef.current = false; // 드래그 모드 해제
+          isDampingRef.current = false; // 감쇠 중지
+          isPinchingRef.current = true;
+          initialPinchDistanceRef.current = getDistance(e.touches[0], e.touches[1]);
+          initialRadiusOnPinchRef.current = radiusRef.current; // 현재 반경 저장
+          gl.domElement.style.cursor = 'grabbing'; // 커서 변경 (선택 사항)
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDraggingRef.current && e.touches.length === 1) {
+           // 싱글 터치 드래그 중 이동
+           e.preventDefault(); // 드래그 중 스크롤 방지
+           handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      } else if (isPinchingRef.current && e.touches.length === 2) {
+           // 핀치 중 이동
+           e.preventDefault(); // 핀치 중 스크롤 방지
+           handlePinchMove(e.touches);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+        if (isDraggingRef.current) {
+            // 드래그 중 손가락 뗌
+            handlePointerUp(); // 드래그 종료 및 감쇠 시작 로직 호출
+        }
+        if (isPinchingRef.current) {
+            // 핀치 중 손가락 뗌
+             isPinchingRef.current = false;
+             initialPinchDistanceRef.current = 0;
+             gl.domElement.style.cursor = 'grab'; // 커서 복원
+
+             // 만약 손가락 하나가 남았다면 드래그 모드로 전환할 수도 있음 (선택적 구현)
+             if (e.touches.length === 1) {
+                 // handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
+             }
+        }
+
+        // 모든 손가락이 떨어졌을 때 커서 기본값으로
+        if (e.touches.length === 0) {
+            gl.domElement.style.cursor = 'grab';
+            isDraggingRef.current = false; // 안전하게 상태 초기화
+            isPinchingRef.current = false;
+            // 감쇠는 handlePointerUp에서 관리하므로 여기서는 isDampingRef 건드리지 않음
+        }
+    };
+
+    // 마우스 리스너 등록
     canvas.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: true }); // passive: true 권장 (스크롤 방지 불필요 시)
-    window.addEventListener('touchmove', handleTouchMove);
-    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('mousemove', handleMouseMove); // window에 등록해야 캔버스 벗어나도 동작
+    window.addEventListener('mouseup', handleMouseUp); // window에 등록해야 캔버스 벗어나도 동작
+
+    // 터치 리스너 등록 (passive: false로 설정하여 preventDefault 사용 가능하도록 함)
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false }); // window에 등록해야 함
+    window.addEventListener('touchend', handleTouchEnd);     // window에 등록해야 함
+    window.addEventListener('touchcancel', handleTouchEnd); // 취소 시에도 종료 처리
+
 
     return () => {
+      // 마우스 리스너 제거
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      // 터치 리스너 제거
       canvas.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleTouchEnd);
-      canvas.style.cursor = 'default';
+      window.removeEventListener('touchcancel', handleTouchEnd);
+      canvas.style.cursor = 'default'; // 기본 커서로 복원
     };
-  }, [gl, handlePointerDown, handlePointerMove, handlePointerUp]); // 핸들러 함수 의존성 추가
+    // 의존성 배열에 새로 추가된 핸들러 추가
+  }, [gl, handlePointerDown, handlePointerMove, handlePointerUp, handlePinchMove]);
 
   return null;
-};
+});
+CameraControls.displayName = 'CameraControls'; // 디버깅을 위한 displayName 추가
+
 
 // 배경 별 생성
-const StarField = () => {
+const StarField = memo(() => { // React.memo 적용
   const starsRef = useRef<THREE.Points>(null);
   const starCount = 1000;
-  
+
   const starPositions = useMemo(() => {
     const positions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount; i++) {
@@ -198,13 +288,13 @@ const StarField = () => {
     }
     return positions;
   }, [starCount]);
-  
+
   useFrame(() => {
     if (starsRef.current) {
       starsRef.current.rotation.y += 0.0001;
     }
   });
-  
+
   return (
     <points ref={starsRef}>
       <bufferGeometry>
@@ -218,11 +308,12 @@ const StarField = () => {
       <pointsMaterial size={0.1} color="#ffffff" transparent opacity={0.8} />
     </points>
   );
-};
+});
+StarField.displayName = 'StarField'; // 디버깅을 위한 displayName 추가
 
 
 // 원형 파동 컴포넌트 - 더욱 느리고 부드러운 모션 적용
-const CircularWave = ({ volume }: { volume: number }) => {
+const CircularWave = memo(({ volume }: CircularWaveProps) => { // React.memo 적용 및 타입 사용
   const groupRef = useRef<THREE.Group>(null);
   const [hue, setHue] = useState(0.6);
   const [smoothVolumeIntensity, setSmoothVolumeIntensity] = useState(0);
@@ -297,7 +388,7 @@ const CircularWave = ({ volume }: { volume: number }) => {
           const scale = baseScale + volumeScale + wave;
           child.scale.set(scale, scale, 1);
           child.rotation.z += 0.0005 * (i % 2 === 0 ? 1 : -1); // 속도 유지 (이전 조정)
-        } else { // polygo
+        } else { // polygon
           wave = Math.cos(time * 0.6 + ring.phase) * 0.075 * totalIntensity; // 0.15 -> 0.075
           volumeScale = (equivalentVolume / 250) * ring.initialScale;
           const scale = baseScale + volumeScale + wave;
@@ -360,9 +451,10 @@ const CircularWave = ({ volume }: { volume: number }) => {
       ))}
     </group>
   );
-};
+});
+CircularWave.displayName = 'CircularWave'; // 디버깅을 위한 displayName 추가
 
-const ParticleEffect = ({ volume }: { volume: number }) => {
+const ParticleEffect = memo(({ volume }: { volume: number }) => { // React.memo 적용
   const particlesRef = useRef<THREE.Group>(null);
   const particleCount = 50; // 파티클 수를 50으로 유지
 
@@ -449,7 +541,8 @@ const ParticleEffect = ({ volume }: { volume: number }) => {
       ))}
     </group>
   );
-};
+});
+ParticleEffect.displayName = 'ParticleEffect'; // 디버깅을 위한 displayName 추가
 
 // --- 상수 정의 ---
 const ENTRY_LENGTH = 3.2;
@@ -519,7 +612,7 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
 // --- 원형 텍스처 생성 함수 끝 ---
 
 
-const QuasarJet = ({ volume }: { volume: number }) => {
+const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 
@@ -787,59 +880,70 @@ const QuasarJet = ({ volume }: { volume: number }) => {
       <bufferGeometry ref={geometryRef} />
     </points>
   );
-};
+});
+QuasarJet.displayName = 'QuasarJet'; // 디버깅을 위한 displayName 추가
 
 
 // 발광 효과를 위한 후처리 (블룸 대체)
-const GlowEffect = () => {
-  const { scene, camera, gl } = useThree();
-  
+const GlowEffect = memo(() => { // React.memo 적용
+  const { gl } = useThree();
+
   useEffect(() => {
     // 기존 렌더러의 설정을 강화
     gl.toneMapping = THREE.ACESFilmicToneMapping;
     gl.toneMappingExposure = 1.5;
     gl.outputEncoding = THREE.sRGBEncoding;
-    
+
     // 후처리 효과를 사용하려면 postprocessing 라이브러리 필요
     // 현재는 기본 설정 강화로 대체
-    
+
+    // 저장된 원래 값으로 되돌리기 위한 클린업 함수
+    const originalToneMapping = gl.toneMapping;
+    const originalToneMappingExposure = gl.toneMappingExposure;
+    const originalOutputEncoding = gl.outputEncoding;
+
+
     return () => {
-      gl.toneMapping = THREE.NoToneMapping;
-      gl.toneMappingExposure = 1;
+        // 컴포넌트 언마운트 시 원래 값으로 복원
+        gl.toneMapping = originalToneMapping;
+        gl.toneMappingExposure = originalToneMappingExposure;
+        gl.outputEncoding = originalOutputEncoding;
+
     };
   }, [gl]);
-  
+
   return null;
-};
+});
+GlowEffect.displayName = 'GlowEffect'; // 디버깅을 위한 displayName 추가
 
 const ThreeScene = ({ volume }: ThreeSceneProps) => {
   return (
     <Canvas
       style={{ width: '100%', height: '100%' }}
       camera={{ position: [-0.7, 0.5, -4], fov: 110 }}
-      gl={{ 
-        antialias: true, 
+      gl={{
+        antialias: true,
         alpha: true,
         powerPreference: 'high-performance'
       }}
     >
       {/* 렌더링 품질 향상 */}
       <GlowEffect />
-      
+
       {/* 카메라 드래그 컨트롤 */}
       <CameraControls />
-      
+
       {/* 배경 별 */}
       <StarField />
-      
+
       {/* 원형 파동 */}
       <CircularWave volume={volume} />
 
       <QuasarJet volume={volume} />
-      
+
       {/* 파티클 효과 */}
       <ParticleEffect volume={volume} />
-      
+
       {/* 조명 */}
       <ambientLight intensity={0.3} />
       <pointLight position={[5, 5, 5]} intensity={0.8} color="#4fc3dc" />
