@@ -750,7 +750,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const rotationSpeeds = particleAttributes.rotationSpeeds;
 
     const time = clock.elapsedTime;
-    const normalizedVolume = (volume >= 30) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const normalizedVolume = (volume >= 25) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
