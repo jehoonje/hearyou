@@ -314,6 +314,7 @@ StarField.displayName = 'StarField'; // 디버깅을 위한 displayName 추가
 
 // 원형 파동 컴포넌트 - 더욱 느리고 부드러운 모션 적용
 const CircularWave = memo(({ volume }: CircularWaveProps) => { // React.memo 적용 및 타입 사용
+  console.log('%%% [CircularWave] Received volume prop:', volume);
   const groupRef = useRef<THREE.Group>(null);
   const [hue, setHue] = useState(0.6);
   const [smoothVolumeIntensity, setSmoothVolumeIntensity] = useState(0);
@@ -380,6 +381,7 @@ const CircularWave = memo(({ volume }: CircularWaveProps) => { // React.memo 적
         const equivalentVolume = (newSmoothIntensity / 0.7) * 100;
         let volumeScale: number;
         // --- 수정 끝 ---
+        if(volume > 5) console.log(`%%% [CircularWave useFrame] vol:<span class="math-inline">\{volume\.toFixed\(2\)\}, smoothI\:</span>{newSmoothIntensity.toFixed(3)}, eqVol:${equivalentVolume.toFixed(2)}`);
 
 
         if (ring.type === 'circle') {
@@ -613,6 +615,7 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
 
 
 const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
+  console.log('%%% [QuasarJet] Received volume prop:', volume); 
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 
@@ -750,7 +753,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const rotationSpeeds = particleAttributes.rotationSpeeds;
 
     const time = clock.elapsedTime;
-    const normalizedVolume = (volume >= 25) ? Math.min(1, Math.max(0, volume) / 100) : 0;
+    const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
     const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
@@ -762,6 +765,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
     const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0;
 
+    if(volume > 5) console.log(`%%% [QuasarJet useFrame] vol:<span class="math-inline">\{volume\.toFixed\(2\)\}, normVol\:</span>{normalizedVolume.toFixed(3)}, spawn:${numToSpawnInt}`);
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const i3 = i * 3;
       const i4 = i * 4;
@@ -917,6 +921,7 @@ const GlowEffect = memo(() => { // React.memo 적용
 GlowEffect.displayName = 'GlowEffect'; // 디버깅을 위한 displayName 추가
 
 const ThreeScene = ({ volume }: ThreeSceneProps) => {
+  console.log('%%% [ThreeScene] Received volume prop:', volume); 
   return (
     <Canvas
       style={{ width: '100%', height: '100%' }}
