@@ -2,27 +2,40 @@ import { memo, useState, useEffect, useCallback, useRef } from 'react';
 import { useMatchStore } from '../../store/matchStore';
 import { useAuth } from '../../hooks/useAuth';
 import ChatInterface from '../chat/ChatInterface';
-import NotificationBanner from '../../components/NotificationBanner'; // 경로 확인
+import NotificationBanner from '../../components/NotificationBanner';
 import VolumeIndicator from './VolumeIndicator';
 import TranscriptDisplay from './TranscriptDisplay';
 import KeywordList from './KeywordList';
-import { Keyword } from '../../types'; // 경로 확인
-import { useAudioAnalysis } from '../../hooks/useAudioAnalysis'; // useAudioAnalysis 임포트
-import { Mic, MicOff } from 'lucide-react'; // 아이콘 임포트
+import { Keyword } from '../../types';
+// import { useAudioAnalysis } from '../../hooks/useAudioAnalysis'; // <--- 이 줄 삭제!
+import { Mic, MicOff } from 'lucide-react';
 
 interface VoiceTrackerUIProps {
+  // --- 시작: 필요한 Props 추가 ---
+  volume: number;
+  transcript: string;
+  listening: boolean;
+  newKeywords: string[];
+  error: string | null; // audioError 대신 범용 error prop 사용 또는 audioError 명시
+  toggleListening: () => void;
+  // --- 끝: 필요한 Props 추가 ---
   keywordList: Keyword[];
   userEmail: string;
   onLogout: () => void;
-  // 외부 콜백은 필요 시 prop으로 받거나 context 사용
-  // onKeywordSavedProp?: (keyword: Keyword) => void;
 }
 
 const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
+  // Props 받기
+  volume,
+  transcript,
+  listening,
+  newKeywords,
+  error: audioErrorProp, // prop 이름 변경 (선택 사항)
+  toggleListening,
+  // 기존 props
   keywordList,
   userEmail,
   onLogout,
-  // onKeywordSavedProp
 }) => {
   const { user } = useAuth();
   const {
@@ -36,37 +49,34 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
       clearMatch
   } = useMatchStore();
 
-  // --- Keyword Saved 콜백 메모이제이션 ---
+  // --- useAudioAnalysis 훅 호출 삭제 ---
+  // const {
+  //   volume, // 이제 props로 받음
+  //   transcript, // 이제 props로 받음
+  //   listening, // 이제 props로 받음
+  //   newKeywords, // 이제 props로 받음
+  //   error: audioError, // 이제 props로 받음
+  //   toggleListening // 이제 props로 받음
+  //  } = useAudioAnalysis(user, handleKeywordSaved); // <--- 이 블록 전체 삭제!
+
+  // --- Keyword Saved 콜백 (변경 없음) ---
   const handleKeywordSaved = useCallback((savedKeyword: Keyword) => {
        console.log("Keyword saved callback received in UI:", savedKeyword);
-       // 상위 컴포넌트 콜백 호출 또는 상태 업데이트 로직
-       // if (onKeywordSavedProp) {
-       //   onKeywordSavedProp(savedKeyword);
-       // }
-   }, [/* onKeywordSavedProp 등 외부 의존성이 있다면 추가 */]); // 의존성 배열 중요!
+   }, []);
 
-
-  // --- useAudioAnalysis 훅 사용 ---
-  const {
-    volume,
-    transcript,
-    listening,
-    newKeywords,
-    error: audioError,
-    toggleListening
-   } = useAudioAnalysis(user, handleKeywordSaved); // 메모이제이션된 콜백 전달
-
-   console.log('%%% [Parent] volume state:', volume);
-  // --- 나머지 상태 및 로직 (이전과 거의 동일) ---
+  // --- 상태 및 로직 (audioError 상태는 prop으로 대체) ---
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isMatchmakingRunning, setIsMatchmakingRunning] = useState(false);
-  const [audioErrorMessage, setAudioErrorMessage] = useState<string | null>(null);
+  const [isaudioErrorMessage, setAudioErrorMessage] = useState<string | null>(null); // 직접 상태 관리 대신 prop 사용
   const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(null);
   const [noMatchMessage, setNoMatchMessage] = useState<string | null>(null);
 
-  useEffect(() => { setAudioErrorMessage(audioError ? `오디오 오류: ${audioError}` : null); }, [audioError]);
+  // 오디오 에러 메시지는 prop으로 직접 사용
+  const audioErrorMessage = audioErrorProp ? `오디오 오류: ${audioErrorProp}` : null;
+
+  // useEffect(() => { setAudioErrorMessage(audioError ? `오디오 오류: ${audioError}` : null); }, [audioError]); // <--- 삭제
   useEffect(() => { setMatchErrorMessage(matchError && !isMatchLoading ? `매칭 오류: ${matchError}` : null); }, [matchError, isMatchLoading]);
-  useEffect(() => { setNoMatchMessage(!isMatchLoading && !currentMatch && !matchError && user ? "아직 대화상대가 준비되지 않았습니다." : null); }, [isMatchLoading, currentMatch, matchError, user]); // user 조건 추가
+  useEffect(() => { setNoMatchMessage(!isMatchLoading && !currentMatch && !matchError && user ? "아직 대화상대가 준비되지 않았습니다." : null); }, [isMatchLoading, currentMatch, matchError, user]);
 
   useEffect(() => { if (user) { fetchCurrentMatch(user); } else { clearMatch(); } }, [user, fetchCurrentMatch, clearMatch]);
   useEffect(() => { if (user) { subscribeToMatchChanges(user); } return () => { unsubscribeFromMatchChanges(); }; }, [user, subscribeToMatchChanges, unsubscribeFromMatchChanges]);
@@ -76,14 +86,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
 
   const runManualMatchmaking = useCallback(async () => { /* ... 이전 로직 ... */ }, [isMatchmakingRunning, user, fetchCurrentMatch]);
 
-  // 로그아웃 시 오디오 중지 (선택적이지만 권장)
+  // 로그아웃 핸들러에서 prop으로 받은 listening, toggleListening 사용
   const handleLogout = useCallback(() => {
-    if (listening) { // 로그아웃 시 듣고 있었다면
-        toggleListening(); // 중지 요청
+    if (listening) { // prop 사용
+        toggleListening(); // prop 사용
     }
     clearMatch();
     onLogout();
-  }, [clearMatch, onLogout, listening, toggleListening]); // listening, toggleListening 추가
+  }, [clearMatch, onLogout, listening, toggleListening]); // listening, toggleListening prop 의존성 추가
 
   // --- UI 렌더링 ---
   return (
@@ -97,19 +107,19 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
              <NotificationBanner key={`noMatch-${noMatchMessage}`} message={noMatchMessage} type="warning" onDismiss={() => setNoMatchMessage(null)} />
          </div>
 
-        {/* 상단 영역 */}
-        <div className="p-4 flex-shrink-0 pointer-events-auto">
+         {/* 상단 영역 */}
+         <div className="p-4 flex-shrink-0 pointer-events-auto">
           <div className="flex justify-between items-center mb-4">
-            {/* 타이틀과 녹음 버튼 */}
+            {/* 타이틀과 녹음 버튼 (listening, toggleListening props 사용) */}
             <div className="flex items-center space-x-2">
                 <h1 className="text-xl font-mono font-bold flex items-center text-shadow"> Univoice </h1>
                 <button
-                     onClick={toggleListening}
-                     disabled={!user} // 로그인 상태 확인
+                     onClick={toggleListening} // prop 사용
+                     disabled={!user}
                      className={`p-1.5 rounded-full transition-colors duration-200 ease-in-out ${
                          !user
                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                           : listening
+                           : listening // prop 사용
                              ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
                              : 'bg-green-600 hover:bg-green-500 text-white'
                      }`}
@@ -118,40 +128,31 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(({
                  >
                      {listening ? <MicOff size={16} strokeWidth={2.5} /> : <Mic size={16} strokeWidth={2.5} />}
                  </button>
-                 {/* 디버깅용 listening 상태 표시 */}
-                 {/* <span className={`ml-2 text-xs ${listening ? 'text-green-400' : 'text-red-400'}`}>{listening ? 'Listening' : 'Stopped'}</span> */}
             </div>
-            {/* 사용자 정보/로그아웃 */}
+            {/* 사용자 정보/로그아웃 (handleLogout은 위에서 수정됨) */}
             <div className='flex items-center space-x-2'>
               {userEmail && <span className="text-xs font-mono text-gray-400 hidden sm:inline"> {userEmail.split("@")[0]} </span>}
               <button onClick={handleLogout} className="text-xs bg-gray-800 hover:bg-gray-700 cursor-pointer text-white font-mono py-2 px-4 rounded"> Sign Out </button>
             </div>
           </div>
 
-          {/* --- 음성 관련 UI: 깜박임 현상 확인 --- */}
-          {/*
-             깜박임의 주 원인이 잦은 리렌더링이라면, 이 블록 자체를 memo로 감싸거나,
-             VolumeIndicator처럼 내부적으로 최적화된 컴포넌트를 사용하는 것이 도움이 될 수 있습니다.
-             하지만 근본 원인인 useEffect 재실행이나 상태 불안정 문제를 먼저 해결해야 합니다.
-             아래 구조는 유지하되, useAudioAnalysis 훅의 안정화가 중요합니다.
-          */}
-          <div className="min-h-[100px]"> {/* 컨텐츠가 없을 때도 높이 유지하여 레이아웃 흔들림 방지 */}
-              {listening && (
-                // Optional: Add transition effects for smoother appearance/disappearance
+          {/* 음성 관련 UI (transcript, newKeywords, volume props 사용) */}
+          <div className="min-h-[100px]">
+              {listening && ( // prop 사용
                 <div className="transition-opacity duration-300 ease-in-out opacity-100">
-                  <TranscriptDisplay transcript={transcript} />
-                  {newKeywords.length > 0 && (
-                    <div className="backdrop-blur-lg bg-blue-500/30 p-3 rounded-lg my-2 animate-pulse border border-blue-300"> {/* mb-4 대신 my-2로 변경 */}
+                  <TranscriptDisplay transcript={transcript} /> {/* prop 사용 */}
+                  {newKeywords.length > 0 && ( // prop 사용
+                    <div className="backdrop-blur-lg bg-blue-500/30 p-3 rounded-lg my-2 animate-pulse border border-blue-300">
                       <h2 className="text-base font-mono font-semibold text-shadow"> 감지된 키워드: </h2>
-                      <p className="text-sm font-mono font-bold"> {newKeywords.join(', ')} </p>
+                      <p className="text-sm font-mono font-bold"> {newKeywords.join(', ')} </p> {/* prop 사용 */}
                     </div>
                   )}
-                  <VolumeIndicator volume={volume} />
+                  <VolumeIndicator volume={volume} /> {/* prop 사용 */}
                 </div>
               )}
-              {!listening && audioError && ( // 에러 메시지를 이 위치에 표시할 수도 있음
+              {!listening && audioErrorProp && ( // prop 사용
                  <div className="text-red-400 text-sm font-mono p-2 bg-red-900/30 rounded">
-                     오디오 오류: {audioError}
+                     오디오 오류: {audioErrorProp} {/* prop 사용 */}
                  </div>
               )}
          </div>
