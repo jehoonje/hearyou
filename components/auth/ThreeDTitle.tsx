@@ -112,7 +112,7 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
           bevelSegments={5} // 베벨 정밀도
           letterSpacing={-0.05} // 글자 간격
         >
-          Universe {/* 표시될 텍스트 */}
+          univoice {/* 표시될 텍스트 */}
           {/* 메탈릭 재질 설정 */}
           <meshStandardMaterial
             color={0xbbbbbb} // 기본 색상 (밝은 회색)
