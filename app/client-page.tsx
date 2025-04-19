@@ -11,11 +11,16 @@ import { useAuth as useAppAuth } from "../hooks/useAuth";
 import { useAudioAnalysis } from "../hooks/useAudioAnalysis"; // 경로 확인 필요
 import { useKeywords } from "../hooks/useKeywords"; // 경로 확인 필요
 import { Keyword } from "../types"; // 경로 확인 필요
+import { Session } from '@supabase/supabase-js';
 import { User } from "@supabase/supabase-js";
 
+// --- ClientPageProps 인터페이스 수정 ---
 interface ClientPageProps {
-  initialKeywords: Keyword[] | null;
+  initialSession: Session | null; // Session 타입 또는 null 허용
+  initialKeywords: Keyword[] | null; // Keyword 배열 또는 null 허용 (fetchKeywords 반환 타입에 맞춰 조정)
+  // ... 기존에 다른 props가 있었다면 그대로 유지
 }
+
 
 const MAX_CLICK_DURATION = 300;
 const MAX_CLICK_DRAG_THRESHOLD = 10;
@@ -187,7 +192,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
           ) : (
             // VoiceTrackerUI 컨테이너
              <div
-               className={`${isUIVisible ? 'pointer-events-auto' : ''}`}
+               className={`${isUIVisible ? '' : ''}`}
                data-interactive-ui="true"
              >
                {/* VoiceTrackerUI에 중앙 관리되는 상태 및 함수 전달 */}
