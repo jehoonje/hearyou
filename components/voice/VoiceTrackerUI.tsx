@@ -170,92 +170,74 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     return (
       <>
+        {/* 최상위 div: pointer-events-none 유지 또는 제거 후 테스트 */}
         <div className="absolute inset-0 flex flex-col w-full h-full pointer-events-none">
-          {/* 알림 배너 (변경 없음) */}
+          {/* 알림 배너 */}
           <div className="absolute top-0 left-0 right-0 z-50 flex flex-col items-center space-y-1 pt-2">
+            {/* 각 배너는 고유 key와 message가 있을 때만 렌더링되도록 개선 가능 */}
             <NotificationBanner
-              key={`audio-${audioErrorMessage}`}
+              key={`audio-${!!audioErrorMessage}`} // message 존재 여부로 key 변경
               message={audioErrorMessage}
               type="error"
-              onDismiss={() => setAudioErrorMessage(null)}
-            />
-            <NotificationBanner
-              key={`match-${matchErrorMessage}`}
-              message={matchErrorMessage}
-              type="info"
               onDismiss={() => setMatchErrorMessage(null)}
             />
             <NotificationBanner
-              key={`noMatch-${noMatchMessage}`}
+              key={`match-${!!matchError}`} // message 존재 여부로 key 변경
+              message={matchError ? `매칭 오류: ${matchError}` : null} // Zustand 에러 사용
+              type="error" // 매칭 오류는 error 타입으로
+              onDismiss={() => setMatchErrorMessage(null)}
+            />
+            <NotificationBanner
+              key={`noMatch-${!!noMatchMessage}`} // message 존재 여부로 key 변경
               message={noMatchMessage}
               type="warning"
-              onDismiss={() => setNoMatchMessage(null)}
+              onDismiss={() => setMatchErrorMessage(null)}
             />
           </div>
 
-          {/* 상단 영역 */}
+          {/* 상단 영역: pointer-events-auto */}
           <div className="p-4 flex-shrink-0 pointer-events-auto">
-            {/* <div className="flex justify-between items-center mb-1">
-            {userEmail && (
-                  <span className="text-xs font-mono text-gray-400 hidden sm:inline">
-                    {userEmail.split("@")[0]}
-                  </span>
-                )}
-            </div> */}
             <div className="flex justify-between items-center mb-4">
-              {/* 타이틀과 녹음 토글 버튼 */}
+              {/* 마이크 토글 */}
               <div className="flex items-center space-x-1">
-                {/* <h1 className="text-xl font-mono font-bold flex items-center text-shadow">
-                  Univoice
-                </h1> */}
-                {/* MicToggleButton 사용 (변경 없음, 스타일은 내부/CSS에서 적용됨) */}
                 <MicToggleButton
                   listening={listening}
                   onClick={toggleListening}
-                  disabled={!userEmail}
+                  disabled={!userEmail} // 이메일 없으면 비활성화
                 />
-                
               </div>
-              {/* 사용자 정보/로그아웃 */}
+              {/* 액션 버튼들 */}
               <div className="flex items-center space-x-1">
-                {/* === Test Match 버튼 스타일 변경 === */}
                 <button
                   onClick={runManualMatchmaking}
-                  disabled={isMatchmakingRunning}
-                  // 적용된 커스텀 CSS 클래스 및 조건부 스타일링
+                  disabled={isMatchmakingRunning || !userEmail} // 이메일 없어도 비활성화
                   className={`btn-aero-yellow ${
-                    isMatchmakingRunning ? "disabled" : "" // 비활성화 상태 클래스 추가
+                    isMatchmakingRunning || !userEmail ? "disabled" : ""
                   }`}
                 >
                   {isMatchmakingRunning ? "매칭중..." : "Match"}
                 </button>
-                {/* ================================== */}
                 {isMatchLoading && (
-                  <span className="text-xs text-gray-400"></span>
+                  <span className="text-xs text-gray-400 animate-pulse"></span>
                 )}
-                {/* === Chat 버튼 스타일 변경 === */}
                 {currentMatch && !isMatchLoading && (
                   <button
                     onClick={openChat}
-                    // 적용된 커스텀 CSS 클래스
-                    className="btn-aero-green" // 기존 Tailwind 대신 커스텀 클래스 사용
+                    className="btn-aero-green"
                   >
                     Chat
                   </button>
                 )}
-                {/* === Sign Out 버튼 스타일 변경 === */}
                 <button
                   onClick={handleLogout}
-                  // 적용된 커스텀 CSS 클래스
-                  className="btn-aero-gray" // 기존 Tailwind 대신 커스텀 클래스 사용
+                  className="btn-aero-gray"
                 >
                   Sign Out
                 </button>
-                {/* =============================== */}
               </div>
             </div>
 
-            {/* 음성 관련 UI (변경 없음) */}
+            {/* 음성 관련 UI */}
             <div className="min-h-[100px]">
               {listening && (
                 <div className="transition-opacity duration-300 ease-in-out opacity-100">
@@ -273,31 +255,34 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   <VolumeIndicator volume={volume} />
                 </div>
               )}
+              {/* 오디오 오류 메시지 (녹음 중 아닐 때만 표시) */}
               {!listening && audioErrorProp && (
-                <div className="text-red-400 text-sm font-mono p-2 bg-red-900/30 rounded">
-                  오디오 오류: {audioErrorProp}
-                </div>
-              )}
+                 <div className="text-red-400 text-sm font-mono p-2 bg-red-900/30 rounded">
+                   오디오 오류: {audioErrorProp}
+                 </div>
+               )}
+               {/* 녹음 시작 안내 (오디오 오류 없을 때) */}
+               {!listening && !audioErrorProp && userEmail && (
+                 <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded">
+                   마이크 버튼을 눌러 시작하세요.
+                 </div>
+               )}
             </div>
           </div>
 
-          {/* 중앙 여백 (변경 없음) */}
-          <div className="flex-grow"></div>
+          {/* 중앙 여백 */}
+          <div className="flex-grow pointer-events-none"></div> {/* 중앙 영역은 이벤트 통과 */}
 
-          {/* 하단 영역 */}
+          {/* 하단 영역: pointer-events-auto */}
           <div className="p-4 flex-shrink-0 pointer-events-auto">
-            {/* 채팅 관련 버튼 */}
-            <div className="flex items-center space-x-2 mb-4">
-              {/* ============================ */}
-            </div>
-            {/* KeywordList */}
-            <div className="overflow-y-auto max-h-36 scrollbar-thin">
-              <KeywordList keywordList={keywordList} />
-            </div>
+             {/* KeywordList */}
+             <div className="overflow-y-auto max-h-36 scrollbar-thin">
+               <KeywordList keywordList={keywordList} />
+             </div>
           </div>
         </div>
 
-        {/* 채팅 모달 (변경 없음) */}
+        {/* 채팅 모달 */}
         {isChatOpen && <ChatInterface onClose={closeChat} />}
       </>
     );
