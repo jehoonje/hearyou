@@ -1,26 +1,20 @@
-// src/app/client-page.tsx 또는 유사 경로
-
 'use client';
 import { useState, useCallback, useEffect, useRef } from "react";
 import ThreeScene from "../components/ThreeScene";
 import LoadingScreen from "../components/ui/LoadingScreen";
 import LoginForm from "../components/auth/LoginForm";
 import VerificationModal from "../components/auth/VerificationModal";
-import VoiceTrackerUI from "../components/voice/VoiceTrackerUI"; // 경로 확인 필요
+import VoiceTrackerUI from "../components/voice/VoiceTrackerUI";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
-import { useAudioAnalysis } from "../hooks/useAudioAnalysis"; // 경로 확인 필요
-import { useKeywords } from "../hooks/useKeywords"; // 경로 확인 필요
-import { Keyword } from "../types"; // 경로 확인 필요
-import { Session } from '@supabase/supabase-js';
-import { User } from "@supabase/supabase-js";
+import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
+import { useKeywords } from "../hooks/useKeywords";
+import { Keyword } from "../types";
+import { Session, User } from "@supabase/supabase-js"; // User, Session 임포트 확인
 
-// --- ClientPageProps 인터페이스 수정 ---
+// Props 인터페이스 (AuthProvider에서 initialSession 관리 가정, 제거)
 interface ClientPageProps {
-  initialSession: Session | null; // Session 타입 또는 null 허용
-  initialKeywords: Keyword[] | null; // Keyword 배열 또는 null 허용 (fetchKeywords 반환 타입에 맞춰 조정)
-  // ... 기존에 다른 props가 있었다면 그대로 유지
+  initialKeywords: Keyword[] | null;
 }
-
 
 const MAX_CLICK_DURATION = 300;
 const MAX_CLICK_DRAG_THRESHOLD = 10;
@@ -34,47 +28,46 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   const auth = useAppAuth();
   const currentUser: User | null = auth.user;
 
-  // useKeywords 훅 (변경 없음)
   const { keywordList, addOrUpdateKeyword } = useKeywords(currentUser, isLoading, initialKeywords);
 
-  // --- handleKeywordSaved 콜백 정의 ---
-  // useAudioAnalysis 훅에 전달하기 위해 미리 정의합니다.
   const handleKeywordSaved = useCallback((savedKeyword: Keyword) => {
     console.log("Keyword saved callback triggered in MainContent:", savedKeyword);
     addOrUpdateKeyword(savedKeyword);
-  }, [addOrUpdateKeyword]); // 의존성 배열 확인
+  }, [addOrUpdateKeyword]);
 
-  // --- 오디오 분석 상태 중앙 관리 ---
-  // useAudioAnalysis 훅을 여기서 *단 한번만* 호출합니다.
   const {
     volume,
     transcript,
     listening,
     newKeywords,
-    error: audioError, // 에러 상태 이름 변경 (다른 error와 구분)
-    toggleListening // 녹음 시작/중지 함수 가져오기
+    error: audioError,
+    toggleListening
   } = useAudioAnalysis(
-    currentUser,        // 현재 사용자 정보 전달
-    handleKeywordSaved  // 키워드 저장 콜백 전달
+    currentUser,
+    handleKeywordSaved
   );
-  // --- 오디오 분석 상태 중앙 관리 끝 ---
-
 
   const [isUIVisible, setIsUIVisible] = useState(true);
   const clickStartTimeRef = useRef(0);
   const clickStartPositionRef = useRef({ x: 0, y: 0 });
   const isDraggingForToggleRef = useRef(false);
 
-  // UI 토글 로직 핸들러들 (변경 없음)
+  // UI 토글 핸들러 (data-interactive-ui 체크 강화)
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (isLoading || !contentVisible || auth.showVerificationModal) return;
+    // data-interactive-ui="true" 요소 또는 그 자식에서 시작된 이벤트는 무시
+    const targetElement = event.target as Element;
+    if (targetElement.closest('[data-interactive-ui="true"]')) {
+        // console.log("Pointer down inside interactive UI, ignoring for toggle."); // 디버깅
+        return;
+    }
     clickStartTimeRef.current = Date.now();
     clickStartPositionRef.current = { x: event.clientX, y: event.clientY };
     isDraggingForToggleRef.current = false;
   };
+
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isLoading || !contentVisible || auth.showVerificationModal) return;
-    if (clickStartTimeRef.current === 0 || isDraggingForToggleRef.current) return;
+    if (isLoading || !contentVisible || auth.showVerificationModal || clickStartTimeRef.current === 0 || isDraggingForToggleRef.current) return;
     const currentX = event.clientX;
     const currentY = event.clientY;
     const startX = clickStartPositionRef.current.x;
@@ -85,22 +78,33 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
       isDraggingForToggleRef.current = true;
     }
   };
+
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isLoading || !contentVisible || auth.showVerificationModal) return;
-    if (clickStartTimeRef.current === 0) return;
+    if (isLoading || !contentVisible || auth.showVerificationModal || clickStartTimeRef.current === 0) return;
+
     const clickDuration = Date.now() - clickStartTimeRef.current;
     const targetElement = event.target as Element;
+    // data-interactive-ui="true" 내부 클릭인지 다시 확인
     const clickedInsideInteractiveUI = targetElement.closest('[data-interactive-ui="true"]');
+
     if (!isDraggingForToggleRef.current && clickDuration < MAX_CLICK_DURATION && !clickedInsideInteractiveUI) {
-      setIsUIVisible(prev => !prev);
+       console.log("Toggling UI visibility");
+       setIsUIVisible(prev => !prev);
+    } else {
+       console.log("UI toggle condition not met:", {
+         isDragging: isDraggingForToggleRef.current,
+         duration: clickDuration,
+         insideUI: !!clickedInsideInteractiveUI
+       });
     }
+
     clickStartTimeRef.current = 0;
     isDraggingForToggleRef.current = false;
   };
 
 
-  // 로딩 처리 useEffect (변경 없음)
   useEffect(() => {
+    // 로딩 처리 (변경 없음)
     let currentProgress = 0;
     const interval = setInterval(() => {
       currentProgress += Math.random() * 15;
@@ -125,7 +129,6 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
     };
   }, []);
 
-  // 디버깅: MainContent에서 관리되는 volume 상태 확인
   console.log('%%% [MainContent] Passing volume to children:', volume);
 
   return (
@@ -134,7 +137,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
+      // onPointerLeave={handlePointerUp} // 필요시 사용
     >
       {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
 
@@ -142,29 +145,35 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
         <VerificationModal onComplete={auth.handleVerificationComplete} />
       }
 
+      {/* 콘텐츠 영역 */}
       <div
         className={`w-full h-full relative transition-opacity duration-1000 ${
-          contentVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+          contentVisible ? "opacity-100" : "opacity-0 pointer-events-none" // 로딩 중일 땐 이벤트 막기
         }`}
       >
-        {/* 3D 배경 씬: 중앙에서 관리되는 volume 상태 전달 */}
+        {/* 3D 배경 씬: 항상 뒤에 위치하며 이벤트는 UI 컨테이너를 통해 받음 */}
         <div className="absolute inset-0 w-full h-full pointer-events-none">
           <ThreeScene volume={volume} />
         </div>
 
-        {/* UI 요소 컨테이너 */}
+        {/* ===================== 수정된 부분 ===================== */}
+        {/* UI 요소 컨테이너: 기본적으로 이벤트를 통과시킴 (pointer-events-none 복원) */}
         <div
-          className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${
-            isUIVisible ? 'opacity-100' : 'opacity-0'
+          className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${ // <-- pointer-events-none 복원!
+            isUIVisible ? 'opacity-100' : 'opacity-0' // 숨겨질 때는 어차피 안보이므로 none 유지해도 됨
           }`}
         >
+        {/* ====================================================== */}
+
           {!currentUser ? (
-            // 로그인 폼 컨테이너 (변경 없음)
+            // 로그인 폼 컨테이너: 이벤트를 받도록 설정
             <div
-              className={`absolute inset-0 flex items-center justify-center p-4 ${isUIVisible ? 'pointer-events-auto' : ''}`}
-              data-interactive-ui="true"
+              // UI가 보일 때만 이벤트 받도록 pointer-events-auto 추가
+              className={`absolute inset-0 flex items-center justify-center p-4 ${isUIVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}
+              data-interactive-ui="true" // UI 토글 방지용
             >
               <LoginForm
+                // ... LoginForm props ...
                 authView={auth.authView}
                 setAuthView={auth.setAuthView}
                 authMessage={auth.authMessage || ''}
@@ -190,27 +199,25 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
               />
             </div>
           ) : (
-            // VoiceTrackerUI 컨테이너
+            // ===================== 수정된 부분 =====================
+            // VoiceTrackerUI 컨테이너: 이벤트를 받도록 설정
              <div
-               className={`${isUIVisible ? '' : ''}`}
-               data-interactive-ui="true"
+               // UI가 보일 때만 이벤트 받도록 pointer-events-auto 추가
+               className={`${isUIVisible ? 'pointer-events-auto' : 'pointer-events-none'}`} // <-- pointer-events-auto 추가!
+               data-interactive-ui="true" // UI 토글 방지용
              >
-               {/* VoiceTrackerUI에 중앙 관리되는 상태 및 함수 전달 */}
+            {/* ====================================================== */}
                <VoiceTrackerUI
-                 // 오디오 관련 상태 전달
+                 // ... VoiceTrackerUI props ...
                  volume={volume}
                  transcript={transcript}
                  listening={listening}
                  newKeywords={newKeywords}
-                 error={audioError} // 이름 변경된 에러 상태 전달
-                 toggleListening={toggleListening} // 녹음 토글 함수 전달
-
-                 // 기타 필요한 props 전달
+                 error={audioError}
+                 toggleListening={toggleListening}
                  keywordList={keywordList}
                  userEmail={currentUser.email || ""}
                  onLogout={auth.handleLogout}
-                 // 만약 VoiceTrackerUI 내부에서 user 객체가 필요하다면:
-                 // user={currentUser}
                />
             </div>
           )}
@@ -220,7 +227,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   );
 }
 
-// ClientPage 컴포넌트 (변경 없음)
+// ClientPage 컴포넌트 (AuthProvider에서 initialSession 처리 가정)
 export default function ClientPage({ initialKeywords }: ClientPageProps) {
   return <MainContent initialKeywords={initialKeywords} />;
 }

@@ -40,7 +40,7 @@ export const NotificationBanner = memo<NotificationBannerProps>(({ message, type
     };
   }, [message]); // message 가 변경될 때마다 effect 실행
 
-  const baseClasses = "sticky top-0 w-full p-2 text-center z-50 font-mono pointer-events-auto text-sm shadow transition-opacity duration-500 ease-in-out";
+  const baseClasses = "sticky top-0 w-full p-2 mt-8 text-center z-50 font-mono pointer-events-auto text-sm shadow transition-opacity duration-500 ease-in-out";
   const typeClasses = {
     error: 'bg-red-500 text-white',
     warning: 'bg-yellow-500 text-black',
@@ -59,7 +59,7 @@ export const NotificationBanner = memo<NotificationBannerProps>(({ message, type
 
   return (
     <div
-      className={`${baseClasses} ${typeClasses[type]} ${isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      className={`${baseClasses} ${typeClasses[type]} ${isVisible ? 'opacity-100' : 'opacity-0'}`}
       onClick={handleClick} // 클릭 시 숨김 처리
       role="alert"
       aria-live="assertive"

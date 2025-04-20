@@ -10,6 +10,7 @@ import {
 import { AuthState } from "../../types"; // Assuming this path is correct
 import ThreeDTitle from "./ThreeDTitle";
 import { motion, AnimatePresence } from "framer-motion"; // Import framer-motion
+import NotificationBanner from "../../components/NotificationBanner";
 
 // Interface definition remains the same
 interface LoginFormProps extends AuthState {
@@ -78,6 +79,8 @@ const LoginForm = memo<LoginFormProps>(
       username: HTMLInputElement | null;
     }>({ email: null, password: null, username: null });
 
+    const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
     const shouldMaintainFocus = useRef(false);
     const activeFieldName = useRef<keyof typeof inputRefs.current | null>(null);
 
@@ -91,6 +94,12 @@ const LoginForm = memo<LoginFormProps>(
     const handleTitleClick = useCallback(() => {
       // Navigate to root page
       window.location.href = "/";
+    }, []);
+
+    const handleAppleLoginClick = useCallback(() => {
+      setInfoMessage("Apple 로그인은 아직 구현 중입니다.");
+      // NotificationBanner 내부 타이머가 있어서 여기서 따로 null 처리 안해도 됨
+      // 필요시: setTimeout(() => setInfoMessage(null), 4000);
     }, []);
 
     const handleInitialSpinComplete = useCallback(() => {
@@ -260,6 +269,16 @@ const LoginForm = memo<LoginFormProps>(
           />
         </motion.div>
 
+        <div className="fixed top-0 w-80 rounded z-50"> {/* 배너 위치 조정을 위한 래퍼 */}
+          {infoMessage && (
+            <NotificationBanner
+              message={infoMessage}
+              type="warning" // 정보성 메시지 타입
+              onDismiss={() => setInfoMessage(null)} // 클릭 시 메시지 상태 null로 변경
+            />
+          )}
+        </div>
+
         {/* Messages (Appear above animated content) */}
         {authMessage &&
           !authError && ( // Show only if no error
@@ -308,7 +327,7 @@ const LoginForm = memo<LoginFormProps>(
                 </motion.button>
                 <motion.button
                   variants={itemVariants} // Apply item animation
-                  disabled // Placeholder for Apple login
+                  onClick={handleAppleLoginClick} 
                   className="w-full max-w-xs bg-[#333] hover:bg-gray-200 text-white hover:text-black text-sm font-mono py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-40 transition duration-200 flex items-center justify-center space-x-2"
                 >
                   <svg
