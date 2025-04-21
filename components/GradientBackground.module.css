@@ -1,0 +1,157 @@
+/* components/GradientBackground.module.css */
+
+
+.backgroundContainer {
+  position: relative;
+  width: 375px;
+  height: 668px;
+  /* --- 중요: Goo 효과가 잘리지 않도록 overflow visible 설정 --- */
+  overflow: visible;
+}
+
+.gradientBg {
+  position: absolute;
+  overflow: visible; /* 내부 요소가 넘칠 수 있도록 */
+  background: linear-gradient(40deg, var(--color-bg1), var(--color-bg2));
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Goo 필터 SVG를 숨기기 위한 스타일 --- */
+.svgGooFilter {
+  display: none;
+}
+
+.gradientsContainer {
+  /* --- 핵심 변경: Goo 필터 및 CSS 블러 적용 --- */
+  filter: url(#goo) blur(40px);
+  width: 100%;
+  height: 100%;
+  position: absolute; /* gradientBg 내부에 위치 */
+  top: 0;
+  left: 0;
+  overflow: visible; /* 내부 요소가 넘칠 수 있도록 */
+}
+
+/* --- 새 코드의 애니메이션 키프레임 --- */
+@keyframes moveInCircle {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes moveVertical {
+  0% { transform: translateY(-50%); }
+  50% { transform: translateY(50%); }
+  100% { transform: translateY(-50%); }
+}
+
+@keyframes moveHorizontal {
+  0% { transform: translateX(-50%) translateY(-10%); }
+  50% { transform: translateX(50%) translateY(10%); }
+  100% { transform: translateX(-50%) translateY(-10%); }
+}
+
+/* --- 블롭 공통 스타일 --- */
+.g1, .g2, .g3, .g4, .g5, .interactive {
+  position: absolute;
+  background-repeat: no-repeat;
+  mix-blend-mode: var(--blending);
+  opacity: 1;
+  will-change: transform, opacity;
+  /* Goo 효과를 위해 border-radius 제거 또는 기본값 사용 */
+  border-radius: 50%; /* 원형 유지 */
+}
+
+/* --- 개별 블롭 스타일 (새 코드 기준) --- */
+.g1 {
+  background: radial-gradient(circle at center, rgba(var(--color1), 0.8) 0, rgba(var(--color1), 0) 50%);
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2);
+  left: calc(50% - var(--circle-size) / 2);
+  transform-origin: center center;
+  animation: moveVertical 30s ease infinite;
+}
+
+.g2 {
+  background: radial-gradient(circle at center, rgba(var(--color2), 0.8) 0, rgba(var(--color2), 0) 50%);
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2);
+  left: calc(50% - var(--circle-size) / 2);
+  transform-origin: calc(50% - 400px); /* 새 코드 기준 */
+  animation: moveInCircle 20s reverse infinite;
+}
+
+.g3 {
+  background: radial-gradient(circle at center, rgba(var(--color3), 0.8) 0, rgba(var(--color3), 0) 50%);
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2 + 200px); /* 새 코드 기준 */
+  left: calc(50% - var(--circle-size) / 2 - 500px); /* 새 코드 기준 */
+  transform-origin: calc(50% + 400px); /* 새 코드 기준 */
+  animation: moveInCircle 40s linear infinite;
+}
+
+.g4 {
+  background: radial-gradient(circle at center, rgba(var(--color4), 0.8) 0, rgba(var(--color4), 0) 50%);
+  width: var(--circle-size);
+  height: var(--circle-size);
+  top: calc(50% - var(--circle-size) / 2);
+  left: calc(50% - var(--circle-size) / 2);
+  transform-origin: calc(50% - 200px); /* 새 코드 기준 */
+  animation: moveHorizontal 40s ease infinite;
+  opacity: 0.7; /* 새 코드 기준 */
+}
+
+.g5 {
+  background: radial-gradient(circle at center, rgba(var(--color5), 0.8) 0, rgba(var(--color5), 0) 50%);
+  width: calc(var(--circle-size) * 2); /* 새 코드 기준 */
+  height: calc(var(--circle-size) * 2); /* 새 코드 기준 */
+  top: calc(50% - var(--circle-size)); /* 새 코드 기준 */
+  left: calc(50% - var(--circle-size)); /* 새 코드 기준 */
+  transform-origin: calc(50% - 800px) calc(50% + 200px); /* 새 코드 기준 */
+  animation: moveInCircle 20s ease infinite;
+}
+
+/* --- 인터랙티브 블롭 스타일 (새 코드 기준) --- */
+.interactive {
+  background: radial-gradient(circle at center, rgba(var(--color-interactive), 0.8) 0, rgba(var(--color-interactive), 0) 50%);
+  /* 크기 조정 (필요시 %) */
+  width: 100%;
+  height: 100%;
+  max-width: 300px; /* 최대 크기 제한 예시 */
+  max-height: 300px;
+  top: -50%; /* 초기 위치는 JS에서 설정하므로 중요도 낮음 */
+  left: -50%;
+  /* 인터랙티브 요소는 JS로 위치를 직접 제어하므로 초기 transform 제거 */
+  /* transform: translate(-50%, -50%); */
+}
+
+
+/* --- 노이즈 오버레이 스타일 (기존 스타일 유지) --- */
+.noise {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.06; /* 기존 값 유지 */
+  z-index: 1;    /* 컨텐츠 위에 오도록 */
+  pointer-events: none;
+}
+
+/* Safari 렌더링 픽스 (새 코드 기준) */
+@media not all and (min-resolution: 0.001dpcm) {
+  @supports (-webkit-appearance: none) {
+    .g1, .g2, .g3, .g4, .g5, .interactive {
+      /* background-blend-mode: screen; 새 코드에는 있었으나, hard-light와 충돌 가능성 있어 제외 */
+      /* transform: scale(1.001); 강제 리렌더링 트릭 */
+    }
+  }
+}

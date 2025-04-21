@@ -20,7 +20,7 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
   const [springProps, api] = useSpring(() => ({
     from: { rotationY: 0 }, // 시작 각도: 0
     // to, config 등은 useEffect 내에서 설정하거나 여기서 초기화
-    config: { mass: 1.5, tension: 120, friction: 100 }, // 물리 기반 애니메이션 설정 (관성/마찰)
+    config: { mass: 1.5, tension: 120, friction: 200 }, // 물리 기반 애니메이션 설정 (관성/마찰)
     // ⭐ onRest 콜백 수정: 애니메이션이 멈췄을 때 호출됨
     onRest: (result) => {
       // result 객체: 애니메이션 상태 정보 포함 { value, finished, cancelled 등 }
@@ -71,8 +71,8 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
       // 애니메이션 시작: 'from' 상태에서 'to' 상태로
       api.start({
         from: { rotationY: 0 }, // 항상 0에서 시작하도록 명시
-        to: { rotationY: 5 * Math.PI * 2 }, // 최종 목표 각도 (10바퀴 회전)
-        config: { mass: 1.5, tension: 120, friction: 100 }, // 필요 시 config 재지정
+        to: { rotationY: 3 * Math.PI * 2 }, // 최종 목표 각도 (10바퀴 회전)
+        config: { mass: 1.5, tension: 80, friction: 100 }, // 필요 시 config 재지정
         reset: true, // 'from' 상태로 리셋 후 애니메이션 시작
         immediate: false, // 애니메이션 활성화 (true면 즉시 'to' 상태로 이동)
         onStart: () => console.log("[ThreeDTitle/MetalText] 스핀 애니메이션 시작됨."), // 시작 로그

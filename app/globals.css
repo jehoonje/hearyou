@@ -5,6 +5,22 @@
 @import 'tailwindcss/utilities';
 
 /* 모노틱 디자인을 위한 폰트 설정 */
+:root {
+  /* --- 기존 색상 변수 유지 --- */
+  --color-bg1: #1a1a1a;
+  --color-bg2: #2c2c2a;
+  --color1: 121, 124, 140; /* 회색빛 파랑 */
+  --color2: 60, 60, 60;   /* 어두운 회색 */
+  --color3: 134, 125, 125; /* 회색빛 갈색 */
+  --color4: 158, 145, 155; /* 회색빛 보라 */
+  --color5: 209, 201, 188; /* 밝은 베이지 */
+
+  /* --- 새 코드에서 가져온 변수 (색상은 기존 것 활용) --- */
+  --color-interactive: var(--color1); /* 인터랙티브 색상을 color1로 지정 (변경 가능) */
+  --circle-size: 60vw;                /* 새 코드의 원 크기 */
+  --blending: hard-light;             /* 블렌딩 모드 */
+}
+
 body {
   margin: 0;
   padding: 0;
