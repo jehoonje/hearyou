@@ -144,7 +144,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
           <GradientBackground key="gradient-background" />
         )}
       </AnimatePresence>
-      
+
       {/* 2. Loading Screen */}
       {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
 
@@ -161,7 +161,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
       >
         {/* 4-1. 3D Background Scene */}
         <div className="absolute inset-0 w-full h-full pointer-events-none">
-          <ThreeScene volume={volume} />
+          {currentUser ? (<ThreeScene volume={volume} />) : (<div></div>)}
         </div>
 
         {/* 4-2. UI Elements Container */}
