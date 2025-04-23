@@ -7,7 +7,7 @@ const DEBUG = true;
 
 const log = (message: string, data?: any) => {
   if (DEBUG) {
-    console.log(`[키워드 저장] ${message}`, data || "");
+    //console.log(`[키워드 저장] ${message}`, data || "");
   }
 };
 

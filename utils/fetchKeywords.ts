@@ -26,12 +26,12 @@ export const fetchKeywords = async (user?: User): Promise<Keyword[] | null> => {
   // 캐시 확인
   if (cachedKeywords[userId] && lastFetchTime[userId] && 
       now - lastFetchTime[userId] < CACHE_DURATION) {
-    console.log('[키워드 조회] 캐시된 데이터 반환:', userId);
+    //console.log('[키워드 조회] 캐시된 데이터 반환:', userId);
     return cachedKeywords[userId];
   }
   
   try {
-    console.log('[키워드 조회] 데이터베이스에서 키워드 가져오기 시작', { userId });
+    //console.log('[키워드 조회] 데이터베이스에서 키워드 가져오기 시작', { userId });
     
     // 매번 새로운 클라이언트 생성
     const supabase = createClientComponentClient();
@@ -43,7 +43,7 @@ export const fetchKeywords = async (user?: User): Promise<Keyword[] | null> => {
       return [];
     }
     
-    console.log(`[키워드 조회] 사용자 ID로 쿼리 실행: ${userId}`);
+    //console.log(`[키워드 조회] 사용자 ID로 쿼리 실행: ${userId}`);
     
     const { data, error } = await supabase
       .from('keywords')
@@ -52,17 +52,17 @@ export const fetchKeywords = async (user?: User): Promise<Keyword[] | null> => {
       .order('count', { ascending: false })
       .limit(50);
 
-    console.log('[키워드 조회] 쿼리 결과:', data || 'No data', error || 'No error');
+    //console.log('[키워드 조회] 쿼리 결과:', data || 'No data', error || 'No error');
 
     if (error) {
       console.error('[키워드 조회] 데이터베이스 오류:', error);
       throw error;
     }
     
-    console.log(`[키워드 조회] ${data?.length || 0}개 키워드 조회됨`, data);
+    //console.log(`[키워드 조회] ${data?.length || 0}개 키워드 조회됨`, data);
 
     if (!data || data.length === 0) {
-      console.log('[키워드 조회] 조회된 키워드가 없습니다.');
+      //console.log('[키워드 조회] 조회된 키워드가 없습니다.');
       cachedKeywords[userId] = [];
       lastFetchTime[userId] = now;
       return [];
@@ -93,11 +93,11 @@ export const fetchKeywords = async (user?: User): Promise<Keyword[] | null> => {
 // 캐시 무효화 함수
 export const invalidateKeywordsCache = (userId?: string) => {
   if (userId) {
-    console.log(`[키워드 조회] 사용자 ${userId}의 캐시 무효화`);
+    //console.log(`[키워드 조회] 사용자 ${userId}의 캐시 무효화`);
     delete cachedKeywords[userId];
     delete lastFetchTime[userId];
   } else {
-    console.log('[키워드 조회] 모든 캐시 무효화');
+    //console.log('[키워드 조회] 모든 캐시 무효화');
     cachedKeywords = {};
     lastFetchTime = {};
   }

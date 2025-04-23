@@ -44,12 +44,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     // user // 만약 user prop을 받는다면 추가
   }) => {
     // --- !!! 내부 useAudioAnalysis 호출 완전 제거 !!! ---
-    console.log("%%% [VoiceTrackerUI] Received volume via prop:", volume); // Props로 받은 volume 확인
-    console.log(
-      "%%% [VoiceTrackerUI] Received listening state via prop:",
-      listening
-    ); // Props로 받은 listening 상태 확인
-
+    
     // --- 매치 관련 상태 (변경 없음) ---
     const {
       currentMatch,
@@ -102,9 +97,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     useEffect(() => {
       if (userEmail) {
-        console.log(
-          "Attempting match operations based on user presence (email check)"
-        );
       } else {
         clearMatch();
       }
@@ -115,6 +107,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       subscribeToMatchChanges,
       unsubscribeFromMatchChanges,
     ]);
+
+    const hasMatchKeyword = keywordList.some(keyword => keyword.keyword === '매치');
 
     // --- UI 액션 함수들 (변경 없음) ---
     const openChat = useCallback(() => {
@@ -168,6 +162,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       onLogout();
     }, [clearMatch, onLogout, listening, toggleListening]);
 
+    const isMatchButtonDisabled = isMatchmakingRunning || !userEmail || !hasMatchKeyword;
+
     return (
       <>
         {/* 최상위 div: pointer-events-none 유지 또는 제거 후 테스트 */}
@@ -208,11 +204,13 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               </div>
               {/* 액션 버튼들 */}
               <div className="flex items-center space-x-1">
-                <button
+              <button
                   onClick={runManualMatchmaking}
-                  disabled={isMatchmakingRunning || !userEmail} // 이메일 없어도 비활성화
+                  // *** 수정된 비활성화 조건 적용 ***
+                  disabled={isMatchButtonDisabled}
                   className={`btn-aero-yellow ${
-                    isMatchmakingRunning || !userEmail ? "disabled" : ""
+                    // *** 수정된 비활성화 조건으로 클래스 적용 ***
+                    isMatchButtonDisabled ? "disabled" : ""
                   }`}
                 >
                   {isMatchmakingRunning ? "매칭중..." : "Match"}

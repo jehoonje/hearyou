@@ -24,7 +24,7 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
     // ⭐ onRest 콜백 수정: 애니메이션이 멈췄을 때 호출됨
     onRest: (result) => {
       // result 객체: 애니메이션 상태 정보 포함 { value, finished, cancelled 등 }
-      console.log("[ThreeDTitle/MetalText] onRest 호출됨", { result, isContentVisible });
+      //console.log("[ThreeDTitle/MetalText] onRest 호출됨", { result, isContentVisible });
 
       // 애니메이션이 중단 없이 정상적으로 'to' 상태까지 완료되었는지 확인
       // react-spring v9 기준: result.finished가 true이고 result.cancelled가 false여야 함
@@ -33,7 +33,7 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
       // ⭐ 핵심 수정: 애니메이션이 정상 종료되었으면 onAnimationComplete 호출
       // 더 이상 onRest 시점의 isContentVisible 값에 의존하지 않음!
       if (finishedNaturally) {
-          console.log("[ThreeDTitle/MetalText] 스핀 애니메이션 정상 완료됨. onAnimationComplete 호출 시도.");
+          //console.logog("[ThreeDTitle/MetalText] 스핀 애니메이션 정상 완료됨. onAnimationComplete 호출 시도.");
           // 필요 시, 애니메이션 최종 상태를 정확히 0으로 재설정 (시각적 정렬)
           if (groupRef.current) {
              groupRef.current.rotation.y = 0; // Three.js 객체 직접 조작
@@ -42,7 +42,6 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
           onAnimationComplete();
       } else {
           // 애니메이션이 중단되었거나 다른 이유로 멈춘 경우
-          console.warn("[ThreeDTitle/MetalText] 스핀 애니메이션이 정상적으로 완료되지 않음 (중단 또는 취소됨). 콜백 호출 건너뜀.");
           // 필요하다면 여기서도 rotationY를 0으로 리셋할 수 있음
           // if (groupRef.current) {
           //   groupRef.current.rotation.y = 0;
@@ -52,7 +51,7 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
 
       // 참고: 아래 로그는 여전히 유효함 (onRest 시점의 상태 확인용)
       if (!isContentVisible && finishedNaturally) {
-          console.log("[ThreeDTitle/MetalText] 정보: 스핀 완료 시점에 isContentVisible가 false였지만, 콜백은 정상 호출됨.");
+          //console.log("[ThreeDTitle/MetalText] 정보: 스핀 완료 시점에 isContentVisible가 false였지만, 콜백은 정상 호출됨.");
       }
     },
     // 초기 렌더링 시 isContentVisible가 false면 애니메이션 없이 즉시 'from' 상태 적용
@@ -61,13 +60,13 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
 
   // --- 효과: isContentVisible 변경 감지 및 애니메이션 제어 ---
   useEffect(() => {
-    console.log(`[ThreeDTitle/MetalText] useEffect 실행됨. isContentVisible: ${isContentVisible}`);
+    //console.log(`[ThreeDTitle/MetalText] useEffect 실행됨. isContentVisible: ${isContentVisible}`);
     if (isContentVisible) {
       // 콘텐츠가 보일 때: 스핀 애니메이션 시작
-      console.log("[ThreeDTitle/MetalText] 콘텐츠 보임. 스핀 애니메이션 시작 준비.");
+      //console.log("[ThreeDTitle/MetalText] 콘텐츠 보임. 스핀 애니메이션 시작 준비.");
       // 이전 애니메이션 명시적 중지 (혹시 모를 충돌 방지)
       api.stop();
-      console.log("[ThreeDTitle/MetalText] 이전 애니메이션 명시적 중지 완료.");
+      //console.log("[ThreeDTitle/MetalText] 이전 애니메이션 명시적 중지 완료.");
       // 애니메이션 시작: 'from' 상태에서 'to' 상태로
       api.start({
         from: { rotationY: 0 }, // 항상 0에서 시작하도록 명시
@@ -75,18 +74,18 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
         config: { mass: 1.5, tension: 80, friction: 100 }, // 필요 시 config 재지정
         reset: true, // 'from' 상태로 리셋 후 애니메이션 시작
         immediate: false, // 애니메이션 활성화 (true면 즉시 'to' 상태로 이동)
-        onStart: () => console.log("[ThreeDTitle/MetalText] 스핀 애니메이션 시작됨."), // 시작 로그
+        // onStart: () => console.log("[ThreeDTitle/MetalText] 스핀 애니메이션 시작됨."), // 시작 로그
       });
     } else {
       // 콘텐츠가 숨겨질 때: 애니메이션 중지 및 초기 상태(0도)로 리셋
-      console.log("[ThreeDTitle/MetalText] 콘텐츠 숨겨짐. 애니메이션 중지 및 회전 리셋.");
+      //console.log("[ThreeDTitle/MetalText] 콘텐츠 숨겨짐. 애니메이션 중지 및 회전 리셋.");
       api.stop(); // 진행 중인 애니메이션 중지
       api.start({ rotationY: 0, immediate: true }); // 즉시 0도로 설정 (애니메이션 없이)
     }
 
     // 클린업 함수: 컴포넌트 언마운트 또는 isContentVisible 변경 전에 애니메이션 중지
     return () => {
-        console.log("[ThreeDTitle/MetalText] useEffect 클린업: 애니메이션 중지");
+        //console.log("[ThreeDTitle/MetalText] useEffect 클린업: 애니메이션 중지");
         api.stop();
     };
   // onAnimationComplete는 일반적으로 useCallback 등으로 감싸져 불변성을 가질 수 있으므로,
@@ -135,7 +134,7 @@ interface ThreeDTitleProps {
 
 // ThreeDTitle 메인 컴포넌트: Canvas 설정 및 MetalText 렌더링
 const ThreeDTitle: React.FC<ThreeDTitleProps> = ({ onInitialSpinComplete, isContentVisible }) => {
-  console.log(`[ThreeDTitle] Render - isContentVisible: ${isContentVisible}`);
+  //console.log(`[ThreeDTitle] Render - isContentVisible: ${isContentVisible}`);
   return (
     // Canvas 컨테이너 스타일
     <div style={{ height: '150px', width: '100%', cursor: 'grab', marginBottom: '1rem' }}>

@@ -63,7 +63,7 @@ export function useAuth(initialSession: Session | null = null) {
         } = await supabase.auth.getSession();
         setUser(session?.user || null);
       } catch (error) {
-        console.error("사용자 세션 확인 오류:", error);
+        // console.error("사용자 세션 확인 오류:", error);
         setUser(null);
       }
     };
@@ -116,11 +116,11 @@ export function useAuth(initialSession: Session | null = null) {
           if (error.message.includes("Invalid login")) {
             setAuthError("이메일 또는 비밀번호가 올바르지 않습니다");
           } else {
-            setAuthError(error.message);
+            // setAuthError(error.message);
           }
         }
       } catch (err: any) {
-        setAuthError(err.message || "로그인 중 오류가 발생했습니다.");
+        // setAuthError(err.message || "로그인 중 오류가 발생했습니다.");
       } finally {
         setAuthLoading(false);
       }
@@ -136,7 +136,7 @@ export function useAuth(initialSession: Session | null = null) {
     setAuthLoading(true);
 
     try {
-      console.log("회원가입 시도:", { email, username });
+      //console.log("회원가입 시도:", { email, username });
 
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -149,34 +149,34 @@ export function useAuth(initialSession: Session | null = null) {
       });
 
       if (error) {
-        console.error("회원가입 오류:", error);
+        // console.error("회원가입 오류:", error);
         if (error.message.includes("already registered")) {
           setEmailError("이미 등록된 이메일 주소입니다");
         } else {
           setAuthError(error.message);
         }
       } else {
-        console.log("회원가입 성공:", data);
+        // console.log("회원가입 성공:", data);
 
         // 사용자 정보 검증
         if (data && data.user) {
-          console.log("생성된 사용자 정보:", {
-            id: data.user.id,
-            email: data.user.email,
-            created_at: data.user.created_at,
-          });
+          // console.log("생성된 사용자 정보:", {
+          //   id: data.user.id,
+          //   email: data.user.email,
+          //   created_at: data.user.created_at,
+          // });
 
           // 사용자 메타데이터 확인
-          console.log("사용자 메타데이터:", data.user.user_metadata);
+          // console.log("사용자 메타데이터:", data.user.user_metadata);
         } else {
-          console.warn("사용자 데이터가 반환되지 않았습니다.");
+          // console.warn("사용자 데이터가 반환되지 않았습니다.");
         }
 
         // 회원가입 성공 시 이메일 확인 모달 표시
         setShowVerificationModal(true);
       }
     } catch (err: any) {
-      console.error("회원가입 예외:", err);
+      // console.error("회원가입 예외:", err);
       setAuthError(err.message || "회원가입 중 오류가 발생했습니다.");
     } finally {
       setAuthLoading(false);

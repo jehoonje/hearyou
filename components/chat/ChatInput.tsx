@@ -33,7 +33,7 @@ const ChatInput = memo<ChatInputProps>(({ isDisabled = false }) => {
       // --- 전송 성공 후 입력 필드에 포커스 ---
       if (inputRef.current) {
         inputRef.current.focus();
-        console.log("Input focused after sending message."); // 포커스 확인 로그
+        //console.log("Input focused after sending message."); // 포커스 확인 로그
       }
       // --------------------------------------
 

@@ -17,17 +17,16 @@ export const useKeywords = (
   const refreshKeywords = useCallback(async () => {
     if (!user) return;
     
-    console.log('[useKeywords] 키워드 새로고침 시작');
+    //console.log('[useKeywords] 키워드 새로고침 시작');
     setIsRefreshing(true);
     
     try {
       const keywords = await fetchKeywords(user);
-      console.log('[useKeywords] 새로고침 완료:', keywords);
+      //console.log('[useKeywords] 새로고침 완료:', keywords);
       if (keywords) {
         setKeywordList(keywords);
       }
     } catch (error) {
-      console.error('[useKeywords] 새로고침 오류:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -35,15 +34,15 @@ export const useKeywords = (
 
   // 최초 렌더링 시 초기 데이터 설정 또는 새로 불러오기
   useEffect(() => {
-    console.log('[useKeywords] 상태 업데이트', { 
-      userId: user?.id, 
-      isLoading, 
-      initialKeywordsCount: initialKeywords?.length 
-    });
+    // console.log('[useKeywords] 상태 업데이트', { 
+    //   userId: user?.id, 
+    //   isLoading, 
+    //   initialKeywordsCount: initialKeywords?.length 
+    // });
     
     if (!isLoading && user) {
       if (initialKeywords && initialKeywords.length > 0) {
-        console.log('[useKeywords] 초기 키워드 설정:', initialKeywords);
+        // console.log('[useKeywords] 초기 키워드 설정:', initialKeywords);
         setKeywordList(initialKeywords);
       } else {
         refreshKeywords();
@@ -74,7 +73,7 @@ export const useKeywords = (
   useEffect(() => {
     if (!user || !user.id) return;
     
-    console.log('[useKeywords] 실시간 구독 설정');
+    // console.log('[useKeywords] 실시간 구독 설정');
     
     const channel = supabase
       .channel('keywords-changes')
@@ -87,25 +86,25 @@ export const useKeywords = (
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('[useKeywords] 변경 감지:', payload);
+          // console.log('[useKeywords] 변경 감지:', payload);
           
           // 변경 유형에 따른 처리
           if (payload.eventType === 'INSERT') {
             // 새 키워드 추가
             const newKeyword = payload.new as Keyword;
-            console.log('[useKeywords] 새 키워드 추가:', newKeyword);
+            // console.log('[useKeywords] 새 키워드 추가:', newKeyword);
             addOrUpdateKeyword(newKeyword);
           } 
           else if (payload.eventType === 'UPDATE') {
             // 키워드 업데이트
             const updatedKeyword = payload.new as Keyword;
-            console.log('[useKeywords] 키워드 업데이트:', updatedKeyword);
+            // console.log('[useKeywords] 키워드 업데이트:', updatedKeyword);
             addOrUpdateKeyword(updatedKeyword);
           }
           else if (payload.eventType === 'DELETE') {
             // 키워드 삭제
             const deletedKeyword = payload.old as Keyword;
-            console.log('[useKeywords] 키워드 삭제:', deletedKeyword);
+            // console.log('[useKeywords] 키워드 삭제:', deletedKeyword);
             
             setKeywordList(prevList => 
               prevList.filter(k => k.id !== deletedKeyword.id)
@@ -116,7 +115,7 @@ export const useKeywords = (
       .subscribe();
       
     return () => {
-      console.log('[useKeywords] 구독 정리');
+      // console.log('[useKeywords] 구독 정리');
       supabase.removeChannel(channel);
     };
   }, [supabase, user, addOrUpdateKeyword]);

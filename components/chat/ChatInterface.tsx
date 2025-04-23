@@ -43,13 +43,13 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   // 채팅 메시지 구독/구독 해지
   useEffect(() => {
     if (chatPartnerId && currentMatch?.matchDate && user) {
-      console.log(`[ChatInterface] Subscribing to chat: user=${user.id}, partner=${chatPartnerId}, matchDate=${currentMatch.matchDate}`);
+      //console.log(`[ChatInterface] Subscribing to chat: user=${user.id}, partner=${chatPartnerId}, matchDate=${currentMatch.matchDate}`);
       subscribeToChatMessages(user, chatPartnerId, currentMatch.matchDate);
     } else {
-      console.log("[ChatInterface] Unsubscribing (no partner, match date, or user)");
+      //console.log("[ChatInterface] Unsubscribing (no partner, match date, or user)");
     }
     return () => {
-      console.log("[ChatInterface] Cleaning up chat subscription.");
+      //console.log("[ChatInterface] Cleaning up chat subscription.");
       unsubscribeFromChatMessages();
     };
   }, [user, chatPartnerId, currentMatch?.matchDate, subscribeToChatMessages, unsubscribeFromChatMessages]);
