@@ -44,12 +44,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     // user // 만약 user prop을 받는다면 추가
   }) => {
     // --- !!! 내부 useAudioAnalysis 호출 완전 제거 !!! ---
-    console.log("%%% [VoiceTrackerUI] Received volume via prop:", volume); // Props로 받은 volume 확인
-    console.log(
-      "%%% [VoiceTrackerUI] Received listening state via prop:",
-      listening
-    ); // Props로 받은 listening 상태 확인
-
+    
     // --- 매치 관련 상태 (변경 없음) ---
     const {
       currentMatch,
@@ -102,9 +97,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     useEffect(() => {
       if (userEmail) {
-        console.log(
-          "Attempting match operations based on user presence (email check)"
-        );
       } else {
         clearMatch();
       }

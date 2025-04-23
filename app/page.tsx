@@ -23,23 +23,23 @@ export default async function Home() {
   let initialKeywords: Keyword[] | null = null; // 타입 명시
   if (session?.user) {
     try {
-      console.log('서버사이드에서 키워드 로드 시작:', session.user.id);
+      //console.log('서버사이드에서 키워드 로드 시작:', session.user.id);
 
-      // 세션 정보 디버깅
-      console.log('세션 정보:', JSON.stringify({
-        id: session.user.id,
-        email: session.user.email,
-        role: session.user.role,
-        aud: session.user.aud,
-      }, null, 2));
+      // // 세션 정보 디버깅
+      // console.log('세션 정보:', JSON.stringify({
+      //   id: session.user.id,
+      //   email: session.user.email,
+      //   role: session.user.role,
+      //   aud: session.user.aud,
+      // }, null, 2));
 
       initialKeywords = await fetchKeywords(session.user);
-      console.log('서버사이드에서 키워드 로드 완료:', initialKeywords?.length ?? 0, '개'); // 로드된 개수 로깅
+      //console.log('서버사이드에서 키워드 로드 완료:', initialKeywords?.length ?? 0, '개'); // 로드된 개수 로깅
     } catch (fetchError: any) { // catch 블록 에러 타입 명시
       console.error('키워드 데이터 로드 실패:', fetchError.message || fetchError);
     }
   } else {
-    console.log('인증된 세션이 없습니다. 키워드를 로드하지 않습니다.');
+    //console.log('인증된 세션이 없습니다. 키워드를 로드하지 않습니다.');
   }
 
   // 클라이언트 컴포넌트에 초기 데이터 전달 (initialSession 제거)

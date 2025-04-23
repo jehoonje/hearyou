@@ -109,7 +109,7 @@ export const analyzeKeywords = (
     const confirmed = frequencyAnalyzer.getConfirmedKeywords();
     // 확정된 키워드가 있을 때만 로그 출력 (선택 사항)
     if (confirmed.length > 0) {
-       console.log(`[analyzeKeywords] Final result. Confirmed: ${confirmed.join(', ')}`);
+       ////console.log(`[analyzeKeywords] Final result. Confirmed: ${confirmed.join(', ')}`);
     }
     return confirmed;
   }
@@ -119,6 +119,6 @@ export const analyzeKeywords = (
 
 // 외부에서 분석기 초기화용
 export const resetKeywordTracker = () => {
-  console.log("[resetKeywordTracker] FrequencyAnalyzer reset.");
+  //console.log("[resetKeywordTracker] FrequencyAnalyzer reset.");
   frequencyAnalyzer.reset();
 };

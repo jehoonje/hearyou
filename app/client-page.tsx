@@ -89,7 +89,6 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   const { keywordList, addOrUpdateKeyword } = useKeywords(currentUser, isLoading, initialKeywords);
 
   const handleKeywordSaved = useCallback((savedKeyword: Keyword) => {
-    console.log("Keyword saved callback triggered in MainContent:", savedKeyword);
     addOrUpdateKeyword(savedKeyword);
   }, [addOrUpdateKeyword]);
 
@@ -146,15 +145,8 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
     const clickedInsideBanner = targetElement.closest('[data-banner-area="true"]');
 
     if (!isDraggingForToggleRef.current && clickDuration < MAX_CLICK_DURATION && !clickedInsideInteractiveUI && !clickedInsideBanner) {
-       console.log("Toggling UI visibility");
        setIsUIVisible(prev => !prev);
     } else {
-       console.log("UI toggle condition not met:", {
-         isDragging: isDraggingForToggleRef.current,
-         duration: clickDuration,
-         insideUI: !!clickedInsideInteractiveUI,
-         insideBanner: !!clickedInsideBanner // 배너 클릭 여부 로그 추가
-       });
     }
 
     clickStartTimeRef.current = 0;
@@ -188,8 +180,6 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
       }
     };
   }, []);
-
-  console.log('%%% [MainContent] Passing volume to children:', volume);
 
   return (
     // **** 배너 클릭 방지를 위해 data-banner-area 추가 ****

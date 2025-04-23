@@ -313,8 +313,7 @@ StarField.displayName = 'StarField'; // 디버깅을 위한 displayName 추가
 
 
 // 원형 파동 컴포넌트 - 더욱 느리고 부드러운 모션 적용
-const CircularWave = memo(({ volume }: CircularWaveProps) => { // React.memo 적용 및 타입 사용
-  console.log('%%% [CircularWave] Received volume prop:', volume);
+const CircularWave = memo(({ volume }: CircularWaveProps) => { 
   const groupRef = useRef<THREE.Group>(null);
   const [hue, setHue] = useState(0.6);
   const [smoothVolumeIntensity, setSmoothVolumeIntensity] = useState(0);
@@ -381,7 +380,7 @@ const CircularWave = memo(({ volume }: CircularWaveProps) => { // React.memo 적
         const equivalentVolume = (newSmoothIntensity / 0.7) * 100;
         let volumeScale: number;
         // --- 수정 끝 ---
-        if(volume > 5) console.log(`%%% [CircularWave useFrame] vol:<span class="math-inline">\{volume\.toFixed\(2\)\}, smoothI\:</span>{newSmoothIntensity.toFixed(3)}, eqVol:${equivalentVolume.toFixed(2)}`);
+        if(volume > 5) 
 
 
         if (ring.type === 'circle') {
@@ -550,7 +549,7 @@ ParticleEffect.displayName = 'ParticleEffect'; // 디버깅을 위한 displayNam
 const ENTRY_LENGTH = 3.2;
 const EXIT_LENGTH = -0.1;
 const TRANSITION_ZONE_LENGTH = 10;
-const MAX_PARTICLES = 4000;
+const MAX_PARTICLES = 2500;
 const BASE_SPAWN_RATE = 2000;
 const MIN_RADIUS = 0.03;
 const END_RADIUS_FACTOR = 80.0;
@@ -587,7 +586,6 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
 
   // *** 오류 처리 수정: 컨텍스트 없으면 에러 발생 ***
   if (!context) {
-    console.error("Failed to get 2D context for circle texture.");
     // 호환되지 않는 Texture 대신 에러를 발생시켜 문제 인지
     throw new Error("Could not create 2D context for CanvasTexture");
   }
@@ -615,14 +613,13 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
 
 
 const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
-  console.log('%%% [QuasarJet] Received volume prop:', volume); 
+  
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 
   // 파티클 데이터 풀 생성 (이전과 동일)
   const particleAttributes = useMemo(() => {
     // ... (파티클 초기화 로직) ...
-    console.log("Initializing Enhanced QuasarJet Particle Pool (Circle Texture):", MAX_PARTICLES);
     const positions = new Float32Array(MAX_PARTICLES * 3);
     const colors = new Float32Array(MAX_PARTICLES * 4);
     const lifetimes = new Float32Array(MAX_PARTICLES);
@@ -662,7 +659,6 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       try {
           return createCircleTexture(64, '#FFFFFF'); // 64x64 흰색 원
       } catch (error) {
-          console.error("Failed to create circle texture in useMemo:", error);
           // 텍스처 생성 실패 시 null 반환 또는 다른 기본 텍스처 반환
           return null; // 또는 new THREE.Texture() 등 상황에 맞는 처리
       }
@@ -765,7 +761,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
     const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0;
 
-    if(volume > 5) console.log(`%%% [QuasarJet useFrame] vol:<span class="math-inline">\{volume\.toFixed\(2\)\}, normVol\:</span>{normalizedVolume.toFixed(3)}, spawn:${numToSpawnInt}`);
+    if(volume > 5) 
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const i3 = i * 3;
       const i4 = i * 4;
@@ -921,7 +917,6 @@ const GlowEffect = memo(() => { // React.memo 적용
 GlowEffect.displayName = 'GlowEffect'; // 디버깅을 위한 displayName 추가
 
 const ThreeScene = ({ volume }: ThreeSceneProps) => {
-  console.log('%%% [ThreeScene] Received volume prop:', volume); 
   return (
     <Canvas
       style={{ width: '100%', height: '100%' }}
