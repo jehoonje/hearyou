@@ -116,6 +116,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       unsubscribeFromMatchChanges,
     ]);
 
+    const hasMatchKeyword = keywordList.some(keyword => keyword.keyword === '매치');
+
     // --- UI 액션 함수들 (변경 없음) ---
     const openChat = useCallback(() => {
       /* ... 기존 코드 ... */
@@ -168,6 +170,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       onLogout();
     }, [clearMatch, onLogout, listening, toggleListening]);
 
+    const isMatchButtonDisabled = isMatchmakingRunning || !userEmail || !hasMatchKeyword;
+
     return (
       <>
         {/* 최상위 div: pointer-events-none 유지 또는 제거 후 테스트 */}
@@ -208,11 +212,13 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               </div>
               {/* 액션 버튼들 */}
               <div className="flex items-center space-x-1">
-                <button
+              <button
                   onClick={runManualMatchmaking}
-                  disabled={isMatchmakingRunning || !userEmail} // 이메일 없어도 비활성화
+                  // *** 수정된 비활성화 조건 적용 ***
+                  disabled={isMatchButtonDisabled}
                   className={`btn-aero-yellow ${
-                    isMatchmakingRunning || !userEmail ? "disabled" : ""
+                    // *** 수정된 비활성화 조건으로 클래스 적용 ***
+                    isMatchButtonDisabled ? "disabled" : ""
                   }`}
                 >
                   {isMatchmakingRunning ? "매칭중..." : "Match"}
