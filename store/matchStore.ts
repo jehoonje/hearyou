@@ -210,7 +210,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
           //console.log(`매치 변경 성공적으로 구독: User ${userId}`);
           set({error: null}); // 성공 시 스토어 에러 초기화
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          // console.error('매치 변경 구독 오류:', status, err);
+          console.error('매치 변경 구독 오류:', status, err);
           // 에러 상태 설정 및 채널 정보 제거
           set({ error: '아쉽지만 오늘은 대화가 가능한 분이 없네요.', matchChannel: null });
           // 필요 시 재시도 로직 추가 가능

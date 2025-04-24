@@ -129,7 +129,10 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     const runManualMatchmaking = useCallback(async () => {
       /* ... 기존 코드 ... */
-      if (isMatchmakingRunning) return;
+      if (isMatchmakingRunning || !user) { // user 객체 존재 여부도 확인하는 것이 안전
+        alert("로그인이 필요하거나 이미 매칭을 시도 중입니다.");
+        return;
+    };
       setIsMatchmakingRunning(true);
       const { createClientComponentClient } = await import(
         "@supabase/auth-helpers-nextjs"
@@ -179,8 +182,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
             />
             <NotificationBanner
               key={`match-${!!matchError}`} // message 존재 여부로 key 변경
-              message={matchError ? `매칭 오류: ${matchError}` : null} // Zustand 에러 사용
-              type="error" // 매칭 오류는 error 타입으로
+              message={matchError ? `${matchError}` : null} // Zustand 에러 사용
+              type="warning" 
               onDismiss={() => setMatchErrorMessage(null)}
             />
             <NotificationBanner
@@ -195,7 +198,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
           <div className="p-4 flex-shrink-0 pointer-events-auto">
             <div className="flex justify-between items-center mb-4">
               {/* 마이크 토글 */}
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1" data-tutorial-target="mic-button">
                 <MicToggleButton
                   listening={listening}
                   onClick={toggleListening}
@@ -208,6 +211,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   onClick={runManualMatchmaking}
                   // *** 수정된 비활성화 조건 적용 ***
                   disabled={isMatchButtonDisabled}
+                  data-tutorial-target="match-button-area"
                   className={`btn-aero-yellow ${
                     // *** 수정된 비활성화 조건으로 클래스 적용 ***
                     isMatchButtonDisabled ? "disabled" : ""
@@ -238,7 +242,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
             {/* 음성 관련 UI */}
             <div className="min-h-[100px]">
               {listening && (
-                <div className="transition-opacity duration-300 ease-in-out opacity-100">
+                <div className="transition-opacity duration-300 ease-in-out opacity-100" data-tutorial-target="transcript-display">
                   <TranscriptDisplay transcript={transcript} />
                   {newKeywords.length > 0 && (
                     <div className="backdrop-blur-lg bg-blue-500/30 p-3 rounded-lg my-2 animate-pulse border border-blue-300">
@@ -261,7 +265,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                )}
                {/* 녹음 시작 안내 (오디오 오류 없을 때) */}
                {!listening && !audioErrorProp && userEmail && (
-                 <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded">
+                 <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded" data-tutorial-target="transcript-display">
                    마이크 버튼을 눌러 시작하세요.
                  </div>
                )}
@@ -274,7 +278,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
           {/* 하단 영역: pointer-events-auto */}
           <div className="p-4 flex-shrink-0 pointer-events-auto">
              {/* KeywordList */}
-             <div className="overflow-y-auto max-h-36 scrollbar-thin">
+             <div className="overflow-y-auto max-h-36 scrollbar-thin" data-tutorial-target="keyword-list">
                <KeywordList keywordList={keywordList} />
              </div>
           </div>

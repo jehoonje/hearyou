@@ -5,14 +5,15 @@ import LoadingScreen from "../components/ui/LoadingScreen";
 import LoginForm from "../components/auth/LoginForm";
 import VerificationModal from "../components/auth/VerificationModal";
 import VoiceTrackerUI from "../components/voice/VoiceTrackerUI";
-import GradientBackground from "../components/GradientBackground"; // Ensure import is correct
+import GradientBackground from "../components/GradientBackground";
 import InAppBrowserBanner from "../components/InAppBrowserBanner";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
 import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
 import { useKeywords } from "../hooks/useKeywords";
 import { Keyword } from "../types";
 import { Session, User } from "@supabase/supabase-js";
-import { motion, AnimatePresence } from 'framer-motion'; 
+import { motion, AnimatePresence } from 'framer-motion';
+import TutorialOverlay from "../components/ui/TutorialOverlay"; // *** 튜토리얼 컴포넌트 임포트 ***
 
 // Props 인터페이스
 interface ClientPageProps {
@@ -22,39 +23,19 @@ interface ClientPageProps {
 const MAX_CLICK_DURATION = 300;
 const MAX_CLICK_DRAG_THRESHOLD = 10;
 
-// **** 인앱 브라우저 감지 함수 ****
+// 인앱 브라우저 감지 함수 (변경 없음)
 const detectInAppBrowser = (): string | null => {
-  // 서버사이드 렌더링 환경에서는 navigator가 없으므로 확인
   if (typeof window === 'undefined' || !navigator || !navigator.userAgent) {
     return null;
   }
   const ua = navigator.userAgent;
-  // 인스타그램 감지 (다른 앱 패턴 추가 가능)
-  if (/Instagram/i.test(ua)) {
-    return "인스타그램";
-  }
-  // 카카오톡 감지
-  if (/KAKAOTALK/i.test(ua)) {
-    return "카카오톡";
-  }
-  // 페이스북 감지
-  if (/FBAN|FBAV/i.test(ua)) {
-    return "페이스북";
-  }
-   // 네이버 앱 감지
-   if (/NAVER\(inapp/i.test(ua)) {
-    return "네이버앱";
-  }
-  // 안드로이드 웹뷰 감지 (좀 더 일반적)
-  if (/wv\)/i.test(ua)) {
-     // 다른 특정 앱 식별자가 없다면 일반 웹뷰로 간주 가능
-     // 필요시 더 정교한 로직 추가
-     return "앱"; // "앱" 또는 좀 더 구체적인 식별 시도
-  }
-
-  return null; // 인앱 브라우저가 아니거나 감지되지 않음
+  if (/Instagram/i.test(ua)) return "인스타그램";
+  if (/KAKAOTALK/i.test(ua)) return "카카오톡";
+  if (/FBAN|FBAV/i.test(ua)) return "페이스북";
+  if (/NAVER\(inapp/i.test(ua)) return "네이버앱";
+  if (/wv\)/i.test(ua)) return "앱";
+  return null;
 };
-
 
 function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -62,29 +43,28 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   const [contentVisible, setContentVisible] = useState(false);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // **** 인앱 브라우저 감지 및 배너 상태 관리 ****
-  const [showInAppBanner, setShowInAppBanner] = useState<boolean>(false); // 초기값은 항상 false
-  const [detectedAppName, setDetectedAppName] = useState<string | null>(null); // 앱 이름 저장용 상태
-  const [isMounted, setIsMounted] = useState(false); 
+  const [showInAppBanner, setShowInAppBanner] = useState<boolean>(false);
+  const [detectedAppName, setDetectedAppName] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // *** 튜토리얼 상태 추가 ***
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
-    // 컴포넌트가 클라이언트에서 마운트되었음을 표시
     setIsMounted(true);
-    // 마운트 후에 인앱 브라우저 감지 실행
     const appName = detectInAppBrowser();
     if (appName) {
-      setDetectedAppName(appName); // 감지된 앱 이름 저장
-      setShowInAppBanner(true); // 배너 표시 상태 업데이트
+      setDetectedAppName(appName);
+      setShowInAppBanner(true);
     }
-  }, []); // 빈 배열: 마운트 시 1회만 실행
+  }, []);
 
   const handleCloseBanner = useCallback(() => {
     setShowInAppBanner(false);
   }, []);
-  // ******************************************
 
   const auth = useAppAuth();
-  const currentUser: User | null = auth.user; // Get the current user
+  const currentUser: User | null = auth.user;
 
   const { keywordList, addOrUpdateKeyword } = useKeywords(currentUser, isLoading, initialKeywords);
 
@@ -109,11 +89,10 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   const clickStartPositionRef = useRef({ x: 0, y: 0 });
   const isDraggingForToggleRef = useRef(false);
 
-  // --- UI Toggle Handlers (handlePointerDown, handlePointerMove, handlePointerUp) remain the same ---
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isLoading || !contentVisible || auth.showVerificationModal) return;
+    // *** 튜토리얼 활성 시 배경 클릭으로 UI 토글 방지 ***
+    if (isLoading || !contentVisible || auth.showVerificationModal || showTutorial) return;
     const targetElement = event.target as Element;
-    // **** 배너 클릭 시 UI 토글 방지 ****
     if (targetElement.closest('[data-interactive-ui="true"]') || targetElement.closest('[data-banner-area="true"]')) {
         return;
     }
@@ -123,7 +102,8 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isLoading || !contentVisible || auth.showVerificationModal || clickStartTimeRef.current === 0 || isDraggingForToggleRef.current) return;
+    // *** 튜토리얼 활성 시 이동으로 드래그 상태 변경 방지 ***
+    if (isLoading || !contentVisible || auth.showVerificationModal || showTutorial || clickStartTimeRef.current === 0 || isDraggingForToggleRef.current) return;
     const currentX = event.clientX;
     const currentY = event.clientY;
     const startX = clickStartPositionRef.current.x;
@@ -136,27 +116,68 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isLoading || !contentVisible || auth.showVerificationModal || clickStartTimeRef.current === 0) return;
+    // *** 튜토리얼 활성 시 클릭으로 UI 토글 방지 ***
+    if (isLoading || !contentVisible || auth.showVerificationModal || showTutorial || clickStartTimeRef.current === 0) return;
 
     const clickDuration = Date.now() - clickStartTimeRef.current;
     const targetElement = event.target as Element;
-    // **** 배너 클릭 시 UI 토글 방지 ****
     const clickedInsideInteractiveUI = targetElement.closest('[data-interactive-ui="true"]');
     const clickedInsideBanner = targetElement.closest('[data-banner-area="true"]');
 
     if (!isDraggingForToggleRef.current && clickDuration < MAX_CLICK_DURATION && !clickedInsideInteractiveUI && !clickedInsideBanner) {
        setIsUIVisible(prev => !prev);
-    } else {
     }
 
     clickStartTimeRef.current = 0;
     isDraggingForToggleRef.current = false;
   };
 
-  const shouldRenderBanner = showInAppBanner; // isMounted && showInAppBanner; 로 해도 무방
+  const shouldRenderBanner = showInAppBanner;
+
+  const handleTutorialComplete = useCallback(() => {
+    try {
+      // 로컬 스토리지에 'tutorialCompleted' 값을 'true'로 저장
+      localStorage.setItem('tutorialCompleted', 'true');
+      console.log("튜토리얼 완료 상태 저장됨"); // 확인용 로그
+    } catch (error) {
+      console.error("튜토리얼 완료 상태 저장 중 localStorage 접근 오류:", error);
+    } finally {
+      // 로컬 스토리지 저장 성공 여부와 관계없이 튜토리얼은 숨김
+      setShowTutorial(false);
+    }
+  }, []);
+
+  // *** 👇 튜토리얼 표시 로직 수정 👇 ***
+  useEffect(() => {
+    // 사용자가 로그인했고, 메인 콘텐츠가 보이는 상태일 때만 확인
+    if (currentUser && contentVisible) {
+      let shouldShow = true; // 기본적으로 보여준다고 가정
+      try {
+        // 로컬 스토리지에서 'tutorialCompleted' 값 확인
+        const tutorialCompleted = localStorage.getItem('tutorialCompleted');
+        // 값이 'true'이면 튜토리얼을 보여주지 않음
+        if (tutorialCompleted === 'true') {
+          shouldShow = false;
+          console.log("튜토리얼 완료 기록 확인됨. 튜토리얼 숨김."); // 확인용 로그
+        } else {
+            console.log("튜토리얼 완료 기록 없음. 튜토리얼 표시."); // 확인용 로그
+        }
+      } catch (error) {
+        console.error("튜토리얼 완료 상태 확인 중 localStorage 접근 오류:", error);
+        // 로컬 스토리지 접근 오류 시, 안전하게 튜토리얼을 보여주지 않도록 처리 (선택적)
+        // 또는 오류 시에는 일단 보여주도록 할 수도 있음 (shouldShow = true 유지)
+        // 여기서는 일단 보여주도록 유지 (기본값 true)
+      }
+      setShowTutorial(shouldShow);
+    } else {
+      // 로그아웃 상태거나 콘텐츠가 아직 안보이면 튜토리얼 숨김
+      setShowTutorial(false);
+    }
+  }, [currentUser, contentVisible]); 
+
 
   useEffect(() => {
-    // --- Loading logic remains the same ---
+    // --- Loading logic (변경 없음) ---
     let currentProgress = 0;
     const interval = setInterval(() => {
       currentProgress += Math.random() * 15;
@@ -182,59 +203,61 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   }, []);
 
   return (
-    // **** 배너 클릭 방지를 위해 data-banner-area 추가 ****
     <div
       className="w-[375px] h-[668px] bg-black text-white mx-auto overflow-hidden relative font-mono"
+      // *** 튜토리얼 활성 시에는 onPointer 이벤트들이 위쪽 조건문에서 막히므로 여기 로직은 유지 ***
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      data-banner-area={showInAppBanner ? "true" : undefined} // 배너 표시될 때만 속성 추가
+      data-banner-area={showInAppBanner ? "true" : undefined}
     >
-      {/* 인앱 브라우저 안내 배너 (마운트 후 조건부 렌더링) */}
+      {/* 인앱 브라우저 배너 (변경 없음) */}
       {shouldRenderBanner && (
         <InAppBrowserBanner appName={detectedAppName ?? undefined} onClose={handleCloseBanner} />
       )}
 
-
-      {/* 1. Gradient Background: 로그인하지 않았을 때만 렌더링 */}
+      {/* Gradient Background (변경 없음) */}
       <AnimatePresence>
         {!currentUser && (
           <GradientBackground key="gradient-background" />
         )}
       </AnimatePresence>
 
-      {/* 2. Loading Screen */}
+      {/* Loading Screen (변경 없음) */}
       {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
 
-      {/* 3. Verification Modal */}
+      {/* Verification Modal (변경 없음) */}
       {auth.showVerificationModal &&
         <VerificationModal onComplete={auth.handleVerificationComplete} />
       }
 
-      {/* 4. Main Content Area */}
+      {/* Main Content Area (변경 없음) */}
       <div
         className={`w-full h-full absolute inset-0 transition-opacity duration-1000 ${
           contentVisible ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
-        {/* 4-1. 3D Background Scene */}
+        {/* 3D Background Scene (변경 없음) */}
         <div className="absolute inset-0 w-full h-full pointer-events-none">
           {currentUser ? (<ThreeScene volume={volume} />) : (<div></div>)}
         </div>
 
-        {/* 4-2. UI Elements Container */}
+        {/* UI Elements Container (변경 없음) */}
         <div
+          // *** 튜토리얼 활성 시에는 isUIVisible과 관계없이 보이도록 할 수 있으나, 여기서는 기존 로직 유지 ***
+          // *** 튜토리얼 오버레이가 최상단에 오므로 하위 UI의 투명도/이벤트는 문제되지 않음 ***
           className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${
             isUIVisible ? 'opacity-100' : 'opacity-0'
           }`}
         >
           {!currentUser ? (
-            // Login Form Container
+            // Login Form (변경 없음)
              <div
               className={`absolute inset-0 flex items-center justify-center p-4 ${isUIVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}
               data-interactive-ui="true"
             >
               <LoginForm
+                // ... LoginForm props
                 authView={auth.authView}
                 setAuthView={auth.setAuthView}
                 authMessage={auth.authMessage || ''}
@@ -256,14 +279,14 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
                 handleSignUp={auth.handleSignUp}
                 resetFormErrors={auth.resetFormErrors}
                 user={auth.user}
-                isContentVisible={contentVisible} // LoginForm 애니메이션 시작 제어용
+                isContentVisible={contentVisible}
               />
             </div>
           ) : (
-            // VoiceTrackerUI Container
+            // VoiceTrackerUI Container (변경 없음)
             <div
               className={`${isUIVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}
-              data-interactive-ui="true"
+              data-interactive-ui="true" // 이 속성은 유지 (튜토리얼 제외 영역 식별용)
             >
               <VoiceTrackerUI
                 volume={volume}
@@ -275,16 +298,26 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
                 keywordList={keywordList}
                 userEmail={currentUser.email || ""}
                 onLogout={auth.handleLogout}
+                // *** VoiceTrackerUI 자체에 data-tutorial-target 속성은 불필요 ***
+                // *** VoiceTrackerUI 내부 요소에 지정할 것임 ***
               />
             </div>
           )}
         </div>
       </div>
+
+      {/* *** 튜토리얼 오버레이 조건부 렌더링 (로직 수정됨) *** */}
+      {/* contentVisible이 true이고 showTutorial이 true일 때만 렌더링 (로그인 여부는 useEffect에서 이미 체크) */}
+      <AnimatePresence>
+      {contentVisible && showTutorial && (
+         <TutorialOverlay onComplete={handleTutorialComplete} />
+      )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// ClientPage component remains the same
+// ClientPage component (변경 없음)
 export default function ClientPage({ initialKeywords }: ClientPageProps) {
   return <MainContent initialKeywords={initialKeywords} />;
 }
