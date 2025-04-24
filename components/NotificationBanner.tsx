@@ -22,7 +22,7 @@ export const NotificationBanner = memo<NotificationBannerProps>(({ message, type
       // 3초 후 자동으로 사라지도록 타이머 설정
       timerRef.current = setTimeout(() => {
         setIsVisible(false);
-      }, 3000);
+      }, 5000);
     }
     // 메시지가 없어졌는데, 현재 보이는 상태일 때 숨김 처리
     else if (!message && isVisible) {
