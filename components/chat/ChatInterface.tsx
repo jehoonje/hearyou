@@ -72,7 +72,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       {/* --- 채팅 모달 컨테이너: 애니메이션 클래스 추가 (선택적 scale 효과 포함) --- */}
       <div
         className={`
-          w-full max-w-md h-[80vh] flex flex-col overflow-hidden
+          w-[375px] h-[658px] max-w-md flex flex-col overflow-hidden
           rounded-xl shadow-2xl shadow-black/40
           bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
