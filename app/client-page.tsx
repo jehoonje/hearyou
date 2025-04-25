@@ -257,9 +257,7 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
               data-interactive-ui="true"
             >
               <LoginForm
-                // ... LoginForm props
                 authView={auth.authView}
-                setAuthView={auth.setAuthView}
                 authMessage={auth.authMessage || ''}
                 authError={auth.authError}
                 email={auth.email}

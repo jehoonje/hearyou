@@ -21,7 +21,7 @@ const tutorialSteps: TutorialStep[] = [
   {
     step: 2,
     target: "transcript-display",
-    text: "음성을 통해 키워드가 기록됩니다.\n일상적인 대화도, 떠오르는 단어도 좋아요.",
+    text: "단 시간에 여러번 말한 키워드가 기록됩니다.\n일상적인 대화도, 떠오르는 단어도 좋아요.",
     positionClasses: "bottom-1/3 center w-80", // 예시 위치
   },
   {
