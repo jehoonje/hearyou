@@ -242,7 +242,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
             {/* 음성 관련 UI */}
             <div className="min-h-[100px]">
               {listening && (
-                <div className="transition-opacity duration-300 ease-in-out opacity-100" data-tutorial-target="transcript-display">
+                <div className="transition-opacity duration-300 ease-in-out opacity-100">
                   <TranscriptDisplay transcript={transcript} />
                   {newKeywords.length > 0 && (
                     <div className="backdrop-blur-lg bg-blue-500/30 p-3 rounded-lg my-2 animate-pulse border border-blue-300">
@@ -265,7 +265,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                )}
                {/* 녹음 시작 안내 (오디오 오류 없을 때) */}
                {!listening && !audioErrorProp && userEmail && (
-                 <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded" data-tutorial-target="transcript-display">
+                 <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded">
                    마이크 버튼을 눌러 시작하세요.
                  </div>
                )}
@@ -278,7 +278,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
           {/* 하단 영역: pointer-events-auto */}
           <div className="p-4 flex-shrink-0 pointer-events-auto">
              {/* KeywordList */}
-             <div className="overflow-y-auto max-h-36 scrollbar-thin" data-tutorial-target="keyword-list">
+             <div className="overflow-y-auto max-h-36 scrollbar-thin">
                <KeywordList keywordList={keywordList} />
              </div>
           </div>

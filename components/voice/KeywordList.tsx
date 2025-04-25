@@ -36,7 +36,7 @@ const KeywordList = memo<KeywordListProps>(({ keywordList }) => {
   const toggleOpen = () => setIsOpen(!isOpen);
 
   return (
-    <div className="bg-transparent p-1 pt-2 px-3 rounded-lg border border-gray-700/50 overflow-hidden">
+    <div className="bg-transparent p-1 pt-2 px-3 rounded-lg border border-gray-700/50 overflow-hidden" data-tutorial-target="transcript-display">
       {/* 제목과 토글 버튼 영역 */}
       <div className="flex justify-between items-center mb-1 cursor-pointer" onClick={toggleOpen}>
         <h2 className="text-base font-mono font-semibold text-sm text-shadow">
