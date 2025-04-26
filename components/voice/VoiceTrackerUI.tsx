@@ -1,51 +1,41 @@
-// src/components/voice/VoiceTrackerUI.tsx 또는 유사 경로
+'use client';
 
-import { memo, useState, useEffect, useCallback, useRef } from "react";
-import { useMatchStore } from "../../store/matchStore"; // 경로 확인
-import { useAuth } from "../../hooks/useAuth"; // 더 이상 직접 사용하지 않음
-import ChatInterface from "../chat/ChatInterface"; // 경로 확인
-import NotificationBanner from "../../components/NotificationBanner"; // 경로 확인
+import { memo, useState, useEffect, useCallback } from "react";
+import { useMatchStore } from "../../store/matchStore";
+import { useAuth } from "../../hooks/useAuth";
+import ChatInterface from "../chat/ChatInterface";
+import NotificationBanner from "../../components/NotificationBanner";
 import VolumeIndicator from "./VolumeIndicator";
 import TranscriptDisplay from "./TranscriptDisplay";
 import KeywordList from "./KeywordList";
-import { Keyword } from "../../types"; // 경로 확인
-// import { useAudioAnalysis } from '../../hooks/useAudioAnalysis'; // !!! 이 훅 호출 제거 !!!
-// import { Mic, MicOff } from "lucide-react"; // 더 이상 사용하지 않음
-import MicToggleButton from "./MicToggleButton"; // *** 새로 만든 토글 버튼 임포트 ***
+import { Keyword } from "../../types";
+import MicToggleButton from "./MicToggleButton";
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface VoiceTrackerUIProps {
-  // --- 상위 컴포넌트(MainContent)로부터 받을 Props 정의 ---
   volume: number;
   transcript: string | null;
   listening: boolean;
   newKeywords: string[];
-  error: string | null; // 상위에서 audioError로 전달된 값
-  toggleListening: () => void; // 녹음 시작/중지 함수
-
-  // --- 기존 Props ---
+  error: string | null;
+  toggleListening: () => void;
   keywordList: Keyword[];
   userEmail: string;
   onLogout: () => void;
-  // user?: User | null; // 만약 user 객체가 필요하다면 추가
 }
 
 const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
   ({
-    // --- Props 구조 분해 ---
     volume,
     transcript,
     listening,
     newKeywords,
-    error: audioErrorProp, // 받은 error prop의 이름을 audioErrorProp으로 변경
+    error: audioErrorProp,
     toggleListening,
     keywordList,
     userEmail,
     onLogout,
-    // user // 만약 user prop을 받는다면 추가
   }) => {
-    // --- !!! 내부 useAudioAnalysis 호출 완전 제거 !!! ---
-    
-    // --- 매치 관련 상태 (변경 없음) ---
     const {
       currentMatch,
       isLoading: isMatchLoading,
@@ -57,27 +47,20 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       clearMatch,
     } = useMatchStore();
 
-    // --- 로컬 UI 상태 (변경 없음) ---
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isMatchmakingRunning, setIsMatchmakingRunning] = useState(false);
-    const [audioErrorMessage, setAudioErrorMessage] = useState<string | null>(
-      null
-    );
-    const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(
-      null
-    );
+    const [audioErrorMessage, setAudioErrorMessage] = useState<string | null>(null);
+    const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(null);
     const [noMatchMessage, setNoMatchMessage] = useState<string | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false); // 즐겨찾기 안내 모달 상태 추가
 
     const { user } = useAuth();
 
-    // --- 에러 메시지 상태 업데이트 (변경 없음) ---
     useEffect(() => {
-      setAudioErrorMessage(
-        audioErrorProp ? `오디오 오류: ${audioErrorProp}` : null
-      );
+      setAudioErrorMessage(audioErrorProp ? `오디오 오류: ${audioErrorProp}` : null);
     }, [audioErrorProp]);
 
-    // --- 매치 관련 useEffects (변경 없음) ---
     useEffect(() => {
       if (user) {
         fetchCurrentMatch(user);
@@ -96,23 +79,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     }, [user, subscribeToMatchChanges, unsubscribeFromMatchChanges]);
 
     useEffect(() => {
-      if (userEmail) {
-      } else {
+      if (!userEmail) {
         clearMatch();
       }
-    }, [
-      userEmail,
-      fetchCurrentMatch,
-      clearMatch,
-      subscribeToMatchChanges,
-      unsubscribeFromMatchChanges,
-    ]);
+    }, [userEmail, fetchCurrentMatch, clearMatch, subscribeToMatchChanges, unsubscribeFromMatchChanges]);
 
     const hasMatchKeyword = keywordList.some(keyword => keyword.keyword === '매치');
 
-    // --- UI 액션 함수들 (변경 없음) ---
     const openChat = useCallback(() => {
-      /* ... 기존 코드 ... */
       if (currentMatch?.partner) {
         setActiveChatPartnerId(currentMatch.partner.userId);
         setIsChatOpen(true);
@@ -122,27 +96,22 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     }, [currentMatch?.partner, setActiveChatPartnerId]);
 
     const closeChat = useCallback(() => {
-      /* ... 기존 코드 ... */
       setActiveChatPartnerId(null);
       setIsChatOpen(false);
     }, [setActiveChatPartnerId]);
 
     const runManualMatchmaking = useCallback(async () => {
-      /* ... 기존 코드 ... */
-      if (isMatchmakingRunning || !user) { // user 객체 존재 여부도 확인하는 것이 안전
+      if (isMatchmakingRunning || !user) {
         alert("로그인이 필요하거나 이미 매칭을 시도 중입니다.");
         return;
-    };
+      }
       setIsMatchmakingRunning(true);
-      const { createClientComponentClient } = await import(
-        "@supabase/auth-helpers-nextjs"
-      );
+      const { createClientComponentClient } = await import("@supabase/auth-helpers-nextjs");
       const supabaseClient = createClientComponentClient();
       try {
-        const { data, error: invokeError } =
-          await supabaseClient.functions.invoke("matchmaking", {
-            method: "POST",
-          });
+        const { data, error: invokeError } = await supabaseClient.functions.invoke("matchmaking", {
+          method: "POST",
+        });
         if (invokeError) throw invokeError;
         alert(`매치메이킹 성공: ${data.message || "완료"}`);
         if (user) {
@@ -157,7 +126,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     }, [isMatchmakingRunning, user, fetchCurrentMatch]);
 
     const handleLogout = useCallback(() => {
-      /* ... 기존 코드 ... */
       if (listening) {
         toggleListening();
       }
@@ -167,55 +135,73 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     const isMatchButtonDisabled = isMatchmakingRunning || !userEmail || !hasMatchKeyword;
 
+    // 도움말 모달 열기/닫기
+    const openModal = useCallback(() => {
+      setIsModalOpen(true);
+    }, []);
+
+    const closeModal = useCallback(() => {
+      setIsModalOpen(false);
+    }, []);
+
+    // 즐겨찾기 안내 모달 열기/닫기
+    const openBookmarkModal = useCallback(() => {
+      setIsBookmarkModalOpen(true);
+      closeModal(); // 도움말 모달 닫기
+    }, []);
+
+    const closeBookmarkModal = useCallback(() => {
+      setIsBookmarkModalOpen(false);
+    }, []);
+
+    // 피드백 이메일 연결
+    const handleFeedback = useCallback(() => {
+      const email = 'limjhoon8@gmail.com';
+      const subject = encodeURIComponent('Univoice 피드백');
+      const body = encodeURIComponent('Univoice에 대한 피드백을 작성해주세요.');
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+      closeModal();
+    }, []);
+
     return (
       <>
-        {/* 최상위 div: pointer-events-none 유지 또는 제거 후 테스트 */}
         <div className="absolute inset-0 flex flex-col w-full h-full pointer-events-none">
-          {/* 알림 배너 */}
           <div className="absolute top-0 left-0 right-0 z-50 flex flex-col items-center space-y-1 pt-2">
-            {/* 각 배너는 고유 key와 message가 있을 때만 렌더링되도록 개선 가능 */}
             <NotificationBanner
-              key={`audio-${!!audioErrorMessage}`} // message 존재 여부로 key 변경
+              key={`audio-${!!audioErrorMessage}`}
               message={audioErrorMessage}
               type="error"
               onDismiss={() => setMatchErrorMessage(null)}
             />
             <NotificationBanner
-              key={`match-${!!matchError}`} // message 존재 여부로 key 변경
-              message={matchError ? `${matchError}` : null} // Zustand 에러 사용
-              type="warning" 
+              key={`match-${!!matchError}`}
+              message={matchError ? `${matchError}` : null}
+              type="warning"
               onDismiss={() => setMatchErrorMessage(null)}
             />
             <NotificationBanner
-              key={`noMatch-${!!noMatchMessage}`} // message 존재 여부로 key 변경
+              key={`noMatch-${!!noMatchMessage}`}
               message={noMatchMessage}
               type="warning"
               onDismiss={() => setMatchErrorMessage(null)}
             />
           </div>
 
-          {/* 상단 영역: pointer-events-auto */}
           <div className="p-4 flex-shrink-0 pointer-events-auto">
             <div className="flex justify-between items-center mb-4">
-              {/* 마이크 토글 */}
               <div className="flex items-center space-x-1" data-tutorial-target="mic-button">
                 <MicToggleButton
                   listening={listening}
                   onClick={toggleListening}
-                  disabled={!userEmail} // 이메일 없으면 비활성화
+                  disabled={!userEmail}
                 />
               </div>
-              {/* 액션 버튼들 */}
               <div className="flex items-center space-x-1">
-              <button
+                <button
                   onClick={runManualMatchmaking}
-                  // *** 수정된 비활성화 조건 적용 ***
                   disabled={isMatchButtonDisabled}
                   data-tutorial-target="match-button-area"
-                  className={`btn-aero-yellow ${
-                    // *** 수정된 비활성화 조건으로 클래스 적용 ***
-                    isMatchButtonDisabled ? "disabled" : ""
-                  }`}
+                  className={`btn-aero-yellow ${isMatchButtonDisabled ? "disabled" : ""}`}
                 >
                   {isMatchmakingRunning ? "매칭중..." : "Match"}
                 </button>
@@ -223,23 +209,16 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   <span className="text-xs text-gray-400 animate-pulse"></span>
                 )}
                 {currentMatch && !isMatchLoading && (
-                  <button
-                    onClick={openChat}
-                    className="btn-aero-green"
-                  >
+                  <button onClick={openChat} className="btn-aero-green">
                     Chat
                   </button>
                 )}
-                <button
-                  onClick={handleLogout}
-                  className="btn-aero-gray"
-                >
+                <button onClick={handleLogout} className="btn-aero-gray">
                   Sign Out
                 </button>
               </div>
             </div>
 
-            {/* 음성 관련 UI */}
             <div className="min-h-[100px]">
               {listening && (
                 <div className="transition-opacity duration-300 ease-in-out opacity-100">
@@ -257,35 +236,124 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   <VolumeIndicator volume={volume} />
                 </div>
               )}
-              {/* 오디오 오류 메시지 (녹음 중 아닐 때만 표시) */}
               {!listening && audioErrorProp && (
-                 <div className="text-red-400 text-sm font-mono p-2 bg-red-900/30 rounded">
-                   오디오 오류: {audioErrorProp}
-                 </div>
-               )}
-               {/* 녹음 시작 안내 (오디오 오류 없을 때) */}
-               {!listening && !audioErrorProp && userEmail && (
-                 <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded">
-                   마이크 버튼을 눌러 시작하세요.
-                 </div>
-               )}
+                <div className="text-red-400 text-sm font-mono p-2 bg-red-900/30 rounded">
+                  오디오 오류: {audioErrorProp}
+                </div>
+              )}
+              {!listening && !audioErrorProp && userEmail && (
+                <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded">
+                  마이크 버튼을 눌러 시작하세요.
+                </div>
+              )}
             </div>
           </div>
 
-          {/* 중앙 여백 */}
-          <div className="flex-grow pointer-events-none"></div> {/* 중앙 영역은 이벤트 통과 */}
+          <div className="flex-grow pointer-events-none"></div>
 
-          {/* 하단 영역: pointer-events-auto */}
           <div className="p-4 flex-shrink-0 pointer-events-auto">
-             {/* KeywordList */}
-             <div className="overflow-y-auto max-h-36 scrollbar-thin">
-               <KeywordList keywordList={keywordList} />
-             </div>
+            <div className="flex justify-end mb-1">
+              <button
+                onClick={openModal}
+                className="btn-aero-gray w-8 h-8 flex items-center justify-center"
+                aria-label="도움말"
+              >
+                ?
+              </button>
+            </div>
+            <div className="overflow-y-auto max-h-36 scrollbar-thin">
+              <KeywordList keywordList={keywordList} />
+            </div>
           </div>
         </div>
 
-        {/* 채팅 모달 */}
         {isChatOpen && <ChatInterface onClose={closeChat} />}
+
+        {/* 도움말 모달 */}
+        <AnimatePresence>
+          {isModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed bottom-40 inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+              onClick={closeModal}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-gray-800 p-6 rounded-lg shadow-lg bottom-40"
+                onClick={(e:any) => e.stopPropagation()}
+              >
+                <div className="flex flex-col space-y-4">
+                  <button
+                    onClick={handleFeedback}
+                    className="btn-aero-yellow"
+                  >
+                    Email Feedback
+                  </button>
+                  <button
+                    onClick={openBookmarkModal}
+                    className="btn-aero-green"
+                  >
+                    Add Bookmark
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 즐겨찾기 안내 모달 */}
+        <AnimatePresence>
+          {isBookmarkModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed bottom-40 inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+              onClick={closeBookmarkModal}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full"
+                onClick={(e:any) => e.stopPropagation()}
+              >
+                <h2 className="text-lg font-mono font-semibold mb-4">즐겨찾기 추가</h2>
+                <p className="text-sm font-mono text-gray-300 mb-4">
+                  {navigator.userAgent.match(/Android|iPhone|iPad/i) ? (
+                    <>
+                      Univoice를 홈 화면에 추가하려면:<br />
+                      1. 브라우저 메뉴(⋮ 또는 공유 버튼)를 열고<br />
+                      2. <strong>"홈 화면에 추가"</strong>를 선택하세요.<br />
+                      이렇게 하면 앱처럼 바로 접근할 수 있습니다!
+                    </>
+                  ) : (
+                    <>
+                      Univoice를 즐겨찾기에 추가하려면:<br />
+                      1. 브라우저의 북마크 메뉴를 열거나<br />
+                      2. <strong>Ctrl+D</strong> (Windows) 또는 <strong>Cmd+D</strong> (Mac)를 누르세요.<br />
+                      즐겨찾기 폴더에 저장해 쉽게 방문하세요!
+                    </>
+                  )}
+                </p>
+                <button
+                  onClick={closeBookmarkModal}
+                  className="btn-aero-gray w-full"
+                >
+                  닫기
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </>
     );
   }
