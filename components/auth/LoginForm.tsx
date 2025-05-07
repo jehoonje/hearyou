@@ -437,7 +437,7 @@ const LoginForm = memo<LoginFormProps>(
                         onChange={handleInputChange} onFocus={handleFocus}
                         ref={(el) => setRef(el, "username")} required
                         className={`w-full px-3 py-2 bg-transparent border rounded-md backdrop-blur-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-gray-200 ${usernameError ? 'border-red-500' : 'border-gray-600'}`}
-                        placeholder="이름"
+                        placeholder="닉네임"
                       />
                       {usernameError && ( <p className="text-red-400 text-xs mt-1 font-mono">{usernameError}</p> )}
                     </motion.div>
