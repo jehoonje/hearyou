@@ -39,6 +39,23 @@ const getDistance = (p1: Touch, p2: Touch): number => {
   return Math.sqrt(dx * dx + dy * dy);
 };
 
+// 모바일 감지 훅 추가
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const mobileKeywords = ['iphone', 'android', 'mobile', 'ios'];
+      return mobileKeywords.some(keyword => userAgent.includes(keyword));
+    };
+    
+    setIsMobile(checkMobile());
+  }, []);
+  
+  return isMobile;
+};
+
 // 드래그 컨트롤 구현
 const CameraControls = memo(() => {
   const { camera, gl } = useThree();
@@ -275,9 +292,15 @@ CameraControls.displayName = 'CameraControls'; // 디버깅을 위한 displayNam
 
 
 // 배경 별 생성
-const StarField = memo(() => { // React.memo 적용
+const StarField = memo(() => {
   const starsRef = useRef<THREE.Points>(null);
-  const starCount = 1000;
+  
+  // 모바일에서 별 개수 감소
+  const starCount = useMemo(() => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobile = ['iphone', 'android', 'mobile'].some(keyword => userAgent.includes(keyword));
+    return isMobile ? 500 : 1000; // 모바일: 500개, 데스크톱: 1000개
+  }, []);
 
   const starPositions = useMemo(() => {
     const positions = new Float32Array(starCount * 3);
@@ -309,7 +332,7 @@ const StarField = memo(() => { // React.memo 적용
     </points>
   );
 });
-StarField.displayName = 'StarField'; // 디버깅을 위한 displayName 추가
+StarField.displayName = 'StarField';
 
 
 // 원형 파동 컴포넌트 - 더욱 느리고 부드러운 모션 적용
@@ -614,23 +637,34 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
 // --- 원형 텍스처 생성 함수 끝 ---
 
 
+// 기존 상수들을 모바일 감지하여 동적 조절
+const getOptimizedConstants = () => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isMobile = ['iphone', 'android', 'mobile'].some(keyword => userAgent.includes(keyword));
+  
+  return {
+    MAX_PARTICLES: isMobile ? 2000 : 4000,        // 모바일: 파티클 수 절반
+    BASE_SPAWN_RATE: isMobile ? 1000 : 2000,      // 모바일: 스폰 레이트 절반
+    PARTICLE_COUNT: isMobile ? 25 : 50,           // ParticleEffect 파티클 수
+  };
+};
+
 const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
-  //console.log('%%% [QuasarJet] Received volume prop:', volume); 
+  const constants = useMemo(() => getOptimizedConstants(), []);
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 
   // 파티클 데이터 풀 생성 (이전과 동일)
   const particleAttributes = useMemo(() => {
     // ... (파티클 초기화 로직) ...
-    //console.log("Initializing Enhanced QuasarJet Particle Pool (Circle Texture):", MAX_PARTICLES);
-    const positions = new Float32Array(MAX_PARTICLES * 3);
-    const colors = new Float32Array(MAX_PARTICLES * 4);
-    const lifetimes = new Float32Array(MAX_PARTICLES);
-    const activeState = new Float32Array(MAX_PARTICLES);
-    const initDirections = new Float32Array(MAX_PARTICLES * 2);
-    const randomFactors = new Float32Array(MAX_PARTICLES * 4);
-    const sizes = new Float32Array(MAX_PARTICLES);
-    const rotationSpeeds = new Float32Array(MAX_PARTICLES);
+    const positions = new Float32Array(constants.MAX_PARTICLES * 3);
+    const colors = new Float32Array(constants.MAX_PARTICLES * 4);
+    const lifetimes = new Float32Array(constants.MAX_PARTICLES);
+    const activeState = new Float32Array(constants.MAX_PARTICLES);
+    const initDirections = new Float32Array(constants.MAX_PARTICLES * 2);
+    const randomFactors = new Float32Array(constants.MAX_PARTICLES * 4);
+    const sizes = new Float32Array(constants.MAX_PARTICLES);
+    const rotationSpeeds = new Float32Array(constants.MAX_PARTICLES);
 
     const baseColor = new THREE.Color("#9400D3");
     const midColor = new THREE.Color("#FFFFFF");
@@ -655,7 +689,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       rotationSpeeds[i] = (Math.random() - 0.5) * PARTICLE_ROTATION_SPEED * 2;
     }
     return { positions, colors, lifetimes, activeState, initDirections, randomFactors, sizes, rotationSpeeds, baseColor, midColor, endColor };
-  }, [HUE_VARIATION, PARTICLE_ROTATION_SPEED]);
+  }, [constants.MAX_PARTICLES]);
 
   // 원형 텍스처 생성 (useMemo 사용)
   const circleTexture = useMemo(() => {
@@ -921,16 +955,30 @@ const GlowEffect = memo(() => { // React.memo 적용
 GlowEffect.displayName = 'GlowEffect'; // 디버깅을 위한 displayName 추가
 
 const ThreeScene = ({ volume }: ThreeSceneProps) => {
-  //console.log('%%% [ThreeScene] Received volume prop:', volume); 
+  const isMobile = useIsMobile();
+  
+  // 모바일 최적화된 설정
+  const mobileSettings = {
+    antialias: false, // 모바일에서는 안티앨리어싱 비활성화
+    alpha: true,
+    powerPreference: 'high-performance' as const,
+    stencil: false,
+    depth: true,
+  };
+
+  const desktopSettings = {
+    antialias: true,
+    alpha: true,
+    powerPreference: 'high-performance' as const,
+  };
+
   return (
     <Canvas
       style={{ width: '100%', height: '100%' }}
-      camera={{ position: [-0.7, 0.5, -4], fov: 110 }}
-      gl={{
-        antialias: true,
-        alpha: true,
-        powerPreference: 'high-performance'
-      }}
+      camera={{ position: [-0.7, 0.5, -4], fov: isMobile ? 120 : 110 }}
+      gl={isMobile ? mobileSettings : desktopSettings}
+      dpr={isMobile ? [1, 2] : undefined} // 모바일 픽셀 밀도 최적화
+      performance={{ min: 0.5 }} // 성능 임계값 설정
     >
       {/* 렌더링 품질 향상 */}
       <GlowEffect />
@@ -950,9 +998,17 @@ const ThreeScene = ({ volume }: ThreeSceneProps) => {
       <ParticleEffect volume={volume} />
 
       {/* 조명 */}
-      <ambientLight intensity={0.3} />
-      <pointLight position={[5, 5, 5]} intensity={0.8} color="#4fc3dc" />
-      <pointLight position={[-5, -5, 5]} intensity={0.8} color="#ff2d75" />
+      <ambientLight intensity={isMobile ? 0.2 : 0.3} />
+      <pointLight 
+        position={[5, 5, 5]} 
+        intensity={isMobile ? 0.6 : 0.8} 
+        color="#4fc3dc" 
+      />
+      <pointLight 
+        position={[-5, -5, 5]} 
+        intensity={isMobile ? 0.6 : 0.8} 
+        color="#ff2d75" 
+      />
     </Canvas>
   );
 };
