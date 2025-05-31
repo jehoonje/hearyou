@@ -3,12 +3,40 @@ declare global {
     ReactNativeWebView?: {
       postMessage: (message: string) => void;
     };
+    isNativeApp?: boolean;
+    useNativeSpeechRecognition?: boolean;
+    handleNativeSpeechResult?: (transcript: string, isFinal: boolean, confidence: number) => void;
   }
 }
 
 export const startSpeechRecognition = (
   onTranscript: (transcript: string, isFinal: boolean, confidence: number) => void
 ): (() => void) => {
+  // 네이티브 앱에서 실행 중인 경우
+  if (window.isNativeApp && window.useNativeSpeechRecognition) {
+    console.log('네이티브 음성 인식 모드 사용');
+    
+    // 네이티브 앱의 음성 인식 결과를 받는 핸들러 설정
+    window.handleNativeSpeechResult = (transcript: string, isFinal: boolean, confidence: number) => {
+      console.log('네이티브 음성 인식 결과:', transcript, isFinal, confidence);
+      onTranscript(transcript, isFinal, confidence);
+    };
+    
+    // 네이티브 앱에 음성 인식 시작 요청
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'START_NATIVE_RECOGNITION'
+      }));
+    }
+    
+    // 클린업 함수
+    return () => {
+      console.log('네이티브 음성 인식 정리');
+      window.handleNativeSpeechResult = undefined;
+    };
+  }
+
+  // 웹 브라우저에서 실행되는 경우 기존 로직 사용
   const SpeechRecognition =
     (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
