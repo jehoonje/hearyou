@@ -32,6 +32,36 @@ body {
   /* background: linear-gradient(to bottom right, #60a5fa, #eab308); */
 }
 
+/* 모바일 터치 최적화 */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 모바일 뷰포트 최적화 */
+html, body {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+/* WebGL 캔버스 최적화 */
+canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+/* 폰트 렌더링 최적화 */
+.font-mono {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-display: swap;
+}
+
 /* 텍스트 그림자 효과 */
 .text-shadow {
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
@@ -277,4 +307,3 @@ body {
   /* 필요하다면 추가 스타일 */
   background-color: rgba(139, 92, 246, 0.1); /* 살짝 배경색 추가 (선택적) */
 }
-
