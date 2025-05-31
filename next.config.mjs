@@ -1,4 +1,4 @@
-// nextConfig.mjs - 기존 파일 전체 교체
+// nextConfig.mjs - 수정된 버전
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
@@ -11,10 +11,13 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     // 서버사이드에서 canvas 관련 오류 방지
     if (isServer) {
-      config.externals = {
-        ...config.externals,
-        canvas: 'canvas',
-      };
+      // 방법 1: 배열에 추가하는 방식
+      config.externals.push('canvas');
+      
+      // 또는 방법 2: 함수형으로 처리
+      // config.externals.push(({ request }) => {
+      //   if (request === 'canvas') return 'canvas';
+      // });
     }
     
     // 모바일 성능 최적화

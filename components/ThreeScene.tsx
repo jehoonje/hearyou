@@ -637,6 +637,7 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
 // --- 원형 텍스처 생성 함수 끝 ---
 
 
+// components/ThreeScene.tsx - QuasarJet 상수 정의 부분 수정
 // 기존 상수들을 모바일 감지하여 동적 조절
 const getOptimizedConstants = () => {
   const userAgent = navigator.userAgent.toLowerCase();
@@ -654,9 +655,8 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 
-  // 파티클 데이터 풀 생성 (이전과 동일)
+  // 파티클 데이터 풀 생성 (모바일 최적화 적용)
   const particleAttributes = useMemo(() => {
-    // ... (파티클 초기화 로직) ...
     const positions = new Float32Array(constants.MAX_PARTICLES * 3);
     const colors = new Float32Array(constants.MAX_PARTICLES * 4);
     const lifetimes = new Float32Array(constants.MAX_PARTICLES);
@@ -670,7 +670,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const midColor = new THREE.Color("#FFFFFF");
     const endColor = new THREE.Color("#00FFFF");
 
-    for (let i = 0; i < MAX_PARTICLES; i++) {
+    for (let i = 0; i < constants.MAX_PARTICLES; i++) { // MAX_PARTICLES → constants.MAX_PARTICLES
       const i3 = i * 3;
       const i4 = i * 4;
       const i2 = i * 2;
@@ -702,18 +702,17 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       }
   }, []); // 의존성 배열 비어있음 (최초 1회 실행)
 
-
-  // 지오메트리 설정 (이전과 동일)
+  // 지오메트리 설정 (모바일 최적화 적용)
   useEffect(() => {
     const geometry = geometryRef.current;
     if (!geometry || !particleAttributes) return;
     geometry.setAttribute('position', new THREE.BufferAttribute(particleAttributes.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(particleAttributes.colors, 4));
     geometry.setAttribute('size', new THREE.BufferAttribute(particleAttributes.sizes, 1));
-    geometry.setDrawRange(0, MAX_PARTICLES);
+    geometry.setDrawRange(0, constants.MAX_PARTICLES); // MAX_PARTICLES → constants.MAX_PARTICLES
     geometry.boundingSphere = null;
     geometry.boundingBox = null;
-  }, [particleAttributes]);
+  }, [particleAttributes, constants.MAX_PARTICLES]); // 의존성에 constants.MAX_PARTICLES 추가
 
   // 파티클 머티리얼 (map 속성 추가, circleTexture가 null일 경우 대비)
   const material = useMemo(() => new THREE.PointsMaterial({
@@ -727,7 +726,6 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     // alphaTest: 0.01,
   }), [circleTexture]); // circleTexture 의존성 추가
 
-  // 나머지 코드 (spawnCounter, curveParams, calculateRadius, useMemo hooks, useFrame)는 이전과 동일
   // 누적 스폰 카운터
   const spawnCounter = useRef(0);
 
@@ -743,7 +741,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     }
     k = Math.max(0, k);
     return { minRadiusSquared, k };
-  }, [MIN_RADIUS, END_RADIUS_FACTOR, ENTRY_LENGTH, EXIT_LENGTH]);
+  }, []);
 
   // z 위치에 따른 제트 반경 계산 함수
   const calculateRadius = useCallback((z: number): number => {
@@ -760,7 +758,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
         finalRadius = hyperbolicRadius;
     }
     return Math.max(MIN_RADIUS, finalRadius);
-  }, [curveParams, TRANSITION_ZONE_LENGTH, MIN_RADIUS]);
+  }, [curveParams]);
 
   // useMemo 훅들
   const tempColor = useMemo(() => new THREE.Color(), []);
@@ -768,14 +766,12 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
   const currentMidColor = useMemo(() => particleAttributes.midColor.clone(), [particleAttributes.midColor]);
   const currentEndColor = useMemo(() => particleAttributes.endColor.clone(), [particleAttributes.endColor]);
 
-
   // 애니메이션 루프
   useFrame(({ clock }, delta) => {
     const geometry = geometryRef.current;
     const points = pointsRef.current;
      // 텍스처 로딩 실패 시 또는 초기화 중일 때 실행 방지 강화
     if (!geometry || !points || !material || !geometry.attributes.position || !geometry.attributes.color || !geometry.attributes.size || !particleAttributes) return;
-
 
     const positions = geometry.attributes.position.array as Float32Array;
     const colors = geometry.attributes.color.array as Float32Array;
@@ -788,7 +784,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
 
     const time = clock.elapsedTime;
     const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
-    const targetSpawnRate = BASE_SPAWN_RATE * normalizedVolume;
+    const targetSpawnRate = constants.BASE_SPAWN_RATE * normalizedVolume; // BASE_SPAWN_RATE → constants.BASE_SPAWN_RATE
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
     spawnCounter.current = numToSpawnFloat - numToSpawnInt;
@@ -799,8 +795,8 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
     const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0;
 
-    // if(volume > 5) console.log(`%%% [QuasarJet useFrame] vol:<span class="math-inline">\{volume\.toFixed\(2\)\}, normVol\:</span>{normalizedVolume.toFixed(3)}, spawn:${numToSpawnInt}`);
-    for (let i = 0; i < MAX_PARTICLES; i++) {
+    // 파티클 루프도 모바일 최적화 적용
+    for (let i = 0; i < constants.MAX_PARTICLES; i++) { // MAX_PARTICLES → constants.MAX_PARTICLES
       const i3 = i * 3;
       const i4 = i * 4;
       const i2 = i * 2;
@@ -919,7 +915,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     </points>
   );
 });
-QuasarJet.displayName = 'QuasarJet'; // 디버깅을 위한 displayName 추가
+QuasarJet.displayName = 'QuasarJet';
 
 
 // 발광 효과를 위한 후처리 (블룸 대체)
