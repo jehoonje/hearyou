@@ -970,7 +970,6 @@ const ThreeScene = ({ volume }: ThreeSceneProps) => {
 
   return (
     <Canvas
-      legacy
       style={{ width: '100%', height: '100%' }}
       camera={{ position: [-0.7, 0.5, -4], fov: isMobile ? 120 : 110 }}
       gl={isMobile ? mobileSettings : desktopSettings}
