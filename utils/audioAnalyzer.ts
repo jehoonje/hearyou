@@ -17,13 +17,13 @@ declare global {
 let isAnalyzing = false;
 let stopRecognitionFunc: (() => void) | null = null;
 let processedKeywords = new Map<string, number>();
-const KEYWORD_REDETECTION_INTERVAL = 3 * 1000;
+const KEYWORD_REDETECTION_INTERVAL = 3_000;
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 /* ---------- 키워드 캐시 정리 ---------- */
 const cleanupOldKeywords = () => {
   const now = Date.now();
-  const THRESHOLD = 5 * 60 * 1000;
+  const THRESHOLD = 5 * 60 * 1_000;
   processedKeywords.forEach((ts, kw) => {
     if (now - ts > THRESHOLD) processedKeywords.delete(kw);
   });
@@ -46,35 +46,44 @@ export const startAudioAnalysis = async (
   resetKeywordTracker();
 
   /* *************************************************************
-   *  A.  네이티브 앱에서 실행되는 경우 (window.isNativeApp == true)
-   *      → getUserMedia 로 마이크를 다시 점유하지 않는다.
+   *  A.  네이티브 앱 환경  (window.isNativeApp === true)
    ************************************************************* */
   if (window.isNativeApp) {
     console.log('[audioAnalyzer] NativeApp 모드 – getUserMedia skip');
 
-    stopRecognitionFunc = startSpeechRecognition((txt, isFinal, conf) => {
-      if (txt.trim()) {
-        onTranscriptUpdate(txt);
-        const kws = analyzeKeywords(txt, isFinal, conf);
-        if (kws.length) {
-          onKeywordsUpdate(kws);
-          kws.forEach(async (kw) => {
-            try {
-              const saved = await saveKeyword(kw, userId);
-              if (saved) {
-                processedKeywords.set(kw, Date.now());
-                if (onKeywordSaved) onKeywordSaved(saved);
-              }
-            } catch (e) {
-              console.error('[audioAnalyzer] 키워드 저장 오류:', e);
-            }
-          });
-          invalidateKeywordsCache(userId);
+    stopRecognitionFunc = startSpeechRecognition(async (txt, isFinal, conf) => {
+      if (!txt.trim()) return;
+
+      onTranscriptUpdate(txt);
+
+      const kws = analyzeKeywords(txt, isFinal, conf);
+      if (!kws.length) return;
+
+      const now = Date.now();
+      const newKws = kws.filter(
+        (kw) =>
+          !processedKeywords.has(kw) ||
+          now - (processedKeywords.get(kw) || 0) > KEYWORD_REDETECTION_INTERVAL,
+      );
+      if (!newKws.length) return;
+
+      onKeywordsUpdate(newKws);
+
+      for (const kw of newKws) {
+        try {
+          const saved = await saveKeyword(kw, userId);
+          if (saved) {
+            processedKeywords.set(kw, Date.now());
+            onKeywordSaved?.(saved);
+          }
+        } catch (e) {
+          console.error('[audioAnalyzer] 키워드 저장 오류:', e);
         }
       }
+      invalidateKeywordsCache(userId); // 성공/실패와 무관하게 1회만
     });
 
-    /* 네이티브에서 볼륨 값을 따로 주지 않으므로 0 으로 고정 보고 */
+    /* 네이티브에서 볼륨 값 전달 안 하므로 0 고정 */
     onVolumeUpdate(0);
 
     return () => {
@@ -89,7 +98,7 @@ export const startAudioAnalysis = async (
   }
 
   /* *************************************************************
-   *  B.  브라우저(웹) 환경 – 기존 로직
+   *  B.  브라우저(웹) 환경
    ************************************************************* */
   let stream: MediaStream | null = null;
   let audioContext: AudioContext | null = null;
@@ -100,7 +109,7 @@ export const startAudioAnalysis = async (
   const SILENCE_THRESHOLD = 15;
 
   if (cleanupInterval) clearInterval(cleanupInterval);
-  cleanupInterval = setInterval(cleanupOldKeywords, 60 * 1000);
+  cleanupInterval = setInterval(cleanupOldKeywords, 60 * 1_000);
 
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -123,36 +132,36 @@ export const startAudioAnalysis = async (
         transcriptResetTimer = setTimeout(() => {
           onTranscriptUpdate('');
           transcriptResetTimer = null;
-        }, 3000);
+        }, 3_000);
 
         lastVoiceTime = Date.now();
         silenceTimer = 0;
 
         const kws = analyzeKeywords(transcript, isFinal, confidence);
-        if (kws.length) {
-          const now = Date.now();
-          const newKws = kws.filter(
-            (kw) =>
-              !processedKeywords.has(kw) ||
-              now - (processedKeywords.get(kw) || 0) >
-                KEYWORD_REDETECTION_INTERVAL,
-          );
-          if (newKws.length) {
-            onKeywordsUpdate(newKws);
-            for (const kw of newKws) {
-              try {
-                const saved = await saveKeyword(kw, userId);
-                if (saved) {
-                  processedKeywords.set(kw, Date.now());
-                  onKeywordSaved?.(saved);
-                }
-              } catch (e) {
-                console.error('[audioAnalyzer] saveKeyword 오류:', e);
-              }
+        if (!kws.length) return;
+
+        const now = Date.now();
+        const newKws = kws.filter(
+          (kw) =>
+            !processedKeywords.has(kw) ||
+            now - (processedKeywords.get(kw) || 0) > KEYWORD_REDETECTION_INTERVAL,
+        );
+        if (!newKws.length) return;
+
+        onKeywordsUpdate(newKws);
+
+        for (const kw of newKws) {
+          try {
+            const saved = await saveKeyword(kw, userId);
+            if (saved) {
+              processedKeywords.set(kw, Date.now());
+              onKeywordSaved?.(saved);
             }
-            invalidateKeywordsCache(userId);
+          } catch (e) {
+            console.error('[audioAnalyzer] saveKeyword 오류:', e);
           }
         }
+        invalidateKeywordsCache(userId);
       },
     );
 
@@ -162,9 +171,7 @@ export const startAudioAnalysis = async (
         return;
       }
       analyser.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < bufLen; i++) sum += dataArray[i];
-      const vol = sum / bufLen;
+      const vol = dataArray.reduce((s, v) => s + v, 0) / bufLen;
       onVolumeUpdate(vol);
 
       if (vol > SILENCE_THRESHOLD) {
@@ -174,7 +181,7 @@ export const startAudioAnalysis = async (
         silenceTimer = Date.now() - lastVoiceTime;
       }
 
-      if (silenceTimer > 3000 && transcriptResetTimer) {
+      if (silenceTimer > 3_000 && transcriptResetTimer) {
         clearTimeout(transcriptResetTimer);
         transcriptResetTimer = null;
         onTranscriptUpdate('');
@@ -198,8 +205,7 @@ export const startAudioAnalysis = async (
       }
       if (transcriptResetTimer) clearTimeout(transcriptResetTimer);
       if (stream) stream.getTracks().forEach((t) => t.stop());
-      if (audioContext && audioContext.state !== 'closed')
-        audioContext.close();
+      if (audioContext && audioContext.state !== 'closed') audioContext.close();
     };
   } catch (err) {
     isAnalyzing = false;
