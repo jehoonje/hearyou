@@ -126,8 +126,8 @@ export const startAudioAnalysis = async (
       }
     } else { // 빈 트랜스크립트 수신 시 (초기화 목적 등)
       // console.log('[AudioAnalyzer] 빈 트랜스크립트 수신. UI 즉시 초기화.');
-      onTranscriptUpdate('');
-      onKeywordsUpdate([]);
+      onTranscriptUpdate(''); // 👈 이 부분이 호출되어 UI의 트랜스크립트가 지워집니다.
+      onKeywordsUpdate([]);   // 👈 감지된 키워드 UI도 함께 초기화됩니다.
       if (transcriptResetTimer) { // 혹시 모를 타이머도 정리
         clearTimeout(transcriptResetTimer);
         transcriptResetTimer = null;

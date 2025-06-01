@@ -102,10 +102,11 @@ export const analyzeKeywords = (
     return [];
   }
 
-  frequencyAnalyzer.processText(transcript);
+  // frequencyAnalyzer.processText(transcript);
 
   // 최종 결과일 때만 확정된 키워드 반환
   if (isFinal) {
+    frequencyAnalyzer.processText(transcript); // 최종 텍스트로 빈도수 업데이트
     const confirmed = frequencyAnalyzer.getConfirmedKeywords();
     // 확정된 키워드가 있을 때만 로그 출력 (선택 사항)
     if (confirmed.length > 0) {
