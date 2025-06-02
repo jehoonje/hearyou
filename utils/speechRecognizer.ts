@@ -5,21 +5,68 @@ declare global {
     };
     isNativeApp?: boolean;
     useNativeSpeechRecognition?: boolean;
-    handleNativeSpeechResult?: (transcript: string, isFinal: boolean, confidence: number) => void;
+    handleNativeSpeechResult?: (transcript: string, isFinal: boolean, confidence: number, isInitialization?: boolean) => void;
+    handleNativeVolumeUpdate?: (volume: number) => void;
+    clearTranscript?: () => void;
+    requestSpeechRestart?: () => void;
   }
 }
 
 export const startSpeechRecognition = (
-  onTranscript: (transcript: string, isFinal: boolean, confidence: number) => void
+  onTranscript: (transcript: string, isFinal: boolean, confidence: number) => void,
+  onVolumeUpdate?: (volume: number) => void
 ): (() => void) => {
   // 네이티브 앱에서 실행 중인 경우
   if (window.isNativeApp && window.useNativeSpeechRecognition) {
     console.log('네이티브 음성 인식 모드 사용');
     
-    // 네이티브 앱의 음성 인식 결과를 받는 핸들러 설정
-    window.handleNativeSpeechResult = (transcript: string, isFinal: boolean, confidence: number) => {
-      console.log('네이티브 음성 인식 결과:', transcript, isFinal, confidence);
-      onTranscript(transcript, isFinal, confidence);
+    // 🔥 개선된 네이티브 음성 인식 결과 핸들러
+    window.handleNativeSpeechResult = (transcript: string, isFinal: boolean, confidence: number, isInitialization = false) => {
+      console.log('[WebView] handleNativeSpeechResult:', { transcript, isFinal, confidence, isInitialization });
+      
+      // 초기화 신호 처리
+      if (isInitialization || (transcript === "" && !isFinal)) {
+        console.log('[WebView] 음성 인식 초기화 신호 수신');
+        // 초기화 신호 - 빈 문자열로 상태 초기화
+        onTranscript("", false, 0);
+        return; // 초기화만 하고 리턴
+      }
+      
+      // 종료 신호 처리 (빈 문자열 + isFinal)
+      if (transcript === "" && isFinal) {
+        console.log('[WebView] 음성 인식 종료 신호 수신');
+        // 필요시 추가 정리 작업
+        return;
+      }
+      
+      // 실제 음성 인식 결과 처리
+      if (transcript && transcript.trim()) {
+        console.log('[WebView] 실제 음성 결과 처리:', transcript);
+        onTranscript(transcript, isFinal, confidence);
+      }
+    };
+    
+    // 🔥 볼륨 업데이트 핸들러
+    window.handleNativeVolumeUpdate = (volume: number) => {
+      // console.log('[WebView] 볼륨 업데이트:', volume);
+      if (onVolumeUpdate) {
+        onVolumeUpdate(volume);
+      }
+    };
+    
+    // 🔥 네이티브에서 사용할 수 있는 웹뷰 제어 함수들
+    window.clearTranscript = () => {
+      console.log('[WebView] clearTranscript 호출됨');
+      onTranscript("", false, 0);
+    };
+    
+    window.requestSpeechRestart = () => {
+      console.log('[WebView] 음성 인식 재시작 요청');
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'RESTART_SPEECH_RECOGNITION'
+        }));
+      }
     };
     
     // 네이티브 앱에 음성 인식 시작 요청
@@ -33,6 +80,16 @@ export const startSpeechRecognition = (
     return () => {
       console.log('네이티브 음성 인식 정리');
       window.handleNativeSpeechResult = undefined;
+      window.handleNativeVolumeUpdate = undefined;
+      window.clearTranscript = undefined;
+      window.requestSpeechRestart = undefined;
+      
+      // 네이티브에 정리 요청
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'STOP_NATIVE_RECOGNITION'
+        }));
+      }
     };
   }
 
