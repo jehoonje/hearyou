@@ -206,7 +206,11 @@ export const startAudioAnalysis = async (
 
     try {
       // console.log("[AudioAnalyzer Web] 마이크 접근 시도 (getUserMedia)");
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        autoGainControl: false, // 자동 게인 컨트롤 비활성화 시도
+        echoCancellation: true, // 에코 캔슬링은 유지하거나 필요에 따라 조정
+        noiseSuppression: true  // 노이즈 억제는 유지하거나 필요에 따라 조정
+      } });
       // console.log("[AudioAnalyzer Web] 마이크 접근 성공");
 
       // console.log("[AudioAnalyzer Web] AudioContext 생성 시도");
@@ -221,7 +225,7 @@ export const startAudioAnalysis = async (
         const highPassFilter = audioContext.createBiquadFilter();
         highPassFilter.type = "highpass"; highPassFilter.frequency.value = 85;
         const gainNode = audioContext.createGain();
-        gainNode.gain.value = 1.75; // 감도 조절
+        gainNode.gain.value = 1.5; // 감도 조절
         source.connect(highPassFilter).connect(lowPassFilter).connect(gainNode);
         analyserNode = audioContext.createAnalyser();
         analyserNode.fftSize = 512; analyserNode.smoothingTimeConstant = 0.6;
