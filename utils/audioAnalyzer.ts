@@ -16,6 +16,7 @@ declare global {
     };
     // 네이티브로부터 볼륨 업데이트를 받기 위한 핸들러
     handleNativeVolumeUpdate?: (volume: number) => void;
+    resetTranscriptTimer?: () => void;
     // 네이티브 음성 인식 결과를 직접 받는 핸들러 (speechRecognizer.ts 에서 사용될 수 있음)
     // speechRecognizer.ts의 구현에 따라 이 부분이 필요할 수도, 아닐 수도 있습니다.
     // handleNativeSpeechResult?: (transcript: string, isFinal: boolean, confidence: number) => void;
@@ -81,6 +82,13 @@ export const startAudioAnalysis = async (
 
     if (transcriptResetTimer) clearTimeout(transcriptResetTimer); // 이전 타이머 취소
 
+    // 빈 트랜스크립트 수신 시 즉시 초기화
+    if (transcript === "" && isFinal) {
+      onTranscriptUpdate(""); 
+      onKeywordsUpdate([]);
+      return;
+    }
+    
     if (transcript.trim()) { // 내용이 있는 트랜스크립트인 경우
       onTranscriptUpdate(transcript); // UI에 트랜스크립트 업데이트
       // console.log(`[AudioAnalyzer] onTranscriptUpdate 호출: "${transcript}"`);
@@ -140,6 +148,14 @@ export const startAudioAnalysis = async (
   // ====================================================================
   if (window.isNativeApp) {
     console.log('[AudioAnalyzer] NativeApp 모드 실행');
+
+    window.resetTranscriptTimer = () => {
+      if (transcriptResetTimer) clearTimeout(transcriptResetTimer);
+      transcriptResetTimer = setTimeout(() => {
+        onTranscriptUpdate(""); 
+        onKeywordsUpdate([]);
+      }, TRANSCRIPT_RESET_TIMEOUT);
+    };
 
     // 1. 네이티브 음성 인식 시작 (speechRecognizer.ts 내부에서 네이티브 STT 연동 처리)
     //    commonSpeechResultHandler를 콜백으로 전달
