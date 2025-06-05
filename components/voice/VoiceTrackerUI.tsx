@@ -57,6 +57,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     const { user } = useAuth();
 
+    
     useEffect(() => {
       setAudioErrorMessage(audioErrorProp ? `오디오 오류: ${audioErrorProp}` : null);
     }, [audioErrorProp]);

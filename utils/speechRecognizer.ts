@@ -1,3 +1,5 @@
+import { resetKeywordTracker, analyzeKeywords } from './keywordAnalyzer';
+
 declare global {
   interface Window {
     ReactNativeWebView?: {
@@ -29,12 +31,22 @@ export const startSpeechRecognition = (
       console.log('[WebView] handleNativeSpeechResult:', { transcript, isFinal, confidence, isInitialization });
       
       // 초기화 신호 처리 - 명시적 초기화 또는 빈 문자열 수신 시
-      if (isInitialization || transcript === "") {
-        console.log('[WebView] 음성 인식 초기화/정리 신호 수신');
-        lastProcessedTranscript = '';
-        isProcessingFinalResult = false;
-        // 빈 문자열로 상태 초기화
-        onTranscript("", false, 0);
+      if (isInitialization || transcript === "") { // transcript === "" 조건은 onSpeechEnd 등에서 빈 문자열로 초기화할 때 사용될 수 있음
+        console.log('[WebView] 음성 인식 초기화/정리 신호 수신. Resetting keyword tracker and transcript.');
+        
+        // --- 중요: 키워드 분석기 상태 초기화 ---
+        if (typeof resetKeywordTracker === 'function') {
+          resetKeywordTracker(); // <<--- 이 호출을 추가하세요!
+        } else {
+          console.warn('[WebView] resetKeywordTracker function is not defined or not imported.');
+        }
+        // ------------------------------------
+    
+        lastProcessedTranscript = ''; // 이 변수들이 해당 스코프에 있다면 유지
+        isProcessingFinalResult = false; // 이 변수들이 해당 스코프에 있다면 유지
+        
+        // 빈 문자열로 상태 초기화 (UI 트랜스크립트 클리어)
+        onTranscript("", false, 0); // onTranscript는 이전에 정의된 콜백 함수로 가정
         return;
       }
       
@@ -49,14 +61,13 @@ export const startSpeechRecognition = (
           lastProcessedTranscript = transcript;
           isProcessingFinalResult = true;
           
-          // 최종 결과 처리 후 짧은 지연으로 상태 리셋
           setTimeout(() => {
             isProcessingFinalResult = false;
           }, 100);
         }
         
         console.log('[WebView] 실제 음성 결과 처리:', transcript, 'isFinal:', isFinal);
-        onTranscript(transcript, isFinal, confidence);
+        onTranscript(transcript, isFinal, confidence); // onTranscript는 이전에 정의된 콜백 함수로 가정
       }
     };
     
