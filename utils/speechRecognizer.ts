@@ -20,28 +20,42 @@ export const startSpeechRecognition = (
   if (window.isNativeApp && window.useNativeSpeechRecognition) {
     console.log('네이티브 음성 인식 모드 사용');
     
+    // 네이티브 환경에서의 상태 추적
+    let lastProcessedTranscript = '';
+    let isProcessingFinalResult = false;
+    
     // 🔥 개선된 네이티브 음성 인식 결과 핸들러
     window.handleNativeSpeechResult = (transcript: string, isFinal: boolean, confidence: number, isInitialization = false) => {
       console.log('[WebView] handleNativeSpeechResult:', { transcript, isFinal, confidence, isInitialization });
       
-      // 초기화 신호 처리
-      if (isInitialization || (transcript === "" && !isFinal)) {
-        console.log('[WebView] 음성 인식 초기화 신호 수신');
-        // 초기화 신호 - 빈 문자열로 상태 초기화
+      // 초기화 신호 처리 - 명시적 초기화 또는 빈 문자열 수신 시
+      if (isInitialization || transcript === "") {
+        console.log('[WebView] 음성 인식 초기화/정리 신호 수신');
+        lastProcessedTranscript = '';
+        isProcessingFinalResult = false;
+        // 빈 문자열로 상태 초기화
         onTranscript("", false, 0);
-        return; // 초기화만 하고 리턴
-      }
-      
-      // 종료 신호 처리 (빈 문자열 + isFinal)
-      if (transcript === "" && isFinal) {
-        console.log('[WebView] 음성 인식 종료 신호 수신');
-        // 필요시 추가 정리 작업
         return;
       }
       
       // 실제 음성 인식 결과 처리
       if (transcript && transcript.trim()) {
-        console.log('[WebView] 실제 음성 결과 처리:', transcript);
+        // 네이티브에서는 중복 처리 방지를 위해 동일한 최종 결과 체크
+        if (isFinal) {
+          if (transcript === lastProcessedTranscript && isProcessingFinalResult) {
+            console.log('[WebView] 중복된 최종 결과 무시:', transcript);
+            return;
+          }
+          lastProcessedTranscript = transcript;
+          isProcessingFinalResult = true;
+          
+          // 최종 결과 처리 후 짧은 지연으로 상태 리셋
+          setTimeout(() => {
+            isProcessingFinalResult = false;
+          }, 100);
+        }
+        
+        console.log('[WebView] 실제 음성 결과 처리:', transcript, 'isFinal:', isFinal);
         onTranscript(transcript, isFinal, confidence);
       }
     };
@@ -57,11 +71,15 @@ export const startSpeechRecognition = (
     // 🔥 네이티브에서 사용할 수 있는 웹뷰 제어 함수들
     window.clearTranscript = () => {
       console.log('[WebView] clearTranscript 호출됨');
+      lastProcessedTranscript = '';
+      isProcessingFinalResult = false;
       onTranscript("", false, 0);
     };
     
     window.requestSpeechRestart = () => {
       console.log('[WebView] 음성 인식 재시작 요청');
+      lastProcessedTranscript = '';
+      isProcessingFinalResult = false;
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'RESTART_SPEECH_RECOGNITION'
@@ -79,6 +97,8 @@ export const startSpeechRecognition = (
     // 클린업 함수
     return () => {
       console.log('네이티브 음성 인식 정리');
+      lastProcessedTranscript = '';
+      isProcessingFinalResult = false;
       window.handleNativeSpeechResult = undefined;
       window.handleNativeVolumeUpdate = undefined;
       window.clearTranscript = undefined;
