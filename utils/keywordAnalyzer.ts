@@ -52,9 +52,12 @@ class DynamicKeywordTracker {
   // 최근 확정된 키워드 추적 (재확정 방지)
   private recentlyConfirmedKeywords: Map<string, number> = new Map();
   
-  // 30초 내 2번 언급 규칙
-  private readonly CONFIRMATION_COUNT = 2;
-  private readonly TIME_WINDOW = 30000; // 30초
+  // ==================== [변경점 1] ====================
+  // 1번만 언급되어도 키워드로 감지하도록 수정합니다.
+  private readonly CONFIRMATION_COUNT = 1;
+  // ====================================================
+
+  private readonly TIME_WINDOW = 30000; // 30초 (이 값은 이제 확정 조건에 큰 영향을 주지 않습니다)
   private readonly MIN_TIME_BETWEEN_COUNTS = 2000; // 최소 2초 간격으로 증가
   private readonly CONFIRMATION_COOLDOWN = 5000; // 확정 후 5초 쿨다운
 
@@ -92,6 +95,8 @@ class DynamicKeywordTracker {
     return newlyConfirmedKeywords;
   }
 
+  // ==================== [변경점 2] ====================
+  // 단어가 처음 발견되었을 때도 바로 확정될 수 있도록 로직을 수정합니다.
   private addWordOccurrence(word: string, timestamp: number, context: string): string | null {
     // 최근에 확정된 키워드인지 확인
     const lastConfirmed = this.recentlyConfirmedKeywords.get(word);
@@ -103,45 +108,28 @@ class DynamicKeywordTracker {
     const existing = this.wordOccurrences.get(word);
     
     if (existing) {
-      // 이미 이 컨텍스트에서 카운트했는지 확인
       if (existing.contexts.has(context)) {
         return null; // 같은 컨텍스트에서는 중복 카운트 안함
       }
       
-      // 마지막 카운트와의 시간 간격 확인
       if (timestamp - existing.lastSeen < this.MIN_TIME_BETWEEN_COUNTS) {
         console.log(`[KeywordTracker] "${word}" 너무 빠른 재언급 (${timestamp - existing.lastSeen}ms)`);
         return null; // 너무 빠른 중복 카운트 방지
       }
       
-      // 시간 윈도우 확인
       const timeElapsed = timestamp - existing.firstSeen;
       if (timeElapsed > this.TIME_WINDOW) {
         // 30초가 지났으면 새로운 추적 시작
         console.log(`[KeywordTracker] "${word}" 시간 초과, 새로운 추적 시작`);
-        this.wordOccurrences.set(word, {
-          count: 1,
-          firstSeen: timestamp,
-          lastSeen: timestamp,
-          contexts: new Set([context])
-        });
-        return null;
-      }
-      
-      // 카운트 증가
-      existing.count++;
-      existing.lastSeen = timestamp;
-      existing.contexts.add(context);
-      
-      console.log(`[KeywordTracker] "${word}" ${existing.count}번째 발견 (${timeElapsed}ms 경과)`);
-      
-      // 30초 내에 2번 이상 언급되면 키워드로 확정
-      if (existing.count >= this.CONFIRMATION_COUNT) {
-        console.log(`[KeywordTracker] ✅ "${word}" 키워드 확정!`);
-        this.recentlyConfirmedKeywords.set(word, timestamp);
-        // 확정된 키워드는 추적에서 제거
-        this.wordOccurrences.delete(word);
-        return word;
+        existing.count = 1;
+        existing.firstSeen = timestamp;
+        existing.lastSeen = timestamp;
+        existing.contexts = new Set([context]);
+      } else {
+        // 카운트 증가
+        existing.count++;
+        existing.lastSeen = timestamp;
+        existing.contexts.add(context);
       }
     } else {
       // 첫 번째 발견
@@ -153,9 +141,23 @@ class DynamicKeywordTracker {
         contexts: new Set([context])
       });
     }
+
+    // --- 공통 확정 로직 ---
+    // 단어가 wordOccurrences에 있는지 확인하고, 확정 조건을 만족하는지 검사합니다.
+    const occurrence = this.wordOccurrences.get(word);
+
+    if (occurrence && occurrence.count >= this.CONFIRMATION_COUNT) {
+      console.log(`[KeywordTracker] ✅ "${word}" 키워드 확정!`);
+      this.recentlyConfirmedKeywords.set(word, timestamp);
+      // 확정된 키워드는 추적에서 제거
+      this.wordOccurrences.delete(word);
+      return word;
+    }
     
     return null;
   }
+  // ====================================================
+
 
   private cleanupOldWords(): void {
     const now = Date.now();
