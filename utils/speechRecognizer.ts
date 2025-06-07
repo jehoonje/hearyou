@@ -1,4 +1,4 @@
-// speechRecognizer.ts - 네이티브 호환성 개선 버전
+// speechRecognizer.ts - 중복 처리 방지 및 최종 결과만 처리
 
 import { resetKeywordTracker } from './keywordAnalyzer';
 
@@ -25,40 +25,74 @@ export const startSpeechRecognition = (
   if (window.isNativeApp && window.useNativeSpeechRecognition) {
     let lastProcessedTranscript = '';
     let lastProcessedTime = 0;
-    const MIN_PROCESS_INTERVAL = 1000; // 1초 간격으로 중복 방지
+    let isProcessing = false;
+    
+    // **더 엄격한 중복 방지 로직**
+    const MIN_PROCESS_INTERVAL = 2000; // 2초로 증가
+    const MIN_TRANSCRIPT_LENGTH = 2; // 최소 길이 체크
     
     window.speechRecognitionHandler = (transcript: string, isFinal: boolean, confidence: number, isInitialization = false) => {
-      // 초기화 신호는 무시 (리셋하지 않음)
+      console.log('[WebView] 수신:', { transcript, isFinal, confidence, isInitialization, isProcessing });
+      
+      // 처리 중이면 무시
+      if (isProcessing) {
+        console.log('[WebView] 처리 중이므로 무시');
+        return;
+      }
+      
+      // 초기화 신호는 무시
       if (isInitialization) {
-        console.log('[WebView] Native 초기화 신호 수신 (무시)');
+        console.log('[WebView] 초기화 신호 무시');
         return;
       }
 
       // 빈 최종 결과 처리
       if (transcript.trim() === "" && isFinal) {
+        console.log('[WebView] 빈 최종 결과 처리');
         onTranscript("", true, 0.0);
         return;
       }
       
-      // 실제 음성 데이터 처리
-      if (transcript.trim()) {
+      // **최종 결과만 처리하도록 제한**
+      if (!isFinal) {
+        console.log('[WebView] 부분 결과 무시:', transcript);
+        // 부분 결과는 UI 업데이트만 (키워드 분석하지 않음)
+        if (transcript.trim().length >= MIN_TRANSCRIPT_LENGTH) {
+          onTranscript(transcript, false, confidence);
+        }
+        return;
+      }
+      
+      // 실제 음성 데이터 처리 (최종 결과만)
+      if (transcript.trim() && isFinal) {
         const now = Date.now();
         
-        // 네이티브는 최종 결과만 처리 (부분 결과는 UI만 업데이트)
-        if (isFinal) {
-          // 중복 방지: 같은 텍스트가 짧은 시간 내에 반복되면 무시
-          if (transcript === lastProcessedTranscript && 
-              (now - lastProcessedTime) < MIN_PROCESS_INTERVAL) {
-            console.log('[WebView] 중복된 최종 결과 무시:', transcript);
-            return;
-          }
-          
+        // **강화된 중복 방지**
+        if (transcript === lastProcessedTranscript && 
+            (now - lastProcessedTime) < MIN_PROCESS_INTERVAL) {
+          console.log('[WebView] 중복된 최종 결과 무시:', transcript);
+          return;
+        }
+        
+        // 길이 체크
+        if (transcript.trim().length < MIN_TRANSCRIPT_LENGTH) {
+          console.log('[WebView] 너무 짧은 결과 무시:', transcript);
+          return;
+        }
+        
+        // 처리 플래그 설정
+        isProcessing = true;
+        
+        try {
+          console.log('[WebView] 최종 결과 처리:', transcript);
           lastProcessedTranscript = transcript;
           lastProcessedTime = now;
           onTranscript(transcript, true, confidence);
-        } else {
-          // 부분 결과는 UI 업데이트만 (키워드 분석 안함)
-          onTranscript(transcript, false, confidence);
+        } finally {
+          // 처리 완료 후 플래그 해제
+          setTimeout(() => {
+            isProcessing = false;
+          }, 500);
         }
       }
     };
@@ -74,13 +108,17 @@ export const startSpeechRecognition = (
     }
 
     return () => {
+      console.log('[WebView] speechRecognizer cleanup');
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'STOP_NATIVE_RECOGNITION' }));
       }
       window.speechRecognitionHandler = undefined;
       window.volumeUpdateHandler = undefined;
+      
+      // 상태 초기화
       lastProcessedTranscript = '';
       lastProcessedTime = 0;
+      isProcessing = false;
     };
   }
 
