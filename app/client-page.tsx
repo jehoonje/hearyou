@@ -57,29 +57,21 @@ function MainContent({
   // *** 튜토리얼 상태 추가 ***
   const [showTutorial, setShowTutorial] = useState(false);
   const [scale, setScale] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const updateScale = () => {
+    const updateScaleAndSize = () => {
       if (typeof window !== "undefined") {
         const { innerWidth, innerHeight } = window;
-        // 너비 기준 스케일과 높이 기준 스케일 중 더 작은 값을 선택
-        // 이렇게 하면 콘텐츠가 잘리지 않고 화면 안에 꽉 차게 됨 (contain 효과)
+        setViewportSize({ width: innerWidth, height: innerHeight });
         const scaleX = innerWidth / BASE_WIDTH;
         const scaleY = innerHeight / BASE_HEIGHT;
         setScale(Math.min(scaleX, scaleY));
       }
     };
-
-    // 처음 마운트될 때 한 번 실행
-    updateScale();
-
-    // 창 크기가 변경될 때마다 updateScale 함수 다시 실행
-    window.addEventListener("resize", updateScale);
-
-    // 컴포넌트가 언마운트될 때 이벤트 리스너 제거
-    return () => {
-      window.removeEventListener("resize", updateScale);
-    };
+    updateScaleAndSize();
+    window.addEventListener("resize", updateScaleAndSize);
+    return () => window.removeEventListener("resize", updateScaleAndSize);
   }, []);
 
   useEffect(() => {
@@ -299,125 +291,135 @@ function MainContent({
   }, []);
 
   return (
-    <div className="w-screen h-screen flex justify-center items-center bg-black overflow-hidden">
-      <div
-        style={{
-          width: BASE_WIDTH,
-          height: BASE_HEIGHT,
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center', // 스케일의 기준점을 중앙으로 설정
-        }}
-        className="bg-black text-white overflow-hidden relative font-mono"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        data-banner-area={showInAppBanner ? "true" : undefined}
-      >
-        {/* 인앱 브라우저 배너 (변경 없음) */}
-        {shouldRenderBanner && (
-          <InAppBrowserBanner
-            appName={detectedAppName ?? undefined}
-            onClose={handleCloseBanner}
-          />
+    // ✨ 1. 최상위 div는 화면 전체를 채우는 컨테이너 역할을 합니다.
+
+    <div
+      className="w-screen h-screen bg-black text-white relative"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      {/* ✨ 2. 3D 씬을 배경 레이어로 배치합니다. (z-0) */}
+
+      <div className="absolute inset-0 z-0">
+        {currentUser && viewportSize.width > 0 && (
+          <ThreeScene volume={volume} /> // viewport prop은 이제 필요 없습니다.
         )}
+      </div>
 
-        {/* Gradient Background (변경 없음) */}
-        <AnimatePresence>
-          {!currentUser && <GradientBackground key="gradient-background" />}
-        </AnimatePresence>
+      {/* ✨ 3. 로딩, 배너, UI 등은 그 위의 레이어(z-10 이상)에 배치합니다. */}
 
-        {/* Loading Screen (변경 없음) */}
-        {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
+      {isLoading && <LoadingScreen loadingProgress={loadingProgress} />}
 
-        {/* Verification Modal (변경 없음) */}
-        {auth.showVerificationModal && (
-          <VerificationModal onComplete={auth.handleVerificationComplete} />
-        )}
+      {/* ✨ 4. 스케일이 적용되는 UI 컨테이너 (포인터 이벤트 제어 필요) */}
 
-        {/* Main Content Area (변경 없음) */}
+      <div className="absolute inset-0 flex justify-center items-center z-10 pointer-events-none">
         <div
-          className={`w-full h-full absolute inset-0 transition-opacity duration-1000 ${
-            contentVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-        >
-          {/* 3D Background Scene (변경 없음) */}
-          <div className="absolute inset-0 w-full h-full pointer-events-none">
-            {currentUser ? <ThreeScene volume={volume} /> : <div></div>}
-          </div>
+          style={{
+            width: BASE_WIDTH,
 
-          {/* UI Elements Container (변경 없음) */}
+            height: BASE_HEIGHT,
+
+            transform: `scale(${scale})`,
+
+            transformOrigin: "center center",
+          }}
+          // 이 컨테이너는 이벤트를 받지 않고 통과시킵니다.
+
+          className="relative pointer-events-none"
+        >
           <div
-            // *** 튜토리얼 활성 시에는 isUIVisible과 관계없이 보이도록 할 수 있으나, 여기서는 기존 로직 유지 ***
-            // *** 튜토리얼 오버레이가 최상단에 오므로 하위 UI의 투명도/이벤트는 문제되지 않음 ***
-            className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${
-              isUIVisible ? "opacity-100" : "opacity-0"
+            className={`w-full h-full transition-opacity duration-1000 ${
+              contentVisible ? "opacity-100" : "opacity-0" // pointer-events-none은 상위에서 관리
             }`}
           >
-            {!currentUser ? (
-              // Login Form (변경 없음)
-              <div
-                className={`absolute inset-0 flex items-center justify-center p-4 ${
-                  isUIVisible ? "pointer-events-auto" : "pointer-events-none"
-                }`}
-                data-interactive-ui="true"
-              >
-                <LoginForm
-                  authView={auth.authView}
-                  authMessage={auth.authMessage || ""}
-                  authError={auth.authError}
-                  email={auth.email}
-                  setEmail={auth.setEmail}
-                  password={auth.password}
-                  setPassword={auth.setPassword}
-                  username={auth.username}
-                  setUsername={auth.setUsername}
-                  emailError={auth.emailError}
-                  setEmailError={auth.setEmailError}
-                  passwordError={auth.passwordError}
-                  setPasswordError={auth.setPasswordError}
-                  usernameError={auth.usernameError}
-                  setUsernameError={auth.setUsernameError}
-                  authLoading={auth.authLoading}
-                  handleLogin={auth.handleLogin}
-                  handleSignUp={auth.handleSignUp}
-                  resetFormErrors={auth.resetFormErrors}
-                  user={auth.user}
-                  isContentVisible={contentVisible}
-                />
-              </div>
-            ) : (
-              // VoiceTrackerUI Container (변경 없음)
-              <div
-                className={`${
-                  isUIVisible ? "pointer-events-auto" : "pointer-events-none"
-                }`}
-                data-interactive-ui="true" // 이 속성은 유지 (튜토리얼 제외 영역 식별용)
-              >
-                <VoiceTrackerUI
-                  volume={volume}
-                  transcript={transcript}
-                  listening={listening}
-                  newKeywords={newKeywords}
-                  error={audioError}
-                  toggleListening={toggleListening}
-                  keywordList={keywordList}
-                  userEmail={currentUser.email || ""}
-                  onLogout={auth.handleLogout}
-                  // *** VoiceTrackerUI 자체에 data-tutorial-target 속성은 불필요 ***
-                  // *** VoiceTrackerUI 내부 요소에 지정할 것임 ***
+            {/* 배너, 모달 등 오버레이 UI는 클릭이 되어야 하므로 auto로 설정 */}
+
+            {showInAppBanner && (
+              <div className="pointer-events-auto">
+                <InAppBrowserBanner
+                  appName={detectedAppName ?? undefined}
+                  onClose={handleCloseBanner}
                 />
               </div>
             )}
-          </div>
-        </div>
 
-        {/* *** 튜토리얼 오버레이 조건부 렌더링 (로직 수정됨) *** */}
-        {/* contentVisible이 true이고 showTutorial이 true일 때만 렌더링 (로그인 여부는 useEffect에서 이미 체크) */}
-        <AnimatePresence>
-          {contentVisible && showTutorial && (
-            <TutorialOverlay onComplete={handleTutorialComplete} />
-          )}
-        </AnimatePresence>
+            <AnimatePresence>
+              {!currentUser && <GradientBackground key="gradient-background" />}
+            </AnimatePresence>
+
+            {auth.showVerificationModal && (
+              <div className="pointer-events-auto">
+                <VerificationModal
+                  onComplete={auth.handleVerificationComplete}
+                />
+              </div>
+            )}
+
+            {/* ✨ 2. 실제 UI 컴포넌트를 감싸는 div에 pointer-events-auto를 적용합니다. */}
+
+            <div
+              className={`absolute inset-0 transition-opacity duration-500 ${
+                isUIVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              {!currentUser ? (
+                <div
+                  className="absolute inset-0 flex items-center justify-center p-4 pointer-events-auto"
+                  data-interactive-ui="true"
+                >
+                  <LoginForm
+                    authView={auth.authView}
+                    authMessage={auth.authMessage || ""}
+                    authError={auth.authError}
+                    email={auth.email}
+                    setEmail={auth.setEmail}
+                    password={auth.password}
+                    setPassword={auth.setPassword}
+                    username={auth.username}
+                    setUsername={auth.setUsername}
+                    emailError={auth.emailError}
+                    setEmailError={auth.setEmailError}
+                    passwordError={auth.passwordError}
+                    setPasswordError={auth.setPasswordError}
+                    usernameError={auth.usernameError}
+                    setUsernameError={auth.setUsernameError}
+                    authLoading={auth.authLoading}
+                    handleLogin={auth.handleLogin}
+                    handleSignUp={auth.handleSignUp}
+                    resetFormErrors={auth.resetFormErrors}
+                    user={auth.user}
+                    isContentVisible={contentVisible}
+                  />
+                </div>
+              ) : (
+                <div className="pointer-events-auto" data-interactive-ui="true">
+                  <VoiceTrackerUI
+                    volume={volume}
+                    transcript={transcript}
+                    listening={listening}
+                    newKeywords={newKeywords}
+                    error={audioError}
+                    toggleListening={toggleListening}
+                    keywordList={keywordList}
+                    userEmail={currentUser.email || ""}
+                    onLogout={auth.handleLogout}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 튜토리얼 오버레이도 전체를 덮으므로 auto가 필요 */}
+
+          <AnimatePresence>
+            {contentVisible && showTutorial && (
+              <div className="pointer-events-auto">
+                <TutorialOverlay onComplete={handleTutorialComplete} />
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
