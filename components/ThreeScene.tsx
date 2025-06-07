@@ -950,7 +950,7 @@ const GlowEffect = memo(() => { // React.memo 적용
 });
 GlowEffect.displayName = 'GlowEffect'; // 디버깅을 위한 displayName 추가
 
-const ThreeScene = ({ volume }: ThreeSceneProps)  => {
+const ThreeScene = ({ volume }: ThreeSceneProps) => {
   const isMobile = useIsMobile();
   
   // 모바일 최적화된 설정
@@ -970,13 +970,12 @@ const ThreeScene = ({ volume }: ThreeSceneProps)  => {
 
   return (
     <Canvas
-      style={{ width: '100%', height: '100%' }} 
+      style={{ width: '100%', height: '100%' }}
       camera={{ position: [-0.7, 0.5, -4], fov: isMobile ? 120 : 110 }}
       gl={isMobile ? mobileSettings : desktopSettings}
-      dpr={isMobile ? [1, 2] : undefined}
-      performance={{ min: 0.5 }}
+      dpr={isMobile ? [1, 2] : undefined} // 모바일 픽셀 밀도 최적화
+      performance={{ min: 0.5 }} // 성능 임계값 설정
     >
-
       {/* 렌더링 품질 향상 */}
       <GlowEffect />
 
