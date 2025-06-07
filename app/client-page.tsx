@@ -51,6 +51,20 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
   const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
+    // window.ReactNativeWebView 객체가 있는지 확인하여 앱 환경인지 판별
+    if (window.ReactNativeWebView) {
+      const message = {
+        type: 'loading_progress',
+        payload: {
+          progress: loadingProgress,
+        },
+      };
+      // JSON 문자열 형태로 메시지 전송
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+  }, [loadingProgress]);
+
+  useEffect(() => {
     setIsMounted(true);
     const appName = detectInAppBrowser();
     if (appName) {
@@ -181,17 +195,21 @@ function MainContent({ initialKeywords }: { initialKeywords: Keyword[] | null })
     let currentProgress = 0;
     const interval = setInterval(() => {
       currentProgress += Math.random() * 15;
-      if (currentProgress > 100) {
+      if (currentProgress >= 100) { // 100보다 크거나 같을 때로 조건 수정
         currentProgress = 100;
         clearInterval(interval);
+        // setLoadingProgress(100)이 호출된 후 postMessage가 전송되도록 보장
+        setLoadingProgress(100); 
+        
         loadingTimeoutRef.current = setTimeout(() => {
           setIsLoading(false);
           setTimeout(() => {
             setContentVisible(true);
           }, 300);
         }, 500);
+      } else {
+        setLoadingProgress(currentProgress);
       }
-      setLoadingProgress(Math.min(currentProgress, 100));
     }, 400);
 
     return () => {
