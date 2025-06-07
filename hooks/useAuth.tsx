@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User, Session } from '@supabase/supabase-js';
@@ -28,6 +28,9 @@ export function useAuth(initialSession: Session | null = null) {
 
   // 이메일 확인 모달
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+
+  // 회원가입 직후 상태를 추적하는 ref 추가
+  const justSignedUpRef = useRef(false);
 
   // 이메일 형식 검증 함수
   const validateEmail = useCallback((email: string): boolean => {
@@ -87,11 +90,18 @@ export function useAuth(initialSession: Session | null = null) {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state change:', event);
       setUser(session?.user || null);
-      if (event === 'SIGNED_IN' && session?.user && !session.user.email_confirmed_at) {
-        setShowVerificationModal(true);
+      
+      // SIGNED_IN 이벤트 처리 수정
+      if (event === 'SIGNED_IN' && session?.user) {
+        // 회원가입 직후이고, 이메일이 확인되지 않은 경우에만 모달 표시
+        if (justSignedUpRef.current && !session.user.email_confirmed_at) {
+          setShowVerificationModal(true);
+          justSignedUpRef.current = false; // 플래그 리셋
+        }
       } else if (event === 'SIGNED_OUT') {
         setShowVerificationModal(false);
         setAuthView('login');
+        justSignedUpRef.current = false; // 로그아웃 시 플래그 리셋
       }
     });
 
@@ -137,6 +147,8 @@ export function useAuth(initialSession: Session | null = null) {
             setAuthError(error.message);
           }
         } else {
+          // 로그인 성공 시 회원가입 플래그가 false인지 확인
+          justSignedUpRef.current = false;
         }
       } catch (err: any) {
         setAuthError(err.message || '로그인 중 오류가 발생했습니다.');
@@ -192,6 +204,8 @@ export function useAuth(initialSession: Session | null = null) {
             setAuthError(error.message);
           }
         } else {
+          // 회원가입 성공 시 플래그 설정
+          justSignedUpRef.current = true;
           setAuthMessage('회원가입 성공! 이메일 인증을 완료해주세요.');
           setShowVerificationModal(true);
         }
@@ -209,6 +223,7 @@ export function useAuth(initialSession: Session | null = null) {
     try {
       await supabase.auth.signOut();
       setUser(null);
+      justSignedUpRef.current = false; // 로그아웃 시 플래그 리셋
     } catch (error: any) {
       setAuthError(error.message || '로그아웃에 실패했습니다.');
     }
@@ -222,6 +237,7 @@ export function useAuth(initialSession: Session | null = null) {
     setPassword('');
     setUsername('');
     setAuthMessage('회원가입이 완료되었습니다. 이메일 확인 후 로그인해주세요.');
+    justSignedUpRef.current = false; // 모달 닫을 때 플래그 리셋
   }, []);
 
   return {

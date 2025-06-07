@@ -1,130 +1,241 @@
-// keywordAnalyzer.ts
+// keywordAnalyzer.ts - 개선된 동적 키워드 감지 시스템
 
-// 빈도 기반 키워드 분석기 (30초 내 두 번 이상 언급된 단어 감지)
-class FrequencyAnalyzer {
-  private wordFrequency: Map<
-    string,
-    { count: number; lastMentionTime: number; firstMentionTime: number }
-  > = new Map();
-  private readonly TIME_WINDOW = 30000; // 30초 시간 창 (밀리초)
-  private readonly MIN_FREQUENCY = 2; // 최소 출현 빈도
-  private confirmedKeywords: Set<string> = new Set();
-  private readonly MIN_WORD_LENGTH = 2; // 최소 단어 길이 (한글 2글자 이상)
+// 불용어 목록 (키워드로 감지하지 않을 단어들)
+const STOP_WORDS = new Set([
+  // 조사
+  '이', '가', '을', '를', '은', '는', '에', '에서', '으로', '로', '와', '과', '의', '에게', '한테', '께',
+  // 대명사
+  '나', '너', '우리', '저희', '그', '그녀', '이것', '저것', '그것',
+  // 수사
+  '첫', '두', '세', '네', '다섯',
+  // 기타 일반적인 단어
+  '수', '것', '등', '때', '중', '더', '덜', '좀', '잘', '못', '안',
+  // 영어 불용어
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 's'
+]);
 
-  private lastProcessedText: string = "";
-  private lastProcessTime: number = 0;
-  private readonly DUPLICATE_PROCESS_THRESHOLD = 1000; // 1초 내 동일 텍스트 중복 처리 방지
+// 단어 추출 함수 개선
+const extractWords = (text: string): string[] => {
+  // 소문자로 변환
+  const lowerText = text.toLowerCase();
+  
+  // 특수문자 제거하고 공백으로 치환 (한글, 영어, 숫자만 남김)
+  const cleaned = lowerText.replace(/[^가-힣a-z0-9\s]/g, ' ');
+  
+  // 공백으로 분리
+  const words = cleaned.split(/\s+/).filter(word => word.length > 0);
+  
+  // 불용어 제거 및 최소 길이 필터링
+  return words.filter(word => {
+    // 2글자 미만 제거
+    if (word.length < 2) return false;
+    // 불용어 제거
+    if (STOP_WORDS.has(word)) return false;
+    // 숫자만으로 된 단어 제거
+    if (/^\d+$/.test(word)) return false;
+    // 영어는 3글자 이상만
+    if (/^[a-z]+$/.test(word) && word.length < 3) return false;
+    
+    return true;
+  });
+};
 
-  processText(text: string, isFinal: boolean): void {
-    if (!isFinal) {
-      return;
-    }
+// 키워드 후보와 확정 키워드를 관리하는 클래스
+class DynamicKeywordTracker {
+  private wordOccurrences: Map<string, { 
+    count: number, 
+    firstSeen: number, 
+    lastSeen: number,
+    contexts: Set<string> // transcript 대신 더 긴 컨텍스트 저장
+  }> = new Map();
+  
+  // 최근 확정된 키워드 추적 (재확정 방지)
+  private recentlyConfirmedKeywords: Map<string, number> = new Map();
+  
+  // 30초 내 2번 언급 규칙
+  private readonly CONFIRMATION_COUNT = 2;
+  private readonly TIME_WINDOW = 30000; // 30초
+  private readonly MIN_TIME_BETWEEN_COUNTS = 2000; // 최소 2초 간격으로 증가
+  private readonly CONFIRMATION_COOLDOWN = 5000; // 확정 후 5초 쿨다운
 
+  processTranscript(transcript: string, isFinal: boolean): string[] {
     const now = Date.now();
-
-    // 🔥 [수정] 이전에 제가 잘못 수정한 부분입니다.
-    // 맵에 없는 단어의 시간을 확인하는 대신, 이전에 처리된 텍스트와 시간만을 비교하는 원래의 올바른 로직으로 되돌립니다.
-    if (
-      text === this.lastProcessedText &&
-      now - this.lastProcessTime < this.DUPLICATE_PROCESS_THRESHOLD
-    ) {
-      return;
+    const words = extractWords(transcript);
+    
+    console.log(`[KeywordTracker] 처리: "${transcript}" (${isFinal ? '최종' : '중간'})`);
+    console.log(`[KeywordTracker] 추출된 단어들:`, words);
+    
+    // 최종 결과만 처리 (중간 결과는 무시)
+    if (!isFinal) {
+      return [];
     }
-
-    this.lastProcessedText = text;
-    this.lastProcessTime = now; // 🔥 lastProcessTime을 여기서 갱신합니다.
-
-    const wordRegex = new RegExp(`[가-힣]{${this.MIN_WORD_LENGTH},}`, "g");
-    const words = text.match(wordRegex) || [];
-
-    const stopWords = new Set([
-      "그리고", "하지만", "그래서", "또한", "그런데", "이것은", "저것은",
-      "이렇게", "그러나", "그래도", "그러면", "그러므로", "왜냐하면",
-      "이것이", "저것이", "그것은", "그것이", "그것을", "이것을", "저것을",
-      "이거는", "저거는", "은", "는", "이", "가", "을", "를", "에게", "에서",
-      "으로", "하다", "이다", "있다", "없다", "되다", "하는", "있는",
-      "없는", "되는", "그냥", "정말", "진짜", "좀", "막", "뭔가", "이런",
-      "저런", "그런", "어떤", "무슨",
-    ]);
-
+    
+    const newlyConfirmedKeywords: string[] = [];
+    
+    // 컨텍스트 생성 (처음 20자)
+    const context = transcript.substring(0, 20);
+    
+    // 각 단어 처리
     for (const word of words) {
-      if (stopWords.has(word)) {
-        continue;
+      const confirmedKeyword = this.addWordOccurrence(word, now, context);
+      if (confirmedKeyword) {
+        newlyConfirmedKeywords.push(confirmedKeyword);
       }
+    }
+    
+    // 오래된 단어 정리
+    this.cleanupOldWords();
+    
+    // 오래된 확정 기록 정리
+    this.cleanupRecentlyConfirmed();
+    
+    return newlyConfirmedKeywords;
+  }
 
-      const currentData = this.wordFrequency.get(word);
-
-      if (currentData) {
-        currentData.count += 1;
-        currentData.lastMentionTime = now;
-
-        if (currentData.count >= this.MIN_FREQUENCY) {
-          const timeSinceFirst = now - currentData.firstMentionTime;
-          if (timeSinceFirst <= this.TIME_WINDOW) {
-            this.confirmedKeywords.add(word);
-          } else {
-            this.wordFrequency.set(word, {
-              count: 1,
-              lastMentionTime: now,
-              firstMentionTime: now,
-            });
-          }
-        }
-      } else {
-        this.wordFrequency.set(word, {
+  private addWordOccurrence(word: string, timestamp: number, context: string): string | null {
+    // 최근에 확정된 키워드인지 확인
+    const lastConfirmed = this.recentlyConfirmedKeywords.get(word);
+    if (lastConfirmed && (timestamp - lastConfirmed) < this.CONFIRMATION_COOLDOWN) {
+      console.log(`[KeywordTracker] "${word}"는 최근 확정됨 (${Math.round((this.CONFIRMATION_COOLDOWN - (timestamp - lastConfirmed)) / 1000)}초 쿨다운)`);
+      return null;
+    }
+    
+    const existing = this.wordOccurrences.get(word);
+    
+    if (existing) {
+      // 이미 이 컨텍스트에서 카운트했는지 확인
+      if (existing.contexts.has(context)) {
+        return null; // 같은 컨텍스트에서는 중복 카운트 안함
+      }
+      
+      // 마지막 카운트와의 시간 간격 확인
+      if (timestamp - existing.lastSeen < this.MIN_TIME_BETWEEN_COUNTS) {
+        console.log(`[KeywordTracker] "${word}" 너무 빠른 재언급 (${timestamp - existing.lastSeen}ms)`);
+        return null; // 너무 빠른 중복 카운트 방지
+      }
+      
+      // 시간 윈도우 확인
+      const timeElapsed = timestamp - existing.firstSeen;
+      if (timeElapsed > this.TIME_WINDOW) {
+        // 30초가 지났으면 새로운 추적 시작
+        console.log(`[KeywordTracker] "${word}" 시간 초과, 새로운 추적 시작`);
+        this.wordOccurrences.set(word, {
           count: 1,
-          lastMentionTime: now,
-          firstMentionTime: now,
+          firstSeen: timestamp,
+          lastSeen: timestamp,
+          contexts: new Set([context])
         });
+        return null;
       }
+      
+      // 카운트 증가
+      existing.count++;
+      existing.lastSeen = timestamp;
+      existing.contexts.add(context);
+      
+      console.log(`[KeywordTracker] "${word}" ${existing.count}번째 발견 (${timeElapsed}ms 경과)`);
+      
+      // 30초 내에 2번 이상 언급되면 키워드로 확정
+      if (existing.count >= this.CONFIRMATION_COUNT) {
+        console.log(`[KeywordTracker] ✅ "${word}" 키워드 확정!`);
+        this.recentlyConfirmedKeywords.set(word, timestamp);
+        // 확정된 키워드는 추적에서 제거
+        this.wordOccurrences.delete(word);
+        return word;
+      }
+    } else {
+      // 첫 번째 발견
+      console.log(`[KeywordTracker] "${word}" 첫 번째 발견`);
+      this.wordOccurrences.set(word, {
+        count: 1,
+        firstSeen: timestamp,
+        lastSeen: timestamp,
+        contexts: new Set([context])
+      });
     }
-
-    this.cleanupOldWords(now);
+    
+    return null;
   }
 
-  private cleanupOldWords(now: number): void {
-    this.wordFrequency.forEach((data, word) => {
-      if (now - data.lastMentionTime > this.TIME_WINDOW) {
-        this.wordFrequency.delete(word);
+  private cleanupOldWords(): void {
+    const now = Date.now();
+    
+    for (const [word, data] of Array.from(this.wordOccurrences.entries())) {
+      // 30초가 지났고 확정되지 않은 단어는 제거
+      if ((now - data.firstSeen) > this.TIME_WINDOW) {
+        console.log(`[KeywordTracker] "${word}" 제거 (시간 초과, count: ${data.count})`);
+        this.wordOccurrences.delete(word);
       }
-    });
+    }
   }
 
-  getConfirmedKeywords(): string[] {
-    const keywords = Array.from(this.confirmedKeywords);
-    if (keywords.length > 0) {
-      this.confirmedKeywords.clear();
+  private cleanupRecentlyConfirmed(): void {
+    const now = Date.now();
+    
+    for (const [word, timestamp] of Array.from(this.recentlyConfirmedKeywords.entries())) {
+      if ((now - timestamp) > this.CONFIRMATION_COOLDOWN) {
+        console.log(`[KeywordTracker] "${word}" 확정 기록 제거`);
+        this.recentlyConfirmedKeywords.delete(word);
+      }
     }
-    return keywords;
+  }
+
+  // 디버깅용 메서드
+  getStatus(): any {
+    const now = Date.now();
+    return {
+      wordOccurrences: Array.from(this.wordOccurrences.entries()).map(([word, data]) => ({
+        word,
+        count: data.count,
+        timeElapsed: now - data.firstSeen,
+        needsMore: Math.max(0, this.CONFIRMATION_COUNT - data.count),
+        willExpireIn: Math.max(0, this.TIME_WINDOW - (now - data.firstSeen))
+      })),
+      recentlyConfirmed: Array.from(this.recentlyConfirmedKeywords.entries()).map(([word, timestamp]) => ({
+        word,
+        cooldownRemaining: Math.max(0, this.CONFIRMATION_COOLDOWN - (now - timestamp))
+      }))
+    };
   }
 
   reset(): void {
-    this.wordFrequency.clear();
-    this.confirmedKeywords.clear();
-    this.lastProcessedText = "";
-    this.lastProcessTime = 0;
+    console.log('[KeywordTracker] 리셋');
+    this.wordOccurrences.clear();
+    this.recentlyConfirmedKeywords.clear();
   }
 }
 
-const frequencyAnalyzer = new FrequencyAnalyzer();
+// 싱글톤 인스턴스
+const keywordTracker = new DynamicKeywordTracker();
+
+// 디버깅용 전역 접근
+if (typeof window !== 'undefined') {
+  (window as any).keywordTracker = keywordTracker;
+}
 
 export const analyzeKeywords = (
   transcript: string,
   isFinal: boolean,
   confidence: number
 ): string[] => {
+  // 너무 낮은 신뢰도는 무시
   if (confidence < 0.3) {
     return [];
   }
-
-  if (isFinal) {
-    frequencyAnalyzer.processText(transcript, isFinal);
-    return frequencyAnalyzer.getConfirmedKeywords();
+  
+  // 빈 트랜스크립트 무시
+  if (!transcript.trim()) {
+    return [];
   }
-
-  return [];
+  
+  // 트랜스크립트 처리하고 새로 확정된 키워드만 반환
+  const confirmedKeywords = keywordTracker.processTranscript(transcript, isFinal);
+  
+  return confirmedKeywords;
 };
 
+// 키워드 트래커 초기화
 export const resetKeywordTracker = () => {
-  frequencyAnalyzer.reset();
+  console.log('[analyzeKeywords] 키워드 트래커 리셋');
+  keywordTracker.reset();
 };

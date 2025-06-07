@@ -1,4 +1,4 @@
-// speechRecognizer.ts
+// speechRecognizer.ts - 네이티브 호환성 개선 버전
 
 import { resetKeywordTracker } from './keywordAnalyzer';
 
@@ -9,7 +9,6 @@ declare global {
     };
     isNativeApp?: boolean;
     useNativeSpeechRecognition?: boolean;
-    // 🔥 전역 핸들러 이름을 명확히 변경하여 다른 스크립트와의 충돌을 방지합니다.
     speechRecognitionHandler?: (transcript: string, isFinal: boolean, confidence: number, isInitialization?: boolean) => void;
     volumeUpdateHandler?: (volume: number) => void;
   }
@@ -19,36 +18,48 @@ export const startSpeechRecognition = (
   onTranscript: (transcript: string, isFinal: boolean, confidence: number) => void,
   onVolumeUpdate?: (volume: number) => void
 ): (() => void) => {
+  // 시작 시 한 번만 리셋
+  resetKeywordTracker();
+  
   // --- 네이티브 앱 환경 로직 ---
   if (window.isNativeApp && window.useNativeSpeechRecognition) {
     let lastProcessedTranscript = '';
+    let lastProcessedTime = 0;
+    const MIN_PROCESS_INTERVAL = 1000; // 1초 간격으로 중복 방지
     
-    // 🔥 여기가 모든 문제 해결의 핵심입니다.
-    // 네이티브로부터 받은 모든 음성 인식 데이터를 이 함수 하나로 처리합니다.
     window.speechRecognitionHandler = (transcript: string, isFinal: boolean, confidence: number, isInitialization = false) => {
-      // 1. '초기화' 신호를 최우선으로 처리합니다.
+      // 초기화 신호는 무시 (리셋하지 않음)
       if (isInitialization) {
-        console.log('[WebView] Native로부터 초기화 신호 수신. 모든 상태를 리셋합니다.');
-        resetKeywordTracker();
-        onTranscript("", true, 0.0);
-        lastProcessedTranscript = '';
+        console.log('[WebView] Native 초기화 신호 수신 (무시)');
         return;
       }
 
-      // 2. 내용이 없는 최종 결과(문장 끝)도 UI를 초기화합니다.
+      // 빈 최종 결과 처리
       if (transcript.trim() === "" && isFinal) {
         onTranscript("", true, 0.0);
         return;
       }
       
-      // 3. 실제 음성 데이터 처리
+      // 실제 음성 데이터 처리
       if (transcript.trim()) {
-        // 동일한 최종 결과가 중복으로 들어오는 것을 방지합니다.
+        const now = Date.now();
+        
+        // 네이티브는 최종 결과만 처리 (부분 결과는 UI만 업데이트)
         if (isFinal) {
-          if (transcript === lastProcessedTranscript) return;
+          // 중복 방지: 같은 텍스트가 짧은 시간 내에 반복되면 무시
+          if (transcript === lastProcessedTranscript && 
+              (now - lastProcessedTime) < MIN_PROCESS_INTERVAL) {
+            console.log('[WebView] 중복된 최종 결과 무시:', transcript);
+            return;
+          }
+          
           lastProcessedTranscript = transcript;
+          lastProcessedTime = now;
+          onTranscript(transcript, true, confidence);
+        } else {
+          // 부분 결과는 UI 업데이트만 (키워드 분석 안함)
+          onTranscript(transcript, false, confidence);
         }
-        onTranscript(transcript, isFinal, confidence);
       }
     };
 
@@ -68,10 +79,12 @@ export const startSpeechRecognition = (
       }
       window.speechRecognitionHandler = undefined;
       window.volumeUpdateHandler = undefined;
+      lastProcessedTranscript = '';
+      lastProcessedTime = 0;
     };
   }
 
-  // --- 웹 브라우저 환경 로직 (기존과 동일) ---
+  // --- 웹 브라우저 환경 로직 (변경 없음) ---
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
@@ -79,14 +92,12 @@ export const startSpeechRecognition = (
     return () => {};
   }
   
-  // ( ... 기존의 웹 브라우저용 SpeechRecognition 코드는 여기에 그대로 유지 ... )
-  // 이 부분은 제공된 원본 코드와 동일하게 유지하면 됩니다.
   const recognition = new SpeechRecognition();
   recognition.lang = 'ko-KR';
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
-
+  
   let isRecognitionActive = false;
   let stopCalledIntentionally = false;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -94,12 +105,13 @@ export const startSpeechRecognition = (
   recognition.onstart = () => {
     isRecognitionActive = true;
     stopCalledIntentionally = false;
-    resetKeywordTracker(); // 웹 환경에서도 시작 시 리셋
+    console.log('[SpeechRecognition] 시작됨');
   };
 
   recognition.onresult = (event: any) => {
     let interim_transcript = '';
     let final_transcript = '';
+    
     for (let i = event.resultIndex; i < event.results.length; ++i) {
       if (event.results[i].isFinal) {
         final_transcript += event.results[i][0].transcript;
@@ -107,25 +119,67 @@ export const startSpeechRecognition = (
         interim_transcript += event.results[i][0].transcript;
       }
     }
-    onTranscript(final_transcript || interim_transcript, final_transcript !== '', 0.9);
+    
+    const transcript = final_transcript || interim_transcript;
+    const isFinal = final_transcript !== '';
+    const confidence = event.results[event.resultIndex][0].confidence || 0.9;
+    
+    if (transcript) {
+      onTranscript(transcript, isFinal, confidence);
+    }
+  };
+
+  recognition.onspeechend = () => {
+    console.log('[SpeechRecognition] 음성 끝');
   };
 
   recognition.onend = () => {
+    console.log('[SpeechRecognition] 종료됨');
     isRecognitionActive = false;
+    
     if (!stopCalledIntentionally) {
-      restartTimer = setTimeout(() => recognition.start(), 300);
+      restartTimer = setTimeout(() => {
+        try {
+          console.log('[SpeechRecognition] 자동 재시작');
+          recognition.start();
+        } catch (e) {
+          console.error('[SpeechRecognition] 재시작 실패:', e);
+        }
+      }, 1000);
     }
   };
   
-  recognition.onerror = () => {
+  recognition.onerror = (event: any) => {
+    console.error('[SpeechRecognition] 오류:', event.error);
     isRecognitionActive = false;
+    
+    if (event.error !== 'no-speech' && !stopCalledIntentionally) {
+      restartTimer = setTimeout(() => {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.error('[SpeechRecognition] 오류 후 재시작 실패:', e);
+        }
+      }, 1000);
+    }
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (e) {
+    console.error('[SpeechRecognition] 초기 시작 실패:', e);
+  }
 
   return () => {
     stopCalledIntentionally = true;
-    if (restartTimer) clearTimeout(restartTimer);
-    recognition.stop();
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+    try {
+      recognition.stop();
+    } catch (e) {
+      console.error('[SpeechRecognition] 중지 실패:', e);
+    }
   };
 };
