@@ -296,30 +296,24 @@ const LoginForm = memo<LoginFormProps>(
     }, []);
 
     const handleAppleLoginRequest = async () => {
-      // 1. window.ReactNativeWebView 객체가 있는지 확인 (앱 환경인지 체크)
+      // 네이티브 앱 환경
       if (window.ReactNativeWebView) {
-        // 2. 네이티브 앱으로 보낼 메시지 정의
-        const message = {
-          type: "APPLE_LOGIN_REQUEST", // 메시지 타입을 명확히 지정
-        };
-        // 3. 메시지를 JSON 문자열 형태로 네이티브에 전송
+        const message = { type: "APPLE_LOGIN_REQUEST" };
         window.ReactNativeWebView.postMessage(JSON.stringify(message));
-      } else {
-        // 앱 환경이 아닐 경우 (일반 웹 브라우저) 웹용 로그인 로직 실행 (선택 사항)
-        console.log(
-          "일반 웹 브라우저 환경입니다. 웹용 Apple 로그인을 실행합니다."
-        );
-        const { data, error } = await supabase.auth.signInWithOAuth({
+      } 
+      // 일반 웹 브라우저 환경
+      else {
+        const { error } = await supabase.auth.signInWithOAuth({
           provider: 'apple',
           options: {
-            // 사용자가 로그인 후 돌아올 페이지 URL (필요시 설정)
-            redirectTo: `${window.location.origin}/auth/callback` 
+            // 로그인 성공 후 메인 페이지('/')로 돌아오도록 설정
+            redirectTo: window.location.origin 
           }
         });
     
         if (error) {
-          console.error('웹 Apple 로그인 오류:', error.message);
-          // 필요하다면 사용자에게 에러 메시지를 보여주는 상태를 업데이트 할 수 있습니다.
+          console.error('Web Apple sign-in error:', error.message);
+          // authError 상태를 업데이트하여 사용자에게 오류를 보여줄 수 있습니다.
           // setAuthError('Apple 로그인에 실패했습니다: ' + error.message);
         }
       }

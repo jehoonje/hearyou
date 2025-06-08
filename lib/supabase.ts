@@ -1,11 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+// lib/supabase.ts
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Next.js 클라이언트 컴포넌트 환경에 최적화된 클라이언트를 여기서 딱 한 번만 생성합니다.
+export const supabase = createClientComponentClient()
 
-// 인증 헬퍼 함수
+// 기존에 만드셨던 헬퍼 함수들은 그대로 유지합니다.
+// 이제 이 함수들은 Next.js에 최적화된 클라이언트를 사용하게 됩니다.
 export const signUp = async (email: string, password: string, username: string) => {
   const { data, error } = await supabase.auth.signUp({
     email,

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '../../lib/supabase'; // 경로가 다르면 맞게 수정해주세요.
 
 interface AuthState {
   user: User | null;
@@ -59,18 +60,50 @@ export function AuthProvider({
   const [authLoading, setAuthLoading] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  const supabase = createClientComponentClient();
-
   useEffect(() => {
+    // onAuthStateChange는 로그인, 로그아웃 등 모든 인증 상태 변경을 감지합니다.
+    // Apple 로그인 성공 후에도 이 리스너가 동작하여 user, session 상태를 업데이트합니다.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      // 로그인 성공 시 로딩 상태를 해제하고 에러 메시지를 초기화합니다.
+      setAuthLoading(false);
+      setAuthError(null);
     });
 
     return () => subscription.unsubscribe();
   }, [supabase.auth]);
+
+  // 네이티브 앱(리액트 네이티브)과의 통신을 위한 리스너
+  useEffect(() => {
+    window.handleNativeAuth = async (data: { token?: string; error?: string }) => {
+      if (data.error) {
+        console.error('[WebView] Native auth error:', data.error);
+        setAuthError(data.error);
+        return;
+      }
+
+      if (data.token) {
+        setAuthLoading(true);
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: data.token,
+        });
+
+        if (error) {
+          setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다.');
+        }
+        // 성공 시에는 onAuthStateChange가 자동으로 처리하므로 별도 로직 불필요
+        setAuthLoading(false);
+      }
+    };
+
+    return () => {
+      delete window.handleNativeAuth;
+    };
+  }, [setAuthLoading, setAuthError]);
 
   const resetFormErrors = () => {
     setEmailError(null);
