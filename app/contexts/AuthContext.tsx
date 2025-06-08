@@ -138,6 +138,41 @@ export function AuthProvider({
     setAuthMessage('이메일 인증이 완료되었습니다. 로그인해주세요.');
   };
 
+  useEffect(() => {
+    // 네이티브 앱으로부터 인증 데이터를 받기 위한 전역 함수 정의
+    window.handleNativeAuth = async (data: { token?: string; error?: string }) => {
+      // 1. 네이티브에서 에러를 보냈을 경우 처리
+      if (data.error) {
+        console.error('[WebView] 네이티브로부터 로그인 오류 수신:', data.error);
+        setAuthError(data.error);
+        return;
+      }
+
+      // 2. 네이티브에서 토큰을 보냈을 경우 처리
+      if (data.token) {
+        console.log('[WebView] 네이티브로부터 Apple 인증 토큰 수신');
+        setAuthLoading(true);
+
+        const { error: supabaseError } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: data.token,
+        });
+
+        if (supabaseError) {
+          console.error('[WebView] Supabase Apple 로그인 오류:', supabaseError.message);
+          setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다.');
+        } else {
+          console.log('[WebView] Supabase 로그인 성공!');
+        }
+        setAuthLoading(false);
+      }
+    };
+
+    return () => {
+      delete window.handleNativeAuth;
+    };
+  }, [supabase.auth, setAuthLoading, setAuthError]);
+
   const value = {
     user,
     session,

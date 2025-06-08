@@ -7,7 +7,7 @@
     width, height는 부모로부터 받거나 필요에 따라 반응형으로 설정하세요.
     여기서는 예시로 400px, 668px을 유지하되, 실제 사용 시에는 유동적으로 설정하는 것이 좋습니다.
   */
-  width: 380px; /* 예시 크기 */
+  width: 400px; /* 예시 크기 */
   height: 668px; /* 예시 크기 */
   /* --- 중요: Goo 효과가 잘리지 않도록 overflow visible 설정 --- */
   overflow: visible;
