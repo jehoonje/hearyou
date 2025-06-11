@@ -234,6 +234,52 @@ const LoginForm = memo<LoginFormProps>(
       shouldMaintainFocus.current = true;
     }, []);
 
+    const handleAppleLoginSuccess = async (identityToken: string) => {
+      try {
+        console.log('[LoginForm] Apple 토큰으로 Supabase 인증 시도');
+        
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: identityToken,
+        });
+    
+        if (error) {
+          console.error('[LoginForm] Supabase Apple 인증 오류:', error);
+          // 오류 처리
+        } else {
+          console.log('[LoginForm] Apple 로그인 성공:', data);
+          // 성공 시 자동으로 useAuth 훅에서 사용자 상태가 업데이트됨
+        }
+      } catch (error) {
+        console.error('[LoginForm] Apple 로그인 처리 중 오류:', error);
+      }
+    };
+
+    useEffect(() => {
+      // 네이티브 Apple 로그인 결과 처리
+      const handleNativeAuth = (event: CustomEvent) => {
+        const authData = event.detail;
+        console.log('[LoginForm] 네이티브 인증 데이터 수신:', authData);
+        
+        if (authData.token) {
+          // Apple 로그인 성공 - Supabase에 토큰 전달
+          handleAppleLoginSuccess(authData.token);
+        } else if (authData.error) {
+          // Apple 로그인 실패
+          console.error('[LoginForm] Apple 로그인 오류:', authData.error);
+          // authError 상태 업데이트 (부모 컴포넌트에서 전달받은 함수 사용)
+        }
+      };
+    
+      // nativeauth 이벤트 리스너 등록
+      window.addEventListener('nativeauth', handleNativeAuth as EventListener);
+      
+      // 컴포넌트 언마운트 시 리스너 제거
+      return () => {
+        window.removeEventListener('nativeauth', handleNativeAuth as EventListener);
+      };
+    }, []);
+
     useEffect(() => {
       if (
         animationStage === "formVisible" &&
