@@ -234,60 +234,6 @@ const LoginForm = memo<LoginFormProps>(
       shouldMaintainFocus.current = true;
     }, []);
 
-    const handleAppleLoginSuccess = async (identityToken: string) => {
-      try {
-        console.log('[LoginForm] Apple 토큰으로 Supabase 인증 시도');
-        
-        // iOS WebView 타이밍 이슈 해결을 위한 setTimeout 추가
-        setTimeout(async () => {
-          try {
-            const { data, error } = await supabase.auth.signInWithIdToken({
-              provider: 'apple',
-              token: identityToken,
-            });
-    
-            if (error) {
-              console.error('[LoginForm] Supabase Apple 인증 오류:', error);
-            } else {
-              console.log('[LoginForm] Apple 로그인 성공:', data);
-              // 추가 디버깅: 인증 상태 확인
-              const { data: { user } } = await supabase.auth.getUser();
-              console.log('[LoginForm] 현재 인증된 사용자:', user);
-            }
-          } catch (innerError) {
-            console.error('[LoginForm] setTimeout 내부 오류:', innerError);
-          }
-        }, 100); // 100ms 지연
-    
-      } catch (error) {
-        console.error('[LoginForm] Apple 로그인 처리 중 오류:', error);
-      }
-    };
-
-    useEffect(() => {
-      const handleNativeAuth = (event: CustomEvent) => {
-        const authData = event.detail;
-        console.log('[LoginForm] 네이티브 인증 데이터 수신:', authData);
-        console.log('[LoginForm] 이벤트 타입:', event.type);
-        console.log('[LoginForm] 현재 시간:', new Date().toISOString());
-        
-        if (authData.token) {
-          console.log('[LoginForm] 토큰 확인됨, Apple 로그인 처리 시작');
-          handleAppleLoginSuccess(authData.token);
-        } else if (authData.error) {
-          console.error('[LoginForm] Apple 로그인 오류:', authData.error);
-        }
-      };
-    
-      console.log('[LoginForm] nativeauth 이벤트 리스너 등록');
-      window.addEventListener('nativeauth', handleNativeAuth as EventListener);
-      
-      return () => {
-        console.log('[LoginForm] nativeauth 이벤트 리스너 제거');
-        window.removeEventListener('nativeauth', handleNativeAuth as EventListener);
-      };
-    }, []);
-
     useEffect(() => {
       if (
         animationStage === "formVisible" &&

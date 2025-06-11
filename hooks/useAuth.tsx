@@ -70,6 +70,65 @@ export function useAuth(initialSession: Session | null = null) {
     [supabase.auth]
   );
 
+  useEffect(() => {
+    // 네이티브 Apple 인증 데이터 처리 함수
+    const handleNativeAuth = async (data: { token?: string; error?: string }) => {
+      console.log('[useAuth] 네이티브 인증 데이터 수신:', data);
+      
+      if (data.error) {
+        console.error('[useAuth] Apple 로그인 오류:', data.error);
+        setAuthError(data.error);
+        setAuthLoading(false);
+        return;
+      }
+
+      if (data.token) {
+        console.log('[useAuth] Apple 토큰으로 Supabase 인증 시작');
+        setAuthLoading(true);
+
+        try {
+          const { data: authData, error } = await supabase.auth.signInWithIdToken({
+            provider: 'apple',
+            token: data.token,
+          });
+
+          if (error) {
+            console.error('[useAuth] Supabase Apple 인증 오류:', error);
+            setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다.');
+          } else {
+            console.log('[useAuth] Apple 로그인 성공:', authData);
+            setAuthError(null);
+            // setUser는 onAuthStateChange에서 자동으로 처리됨
+          }
+        } catch (error: any) {
+          console.error('[useAuth] Apple 로그인 처리 중 오류:', error);
+          setAuthError(error.message || 'Apple 로그인 중 오류가 발생했습니다.');
+        } finally {
+          setAuthLoading(false);
+        }
+      }
+    };
+
+    // nativeauth 이벤트 리스너 등록
+    const handleNativeAuthEvent = (event: CustomEvent) => {
+      const authData = event.detail;
+      console.log('[useAuth] nativeauth 이벤트 수신:', authData);
+      handleNativeAuth(authData);
+    };
+
+    console.log('[useAuth] nativeauth 이벤트 리스너 등록');
+    window.addEventListener('nativeauth', handleNativeAuthEvent as EventListener);
+    
+    // 전역 함수도 설정 (호환성을 위해)
+    window.handleNativeAuth = handleNativeAuth;
+
+    return () => {
+      console.log('[useAuth] nativeauth 이벤트 리스너 제거');
+      window.removeEventListener('nativeauth', handleNativeAuthEvent as EventListener);
+      delete window.handleNativeAuth;
+    };
+  }, [supabase.auth]);
+
   // 사용자 상태 확인 및 인증 상태 감지
   useEffect(() => {
     // URL 파라미터에서 메시지 가져오기
