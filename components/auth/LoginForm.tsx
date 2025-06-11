@@ -238,44 +238,52 @@ const LoginForm = memo<LoginFormProps>(
       try {
         console.log('[LoginForm] Apple 토큰으로 Supabase 인증 시도');
         
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'apple',
-          token: identityToken,
-        });
+        // iOS WebView 타이밍 이슈 해결을 위한 setTimeout 추가
+        setTimeout(async () => {
+          try {
+            const { data, error } = await supabase.auth.signInWithIdToken({
+              provider: 'apple',
+              token: identityToken,
+            });
     
-        if (error) {
-          console.error('[LoginForm] Supabase Apple 인증 오류:', error);
-          // 오류 처리
-        } else {
-          console.log('[LoginForm] Apple 로그인 성공:', data);
-          // 성공 시 자동으로 useAuth 훅에서 사용자 상태가 업데이트됨
-        }
+            if (error) {
+              console.error('[LoginForm] Supabase Apple 인증 오류:', error);
+            } else {
+              console.log('[LoginForm] Apple 로그인 성공:', data);
+              // 추가 디버깅: 인증 상태 확인
+              const { data: { user } } = await supabase.auth.getUser();
+              console.log('[LoginForm] 현재 인증된 사용자:', user);
+            }
+          } catch (innerError) {
+            console.error('[LoginForm] setTimeout 내부 오류:', innerError);
+          }
+        }, 100); // 100ms 지연
+    
       } catch (error) {
         console.error('[LoginForm] Apple 로그인 처리 중 오류:', error);
       }
     };
 
     useEffect(() => {
-      // 네이티브 Apple 로그인 결과 처리
       const handleNativeAuth = (event: CustomEvent) => {
         const authData = event.detail;
         console.log('[LoginForm] 네이티브 인증 데이터 수신:', authData);
+        console.log('[LoginForm] 이벤트 타입:', event.type);
+        console.log('[LoginForm] 현재 시간:', new Date().toISOString());
         
         if (authData.token) {
-          // Apple 로그인 성공 - Supabase에 토큰 전달
+          console.log('[LoginForm] 토큰 확인됨, Apple 로그인 처리 시작');
           handleAppleLoginSuccess(authData.token);
         } else if (authData.error) {
-          // Apple 로그인 실패
           console.error('[LoginForm] Apple 로그인 오류:', authData.error);
-          // authError 상태 업데이트 (부모 컴포넌트에서 전달받은 함수 사용)
         }
       };
     
-      // nativeauth 이벤트 리스너 등록
+      console.log('[LoginForm] nativeauth 이벤트 리스너 등록');
       window.addEventListener('nativeauth', handleNativeAuth as EventListener);
       
-      // 컴포넌트 언마운트 시 리스너 제거
       return () => {
+        console.log('[LoginForm] nativeauth 이벤트 리스너 제거');
         window.removeEventListener('nativeauth', handleNativeAuth as EventListener);
       };
     }, []);
