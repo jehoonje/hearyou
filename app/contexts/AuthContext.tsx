@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { supabase } from '../../lib/supabase'; // 경로가 다르면 맞게 수정해주세요.
+import { supabase } from '../../lib/supabase';
 
 interface AuthState {
   user: User | null;
@@ -61,49 +61,79 @@ export function AuthProvider({
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
   useEffect(() => {
-    // onAuthStateChange는 로그인, 로그아웃 등 모든 인증 상태 변경을 감지합니다.
-    // Apple 로그인 성공 후에도 이 리스너가 동작하여 user, session 상태를 업데이트합니다.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[AuthContext] 인증 상태 변경:', _event, session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
-      // 로그인 성공 시 로딩 상태를 해제하고 에러 메시지를 초기화합니다.
       setAuthLoading(false);
       setAuthError(null);
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, []);
 
-  // 네이티브 앱(리액트 네이티브)과의 통신을 위한 리스너
+  // 네이티브 앱과의 통신을 위한 리스너 - 수정된 버전
   useEffect(() => {
-    window.handleNativeAuth = async (data: { token?: string; error?: string }) => {
+    // 네이티브 인증 처리 함수
+    const handleNativeAuth = async (data: { token?: string; nonce?: string; error?: string }) => {
+      console.log('[AuthContext] handleNativeAuth 호출됨:', data);
+      
       if (data.error) {
-        console.error('[WebView] Native auth error:', data.error);
+        console.error('[AuthContext] Native auth error:', data.error);
         setAuthError(data.error);
+        setAuthLoading(false);
         return;
       }
 
-      if (data.token) {
+      if (data.token && data.nonce) {
+        console.log('[AuthContext] Apple 토큰 처리 시작');
         setAuthLoading(true);
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: 'apple',
-          token: data.token,
-        });
+        setAuthError(null);
 
-        if (error) {
-          setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다.');
+        try {
+          const { data: authData, error } = await supabase.auth.signInWithIdToken({
+            provider: 'apple',
+            token: data.token,
+            nonce: data.nonce, // nonce 추가
+          });
+
+          if (error) {
+            console.error('[AuthContext] Supabase Apple 인증 오류:', error);
+            setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다: ' + error.message);
+          } else {
+            console.log('[AuthContext] Apple 로그인 성공!', authData);
+            // 성공 시 onAuthStateChange가 자동으로 처리
+          }
+        } catch (error: any) {
+          console.error('[AuthContext] Apple 로그인 처리 중 오류:', error);
+          setAuthError(error.message || 'Apple 로그인 중 오류가 발생했습니다.');
+        } finally {
+          setAuthLoading(false);
         }
-        // 성공 시에는 onAuthStateChange가 자동으로 처리하므로 별도 로직 불필요
-        setAuthLoading(false);
       }
     };
 
+    // 전역 함수로 등록
+    window.handleNativeAuth = handleNativeAuth;
+
+    // 이벤트 리스너로도 등록 (이중 안전장치)
+    const handleNativeAuthEvent = (event: CustomEvent) => {
+      console.log('[AuthContext] nativeauth 이벤트 수신:', event.detail);
+      handleNativeAuth(event.detail);
+    };
+
+    window.addEventListener('nativeauth', handleNativeAuthEvent as EventListener);
+
+    // 디버깅을 위한 로그
+    console.log('[AuthContext] Native auth 리스너 등록 완료');
+
     return () => {
       delete window.handleNativeAuth;
+      window.removeEventListener('nativeauth', handleNativeAuthEvent as EventListener);
     };
-  }, [setAuthLoading, setAuthError]);
+  }, []);
 
   const resetFormErrors = () => {
     setEmailError(null);
@@ -170,41 +200,6 @@ export function AuthProvider({
     setAuthView('login');
     setAuthMessage('이메일 인증이 완료되었습니다. 로그인해주세요.');
   };
-
-  useEffect(() => {
-    // 네이티브 앱으로부터 인증 데이터를 받기 위한 전역 함수 정의
-    window.handleNativeAuth = async (data: { token?: string; error?: string }) => {
-      // 1. 네이티브에서 에러를 보냈을 경우 처리
-      if (data.error) {
-        console.error('[WebView] 네이티브로부터 로그인 오류 수신:', data.error);
-        setAuthError(data.error);
-        return;
-      }
-
-      // 2. 네이티브에서 토큰을 보냈을 경우 처리
-      if (data.token) {
-        console.log('[WebView] 네이티브로부터 Apple 인증 토큰 수신');
-        setAuthLoading(true);
-
-        const { error: supabaseError } = await supabase.auth.signInWithIdToken({
-          provider: 'apple',
-          token: data.token,
-        });
-
-        if (supabaseError) {
-          console.error('[WebView] Supabase Apple 로그인 오류:', supabaseError.message);
-          setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다.');
-        } else {
-          console.log('[WebView] Supabase 로그인 성공!');
-        }
-        setAuthLoading(false);
-      }
-    };
-
-    return () => {
-      delete window.handleNativeAuth;
-    };
-  }, [supabase.auth, setAuthLoading, setAuthError]);
 
   const value = {
     user,
