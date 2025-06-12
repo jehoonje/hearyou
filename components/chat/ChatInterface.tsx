@@ -72,11 +72,11 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       {/* --- 채팅 모달 컨테이너: 애니메이션 클래스 추가 (선택적 scale 효과 포함) --- */}
       <div
         className={`
-          w-[375px] h-[658px] max-w-md flex flex-col overflow-hidden
+          w-[375px] h-[648px] max-w-md flex flex-col overflow-hidden
           rounded-xl shadow-2xl shadow-black/40
           bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
-          border border-white/20 border-b-black/30
+          border border-white/20
           box-shadow: inset 0 1.5px 1.5px rgba(255, 255, 255, 0.1)
           transition-all duration-1000 ease-in-out /* 모든 속성에 트랜지션 적용 */
           ${show ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} /* 동적 opacity 및 scale 추가 */
@@ -101,7 +101,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
            </button>
            {/* 제목 */}
            <h2 className={`text-lg font-semibold text-white font-mono transition-colors ${isChatInvalid ? 'text-gray-400' : 'text-shadow'}`}>
-             {isChatInvalid ? '대화 상태 변경됨' : `${partnerName} 와(과)의 대화`}
+             {isChatInvalid ? '대화 상태 변경됨' : `Chat with ${partnerName}`}
            </h2>
            {/* 기존 닫기 버튼 제거됨 */}
         </div>

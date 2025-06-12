@@ -78,7 +78,7 @@ const ChatInput = memo<ChatInputProps>(({ isDisabled = false }) => {
           type="text"
           value={currentMessage}
           onChange={(e) => setCurrentMessage(e.target.value)}
-          placeholder={isDisabled ? "대화 상태가 변경되었습니다." : "메시지를 입력하세요..."}
+          placeholder={isDisabled ? "대화 상태가 변경되었습니다." : "type message..."}
           className="
             flex-grow bg-transparent text-white placeholder-gray-400/70
             focus:outline-none text-sm px-3 py-1.5 /* 내부 패딩 추가 */
@@ -101,7 +101,7 @@ const ChatInput = memo<ChatInputProps>(({ isDisabled = false }) => {
           `}
           aria-label="메시지 전송"
         >
-          {isSending ? '전송중...' : '전송'}
+          {isSending ? 'Send' : 'Send'}
         </button>
       </div>
     </form>
