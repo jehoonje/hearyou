@@ -4,10 +4,11 @@ import { useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User, Session } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
+import { supabase } from '../lib/supabase'; // 공유 클라이언트 import
+
 
 export function useAuth(initialSession: Session | null = null) {
   const searchParams = useSearchParams();
-  const supabase = createClientComponentClient<Database>();
 
   // 인증 상태 관리
   const [user, setUser] = useState<User | null>(initialSession?.user || null);
@@ -32,6 +33,9 @@ export function useAuth(initialSession: Session | null = null) {
   // 회원가입 직후 상태를 추적하는 ref 추가
   const justSignedUpRef = useRef(false);
 
+  // 메시지 자동 제거를 위한 타이머 ref
+  const messageTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // 이메일 형식 검증 함수
   const validateEmail = useCallback((email: string): boolean => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -44,6 +48,22 @@ export function useAuth(initialSession: Session | null = null) {
     setPasswordError('');
     setUsernameError('');
     setAuthError(null);
+  }, []);
+
+  // 메시지 설정 함수 (3초 후 자동 제거)
+  const setAuthMessageWithTimer = useCallback((message: string) => {
+    setAuthMessage(message);
+    
+    // 기존 타이머 제거
+    if (messageTimerRef.current) {
+      clearTimeout(messageTimerRef.current);
+    }
+    
+    // 3초 후 메시지 제거
+    messageTimerRef.current = setTimeout(() => {
+      setAuthMessage(null);
+      messageTimerRef.current = null;
+    }, 3000);
   }, []);
 
   // 세션 갱신 함수 (429 오류 처리 포함)
@@ -134,7 +154,7 @@ export function useAuth(initialSession: Session | null = null) {
     // URL 파라미터에서 메시지 가져오기
     const urlMessage = searchParams.get('message');
     if (urlMessage) {
-      setAuthMessage(urlMessage);
+      setAuthMessageWithTimer(urlMessage);
     }
 
     // 초기 세션이 있으면 추가 확인 불필요
@@ -166,8 +186,12 @@ export function useAuth(initialSession: Session | null = null) {
 
     return () => {
       authListener.subscription.unsubscribe();
+      // 타이머 정리
+      if (messageTimerRef.current) {
+        clearTimeout(messageTimerRef.current);
+      }
     };
-  }, [searchParams, initialSession, supabase.auth, refreshSession]);
+  }, [searchParams, initialSession, supabase.auth, refreshSession, setAuthMessageWithTimer]);
 
   // 로그인 처리
   const handleLogin = useCallback(
@@ -223,52 +247,68 @@ export function useAuth(initialSession: Session | null = null) {
     async (e: React.FormEvent) => {
       e.preventDefault();
       resetFormErrors();
-
+  
       // 입력값 검증
       if (!email.trim()) {
         setEmailError('이메일을 입력해주세요');
         return;
       }
-
+  
       if (!validateEmail(email)) {
         setEmailError('유효한 이메일 주소를 입력하세요');
         return;
       }
-
+  
       if (!password.trim()) {
         setPasswordError('비밀번호를 입력해주세요');
         return;
       }
-
+  
       if (!username.trim()) {
         setUsernameError('사용자 이름을 입력해주세요');
         return;
       }
-
+  
       setAuthLoading(true);
-
+  
       try {
+        console.log('회원가입 시도:', { email, username });
+        
         const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: email.trim(),
+          password: password,
           options: {
-            data: { username },
+            data: { 
+              username: username.trim() 
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`
           },
         });
-
+  
         if (error) {
+          console.error('회원가입 에러:', error);
           if (error.message.includes('already registered')) {
             setEmailError('이미 등록된 이메일 주소입니다');
           } else {
             setAuthError(error.message);
           }
         } else {
-          // 회원가입 성공 시 플래그 설정
+          console.log('회원가입 성공');
+          
+          // 회원가입 성공 시
           justSignedUpRef.current = true;
-          setAuthMessage('회원가입 성공! 이메일 인증을 완료해주세요.');
+          
+          // 성공 메시지 설정 (타이머 없이)
+          setAuthMessage('회원가입이 완료되었습니다! 이메일을 확인하여 계정을 활성화해주세요.');
+          
+          // 모달 표시
           setShowVerificationModal(true);
+          
+          // 여기서는 폼 초기화나 authView 변경을 하지 않음!
+          // 모달이 닫힐 때 처리하도록 함
         }
       } catch (err: any) {
+        console.error('회원가입 예외 발생:', err);
         setAuthError(err.message || '회원가입 중 오류가 발생했습니다.');
       } finally {
         setAuthLoading(false);
@@ -276,27 +316,54 @@ export function useAuth(initialSession: Session | null = null) {
     },
     [email, password, username, resetFormErrors, validateEmail, supabase.auth]
   );
+  
 
   // 로그아웃 처리
   const handleLogout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
       setUser(null);
-      justSignedUpRef.current = false; // 로그아웃 시 플래그 리셋
+      
+      // 추가 상태 초기화
+      setEmail('');
+      setPassword('');
+      setUsername('');
+      setAuthView('login');
+      setAuthMessage('');
+      setAuthError(null);
+      justSignedUpRef.current = false;
+      
     } catch (error: any) {
       setAuthError(error.message || '로그아웃에 실패했습니다.');
+      // 에러가 있어도 로컬 상태는 초기화
+      setUser(null);
     }
   }, [supabase.auth]);
 
   // 회원가입 완료 후 처리
   const handleVerificationComplete = useCallback(() => {
+    console.log('이메일 확인 모달 닫기');
+    
     setShowVerificationModal(false);
-    setAuthView('login');
+    
+    // 모달이 닫힌 후에 폼 초기화 및 첫 화면으로 이동
     setEmail('');
     setPassword('');
     setUsername('');
-    setAuthMessage('회원가입이 완료되었습니다. 이메일 확인 후 로그인해주세요.');
-    justSignedUpRef.current = false; // 모달 닫을 때 플래그 리셋
+    setAuthView('login');
+    
+    // 메시지는 유지하되, 타이머 설정
+    if (messageTimerRef.current) {
+      clearTimeout(messageTimerRef.current);
+    }
+    
+    // 5초 후 메시지 제거 (모달 닫힌 후 충분히 볼 수 있도록)
+    messageTimerRef.current = setTimeout(() => {
+      setAuthMessage(null);
+      messageTimerRef.current = null;
+    }, 5000);
+    
+    justSignedUpRef.current = false;
   }, []);
 
   return {
@@ -306,7 +373,7 @@ export function useAuth(initialSession: Session | null = null) {
     authLoading,
     authError,
     authMessage,
-    setAuthMessage,
+    setAuthMessage: setAuthMessageWithTimer, // 타이머 버전으로 대체
     email,
     setEmail,
     password,

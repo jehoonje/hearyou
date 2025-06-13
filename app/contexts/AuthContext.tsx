@@ -190,6 +190,17 @@ export function AuthProvider({
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // 상태 초기화
+      setUser(null);
+      setSession(null);
+      setEmail('');
+      setPassword('');
+      setUsername('');
+      setAuthView('login');
+      setAuthMessage('');
+      setAuthError(null);
+      
     } catch (error) {
       console.error('Error logging out:', error);
     }

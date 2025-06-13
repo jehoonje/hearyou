@@ -13,9 +13,10 @@ import ThreeDTitle from "./ThreeDTitle";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import PrivacyPolicyModal from "../PrivacyPolicyModal"; // 모달 컴포넌트 import 추가
+import PrivacyPolicyModal from "../PrivacyPolicyModal";
 
 interface LoginFormProps extends AuthState {
+  authView: 'login' | 'signup';
   setEmail: (email: string) => void;
   setPassword: (password: string) => void;
   setUsername: (username: string) => void;
@@ -26,6 +27,9 @@ interface LoginFormProps extends AuthState {
   handleSignUp: (e: React.FormEvent) => void;
   resetFormErrors: () => void;
   isContentVisible: boolean;
+  // 부모로부터 받을 props 추가
+  showVerificationModal: boolean;
+  handleVerificationComplete: () => void;
 }
 
 const containerVariants = {
@@ -56,7 +60,6 @@ const isValidEmail = (email: string): boolean => {
 };
 
 const checkEmailExists = async (email: string): Promise<boolean> => {
-  console.log(`Checking if email exists via Supabase Edge Function: ${email}`);
   try {
     const { data, error } = await supabase.functions.invoke(
       "check-email-exists",
@@ -64,25 +67,11 @@ const checkEmailExists = async (email: string): Promise<boolean> => {
         body: { email },
       }
     );
-    if (error) {
-      console.error("Error invoking Supabase function:", error);
-      throw new Error(
-        "이메일 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-      );
-    }
-    console.log("Supabase function response:", data);
-    if (typeof data?.exists !== "boolean") {
-      console.error("Invalid response format from Edge Function:", data);
-      throw new Error("이메일 확인 응답 형식이 올바르지 않습니다.");
-    }
+    if (error) throw error;
     return data.exists;
   } catch (err) {
     console.error("Failed to check email existence:", err);
-    if (err instanceof Error) {
-      throw err;
-    } else {
-      throw new Error("이메일 확인 중 예기치 않은 오류가 발생했습니다.");
-    }
+    throw new Error("이메일 확인 중 오류가 발생했습니다.");
   }
 };
 
@@ -107,6 +96,8 @@ const LoginForm = memo<LoginFormProps>(
     handleLogin,
     handleSignUp,
     resetFormErrors,
+    showVerificationModal, // prop 사용
+    handleVerificationComplete, // prop 사용
   }) => {
     const inputRefs = useRef<{
       email: HTMLInputElement | null;
@@ -126,7 +117,7 @@ const LoginForm = memo<LoginFormProps>(
     >("emailInput");
     const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
     const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-    const [showPrivacyModal, setShowPrivacyModal] = useState(false); // 모달 상태 추가
+    const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
     const handleTitleClick = useCallback(() => {
       window.location.href = "/";
@@ -134,9 +125,7 @@ const LoginForm = memo<LoginFormProps>(
 
     const handleInitialSpinComplete = useCallback(() => {
       if (animationStage === "initial") {
-        setTimeout(() => {
-          setAnimationStage("buttonsVisible");
-        }, 100);
+        setTimeout(() => setAnimationStage("buttonsVisible"), 100);
       }
     }, [animationStage]);
 
@@ -167,23 +156,17 @@ const LoginForm = memo<LoginFormProps>(
         try {
           const exists = await checkEmailExists(email);
           setIsExistingUser(exists);
-
           if (exists) {
             setFormStep("passwordInput");
             activeFieldName.current = "password";
-            shouldMaintainFocus.current = true;
           } else {
-            setShowPrivacyModal(true); // 회원가입 모드로 전환 직전에 모달 띄움
+            setShowPrivacyModal(true);
           }
         } catch (error) {
-          console.error("Email check failed:", error);
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : "이메일 확인 중 오류가 발생했습니다.";
-          setEmailError(errorMessage);
+          setEmailError(error instanceof Error ? error.message : "이메일 확인 중 오류 발생");
         } finally {
           setIsCheckingEmail(false);
+          shouldMaintainFocus.current = true;
         }
       },
       [email, setEmailError, resetFormErrors]
@@ -193,46 +176,40 @@ const LoginForm = memo<LoginFormProps>(
       setFormStep("emailInput");
       setIsExistingUser(null);
       resetFormErrors();
+      setPassword("");
+      setUsername("");
       setPasswordError("");
       setUsernameError("");
       activeFieldName.current = "email";
       shouldMaintainFocus.current = true;
-    }, [resetFormErrors, setPasswordError, setUsernameError]);
+    }, [resetFormErrors, setPassword, setUsername, setPasswordError, setUsernameError]);
 
-    const handleInputChange = useCallback(
-      (e: ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         activeFieldName.current = name as keyof typeof inputRefs.current;
         shouldMaintainFocus.current = true;
 
-        if (name === "email") {
-          setEmail(value);
-          if (emailError) setEmailError("");
-        } else if (name === "password") {
-          setPassword(value);
-          if (passwordError) setPasswordError("");
-        } else if (name === "username") {
-          setUsername(value);
-          if (usernameError) setUsernameError("");
-        }
+        if (name === "email") setEmail(value);
+        if (name === "password") setPassword(value);
+        if (name === "username") setUsername(value);
+        
+        if (emailError && name === 'email') setEmailError('');
+        if (passwordError && name === 'password') setPasswordError('');
+        if (usernameError && name === 'username') setUsernameError('');
       },
-      [
-        emailError,
-        passwordError,
-        usernameError,
-        setEmail,
-        setPassword,
-        setUsername,
-        setEmailError,
-        setPasswordError,
-        setUsernameError,
-      ]
+      [ emailError, passwordError, usernameError, setEmail, setPassword, setUsername, setEmailError, setPasswordError, setUsernameError ]
     );
 
     const handleFocus = useCallback((e: FocusEvent<HTMLInputElement>) => {
       activeFieldName.current = e.target.name as keyof typeof inputRefs.current;
       shouldMaintainFocus.current = true;
     }, []);
+
+    useEffect(() => {
+      if (email === '' && (formStep === 'passwordInput' || formStep === 'signupInput')) {
+        handleGoBack();
+      }
+    }, [email, formStep, handleGoBack]);
 
     useEffect(() => {
       if (
@@ -245,27 +222,14 @@ const LoginForm = memo<LoginFormProps>(
         if (inputRef) {
           requestAnimationFrame(() => {
             inputRef.focus();
-            if (inputRef.type !== "email" && inputRef.value.length > 0) {
-              const length = inputRef.value.length;
-              try {
-                inputRef.setSelectionRange(length, length);
-              } catch (err) {
-                console.warn("Could not set selection range", err);
-              }
-            }
             shouldMaintainFocus.current = false;
           });
-        } else {
-          shouldMaintainFocus.current = false;
         }
       }
     }, [animationStage, formStep, isCheckingEmail]);
 
     const setRef = useCallback(
-      (
-        element: HTMLInputElement | null,
-        name: keyof typeof inputRefs.current
-      ) => {
+      (element: HTMLInputElement | null, name: keyof typeof inputRefs.current) => {
         inputRefs.current[name] = element;
       },
       []
@@ -279,7 +243,6 @@ const LoginForm = memo<LoginFormProps>(
       }
     }, [isContentVisible]);
 
-    // 모달 동의 핸들러
     const handleAgree = useCallback(() => {
       setShowPrivacyModal(false);
       setFormStep("signupInput");
@@ -287,7 +250,6 @@ const LoginForm = memo<LoginFormProps>(
       shouldMaintainFocus.current = true;
     }, []);
 
-    // 모달 미동의 핸들러
     const handleDisagree = useCallback(() => {
       setShowPrivacyModal(false);
       setFormStep("emailInput");
@@ -296,26 +258,10 @@ const LoginForm = memo<LoginFormProps>(
     }, []);
 
     const handleAppleLoginRequest = async () => {
-      // 네이티브 앱 환경
       if (window.ReactNativeWebView) {
-        const message = { type: "APPLE_LOGIN_REQUEST" };
-        window.ReactNativeWebView.postMessage(JSON.stringify(message));
-      } 
-      // 일반 웹 브라우저 환경
-      else {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'apple',
-          options: {
-            // 로그인 성공 후 메인 페이지('/')로 돌아오도록 설정
-            redirectTo: window.location.origin 
-          }
-        });
-    
-        if (error) {
-          console.error('Web Apple sign-in error:', error.message);
-          // authError 상태를 업데이트하여 사용자에게 오류를 보여줄 수 있습니다.
-          // setAuthError('Apple 로그인에 실패했습니다: ' + error.message);
-        }
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "APPLE_LOGIN_REQUEST" }));
+      } else {
+        await supabase.auth.signInWithOAuth({ provider: 'apple' });
       }
     };
 
@@ -335,7 +281,7 @@ const LoginForm = memo<LoginFormProps>(
           />
         </motion.div>
 
-        <div className="w-full mb-4 h-10">
+        <div className="w-full mb-4 h-12 -mt-6"> 
           <AnimatePresence>
             {authMessage && !authError && (
               <motion.div
@@ -364,7 +310,7 @@ const LoginForm = memo<LoginFormProps>(
 
         {animationStage === "buttonsVisible" && (
           <motion.div
-            className="absolute top-36 left-10 text-gray-300 font-mono text-md"
+            className="absolute top-32 left-10 text-gray-300 font-mono text-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
@@ -397,32 +343,28 @@ const LoginForm = memo<LoginFormProps>(
                         mixBlendMode: "overlay",
                       }}
                     >
-                      {" "}
                       <filter id="buttonNoiseFilterLogin">
-                        {" "}
                         <feTurbulence
                           type="fractalNoise"
                           baseFrequency="1"
                           numOctaves="4"
                           stitchTiles="stitch"
-                        />{" "}
-                      </filter>{" "}
+                        />
+                      </filter>
                       <rect
                         width="100%"
                         height="100%"
                         filter="url(#buttonNoiseFilterLogin)"
-                      />{" "}
+                      />
                     </svg>
                     <button
                       onClick={showEmailForm}
-                      className="relative flex items-center justify-between gap-4 w-full h-14 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out "
+                      className="relative flex items-center justify-between gap-4 w-full h-14 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
                     >
                       <span className="font-semibold text-gray-100 transition-colors duration-300 ease-in-out pl-2">
-                        {" "}
-                        Get Started{" "}
+                        Get Started
                       </span>
                       <span className="relative z-10 flex items-center justify-center rounded-full h-full aspect-square bg-transparent text-gray-100 transition-transform duration-300 ease-in-out">
-                        {" "}
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           width="16"
@@ -430,13 +372,12 @@ const LoginForm = memo<LoginFormProps>(
                           fill="currentColor"
                           viewBox="0 0 16 16"
                         >
-                          {" "}
                           <path
                             fillRule="evenodd"
                             d="M13.147.829h-11v2h9.606L.672 13.91l1.414 1.415 11.06-11.061v9.565h2v-13z"
                             clipRule="evenodd"
-                          ></path>{" "}
-                        </svg>{" "}
+                          ></path>
+                        </svg>
                       </span>
                     </button>
                   </div>
@@ -467,8 +408,7 @@ const LoginForm = memo<LoginFormProps>(
                         htmlFor="email"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        {" "}
-                        Email{" "}
+                        Email
                       </label>
                       <input
                         id="email"
@@ -503,9 +443,7 @@ const LoginForm = memo<LoginFormProps>(
                         )}
                       </button>
                     </motion.div>
-                    {/* ===== 👇 Apple 로그인 버튼 추가 👇 ===== */}
                     <motion.div variants={itemVariants} layout>
-                      {/* 또는(or) 구분선 */}
                       <div className="flex items-center my-2">
                         <div className="flex-grow border-t border-gray-600"></div>
                         <span className="flex-shrink mx-4 text-gray-400 text-xs font-mono">
@@ -515,7 +453,7 @@ const LoginForm = memo<LoginFormProps>(
                       </div>
 
                       <button
-                        type="button" // form의 submit을 방지하기 위해 type="button"
+                        type="button"
                         onClick={handleAppleLoginRequest}
                         disabled={authLoading}
                         className="w-full bg-white hover:bg-gray-200 text-black font-semibold text-sm font-sans py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50 transition duration-200 flex items-center justify-center gap-2"
@@ -532,7 +470,6 @@ const LoginForm = memo<LoginFormProps>(
                         <span>Apple로 계속하기</span>
                       </button>
                     </motion.div>
-                    {/* ===== 👆 Apple 로그인 버튼 추가 완료 👆 ===== */}
                   </motion.form>
                 )}
 
@@ -544,27 +481,24 @@ const LoginForm = memo<LoginFormProps>(
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
                       >
-                        {" "}
-                        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로{" "}
+                        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로
                       </button>
                     </motion.div>
                     <motion.div
                       variants={itemVariants}
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
-                      {" "}
-                      로그인:{" "}
+                      로그인:
                       <span className="font-semibold text-white">
                         {email}
-                      </span>{" "}
+                      </span>
                     </motion.div>
                     <motion.div variants={itemVariants}>
                       <label
                         htmlFor="password"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        {" "}
-                        Password{" "}
+                        Password
                       </label>
                       <input
                         id="password"
@@ -607,27 +541,24 @@ const LoginForm = memo<LoginFormProps>(
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
                       >
-                        {" "}
-                        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로{" "}
+                        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로
                       </button>
                     </motion.div>
                     <motion.div
                       variants={itemVariants}
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
-                      {" "}
-                      회원가입:{" "}
+                      회원가입:
                       <span className="font-semibold text-white">
                         {email}
-                      </span>{" "}
+                      </span>
                     </motion.div>
                     <motion.div variants={itemVariants}>
                       <label
                         htmlFor="username"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        {" "}
-                        Name{" "}
+                        Name
                       </label>
                       <input
                         id="username"
@@ -654,8 +585,7 @@ const LoginForm = memo<LoginFormProps>(
                         htmlFor="password"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        {" "}
-                        Password{" "}
+                        Password
                       </label>
                       <input
                         id="password"
@@ -695,7 +625,6 @@ const LoginForm = memo<LoginFormProps>(
           </AnimatePresence>
         </div>
 
-        {/* 개인정보처리방침 모달 렌더링 */}
         <PrivacyPolicyModal
           isOpen={showPrivacyModal}
           onAgree={handleAgree}

@@ -359,6 +359,8 @@ function MainContent({
                   resetFormErrors={auth.resetFormErrors}
                   user={auth.user}
                   isContentVisible={contentVisible}
+                  showVerificationModal={auth.showVerificationModal}
+                  handleVerificationComplete={auth.handleVerificationComplete}
                 />
               </div>
             ) : (

@@ -6,7 +6,7 @@ interface VerificationModalProps {
 
 const VerificationModal = memo<VerificationModalProps>(({ onComplete }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent backdrop-blur-sm">
-    <div className="w-full max-w-md bg-[#222] backdrop-blur-lg border-none border-gray-500 rounded-lg p-6 shadow-xl">
+    <div className="w-[95%] max-w-md bg-[#222] backdrop-blur-lg border-none border-gray-500 rounded-lg p-6 shadow-xl">
       <h2 className="text-2xl font-mono font-bold mb-4 text-white">
         Done!
       </h2>

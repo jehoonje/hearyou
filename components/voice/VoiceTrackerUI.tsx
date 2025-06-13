@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { memo, useState, useEffect, useCallback } from "react";
 import { useMatchStore } from "../../store/matchStore";
@@ -10,7 +10,8 @@ import TranscriptDisplay from "./TranscriptDisplay";
 import KeywordList from "./KeywordList";
 import { Keyword } from "../../types";
 import MicToggleButton from "./MicToggleButton";
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from "framer-motion";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface VoiceTrackerUIProps {
   volume: number;
@@ -49,17 +50,30 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isMatchmakingRunning, setIsMatchmakingRunning] = useState(false);
-    const [audioErrorMessage, setAudioErrorMessage] = useState<string | null>(null);
-    const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(null);
+    const [audioErrorMessage, setAudioErrorMessage] = useState<string | null>(
+      null
+    );
+    const [matchErrorMessage, setMatchErrorMessage] = useState<string | null>(
+      null
+    );
     const [noMatchMessage, setNoMatchMessage] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false); // 즐겨찾기 안내 모달 상태 추가
+    const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false);
+    const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] =
+      useState(false);
+    const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+    const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
+      null
+    );
+    const [deleteConfirmText, setDeleteConfirmText] = useState(""); // 추가: 확인 텍스트
 
     const { user } = useAuth();
+    const supabase = createClientComponentClient();
 
-    
     useEffect(() => {
-      setAudioErrorMessage(audioErrorProp ? `오디오 오류: ${audioErrorProp}` : null);
+      setAudioErrorMessage(
+        audioErrorProp ? `오디오 오류: ${audioErrorProp}` : null
+      );
     }, [audioErrorProp]);
 
     useEffect(() => {
@@ -83,9 +97,17 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       if (!userEmail) {
         clearMatch();
       }
-    }, [userEmail, fetchCurrentMatch, clearMatch, subscribeToMatchChanges, unsubscribeFromMatchChanges]);
+    }, [
+      userEmail,
+      fetchCurrentMatch,
+      clearMatch,
+      subscribeToMatchChanges,
+      unsubscribeFromMatchChanges,
+    ]);
 
-    const hasMatchKeyword = keywordList.some(keyword => keyword.keyword === '매치');
+    const hasMatchKeyword = keywordList.some(
+      (keyword) => keyword.keyword === "매치"
+    );
 
     const openChat = useCallback(() => {
       if (currentMatch?.partner) {
@@ -107,12 +129,15 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
         return;
       }
       setIsMatchmakingRunning(true);
-      const { createClientComponentClient } = await import("@supabase/auth-helpers-nextjs");
+      const { createClientComponentClient } = await import(
+        "@supabase/auth-helpers-nextjs"
+      );
       const supabaseClient = createClientComponentClient();
       try {
-        const { data, error: invokeError } = await supabaseClient.functions.invoke("matchmaking", {
-          method: "POST",
-        });
+        const { data, error: invokeError } =
+          await supabaseClient.functions.invoke("matchmaking", {
+            method: "POST",
+          });
         if (invokeError) throw invokeError;
         alert(`매치메이킹 성공: ${data.message || "완료"}`);
         if (user) {
@@ -134,7 +159,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       onLogout();
     }, [clearMatch, onLogout, listening, toggleListening]);
 
-    const isMatchButtonDisabled = isMatchmakingRunning || !userEmail || !hasMatchKeyword;
+    const isMatchButtonDisabled =
+      isMatchmakingRunning || !userEmail || !hasMatchKeyword;
 
     // 도움말 모달 열기/닫기
     const openModal = useCallback(() => {
@@ -157,12 +183,93 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
     // 피드백 이메일 연결
     const handleFeedback = useCallback(() => {
-      const email = 'limjhoon8@gmail.com';
-      const subject = encodeURIComponent('Univoice 피드백');
-      const body = encodeURIComponent('Univoice에 대한 피드백을 작성해주세요.');
+      const email = "limjhoon8@gmail.com";
+      const subject = encodeURIComponent("Univoice 피드백");
+      const body = encodeURIComponent("Univoice에 대한 피드백을 작성해주세요.");
       window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
       closeModal();
     }, []);
+
+    // 회원 탈퇴 모달 열기/닫기
+    const openDeleteAccountModal = useCallback(() => {
+      setIsDeleteAccountModalOpen(true);
+      setDeleteAccountError(null);
+      closeModal(); // 도움말 모달 닫기
+    }, []);
+
+    const closeDeleteAccountModal = useCallback(() => {
+      setIsDeleteAccountModalOpen(false);
+      setDeleteAccountError(null);
+    }, []);
+
+    // 회원 탈퇴 처리 함수
+    const handleDeleteAccount = useCallback(async () => {
+      if (!user) return;
+    
+      // 확인 텍스트 검증
+      if (deleteConfirmText !== '탈퇴하겠습니다') {
+        setDeleteAccountError('확인 문구를 정확히 입력해주세요.');
+        return;
+      }
+    
+      setDeleteAccountLoading(true);
+      setDeleteAccountError(null);
+    
+      try {
+        // API Route 호출
+        const response = await fetch('/api/delete-account', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+    
+        const data = await response.json();
+    
+        if (!response.ok) {
+          throw new Error(data.error || '회원 탈퇴에 실패했습니다.');
+        }
+    
+        // 성공 시 처리
+        console.log('회원 탈퇴 성공:', data);
+        
+        // 로컬 스토리지 정리
+        if (typeof window !== 'undefined') {
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+    
+        // 먼저 모달을 닫음
+        closeDeleteAccountModal();
+    
+        // 성공 메시지 표시
+        alert('회원 탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.');
+        
+        // Supabase 클라이언트에서 로그아웃 (이미 서버에서 삭제되었으므로 에러 무시)
+        try {
+          await supabase.auth.signOut();
+        } catch (error) {
+          console.log('클라이언트 로그아웃 처리:', error);
+        }
+        
+        // 로그아웃 핸들러 호출 (AuthContext의 상태를 업데이트)
+        onLogout();
+        
+        // 약간의 딜레이 후 페이지 새로고침
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
+    
+      } catch (error: any) {
+        console.error('회원 탈퇴 오류:', error);
+        setDeleteAccountError(
+          error.message || '회원 탈퇴 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+        );
+      } finally {
+        setDeleteAccountLoading(false);
+      }
+    }, [user, deleteConfirmText, supabase, onLogout, closeDeleteAccountModal]);
 
     return (
       <>
@@ -190,7 +297,10 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
           <div className="p-4 flex-shrink-0 pointer-events-auto">
             <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center space-x-1" data-tutorial-target="mic-button">
+              <div
+                className="flex items-center space-x-1"
+                data-tutorial-target="mic-button"
+              >
                 <MicToggleButton
                   listening={listening}
                   onClick={toggleListening}
@@ -202,7 +312,9 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   onClick={runManualMatchmaking}
                   disabled={isMatchButtonDisabled}
                   data-tutorial-target="match-button-area"
-                  className={`btn-aero-yellow ${isMatchButtonDisabled ? "disabled" : ""}`}
+                  className={`btn-aero-yellow ${
+                    isMatchButtonDisabled ? "disabled" : ""
+                  }`}
                 >
                   {isMatchmakingRunning ? "매칭중..." : "Match"}
                 </button>
@@ -287,13 +399,10 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
                 className="bg-gray-800 p-6 rounded-lg shadow-lg bottom-40"
-                onClick={(e:any) => e.stopPropagation()}
+                onClick={(e: any) => e.stopPropagation()}
               >
                 <div className="flex flex-col space-y-4">
-                  <button
-                    onClick={handleFeedback}
-                    className="btn-aero-yellow"
-                  >
+                  <button onClick={handleFeedback} className="btn-aero-yellow">
                     Email Feedback
                   </button>
                   <button
@@ -301,6 +410,12 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                     className="btn-aero-green"
                   >
                     Add Bookmark
+                  </button>
+                  <button
+                    onClick={openDeleteAccountModal}
+                    className="btn-aero-gray hover:bg-red-600 hover:border-red-600 transition-colors"
+                  >
+                    Delete Account
                   </button>
                 </div>
               </motion.div>
@@ -325,22 +440,31 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
                 className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full"
-                onClick={(e:any) => e.stopPropagation()}
+                onClick={(e: any) => e.stopPropagation()}
               >
-                <h2 className="text-lg font-mono font-semibold mb-4">즐겨찾기 추가</h2>
+                <h2 className="text-lg font-mono font-semibold mb-4">
+                  즐겨찾기 추가
+                </h2>
                 <p className="text-sm font-mono text-gray-300 mb-4">
                   {navigator.userAgent.match(/Android|iPhone|iPad/i) ? (
                     <>
-                      Univoice를 홈 화면에 추가하려면:<br />
-                      1. 브라우저 메뉴(⋮ 또는 공유 버튼)를 열고<br />
-                      2. <strong>"홈 화면에 추가"</strong>를 선택하세요.<br />
+                      Univoice를 홈 화면에 추가하려면:
+                      <br />
+                      1. 브라우저 메뉴(⋮ 또는 공유 버튼)를 열고
+                      <br />
+                      2. <strong>"홈 화면에 추가"</strong>를 선택하세요.
+                      <br />
                       이렇게 하면 앱처럼 바로 접근할 수 있습니다!
                     </>
                   ) : (
                     <>
-                      Univoice를 즐겨찾기에 추가하려면:<br />
-                      1. 브라우저의 북마크 메뉴를 열거나<br />
-                      2. <strong>Ctrl+D</strong> (Windows) 또는 <strong>Cmd+D</strong> (Mac)를 누르세요.<br />
+                      Univoice를 즐겨찾기에 추가하려면:
+                      <br />
+                      1. 브라우저의 북마크 메뉴를 열거나
+                      <br />
+                      2. <strong>Ctrl+D</strong> (Windows) 또는{" "}
+                      <strong>Cmd+D</strong> (Mac)를 누르세요.
+                      <br />
                       즐겨찾기 폴더에 저장해 쉽게 방문하세요!
                     </>
                   )}
@@ -351,6 +475,89 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 >
                   닫기
                 </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 회원 탈퇴 확인 모달 */}
+        <AnimatePresence>
+          {isDeleteAccountModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+              onClick={closeDeleteAccountModal}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full"
+                onClick={(e: any) => e.stopPropagation()}
+              >
+                <h2 className="text-lg font-mono font-semibold mb-4 text-red-400">
+                  회원 탈퇴
+                </h2>
+
+                <div className="text-sm font-mono text-gray-300 mb-4">
+                  <p className="mb-2">회원 탈퇴 시 주의사항:</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>모든 키워드 데이터가 삭제됩니다</li>
+                    <li>모든 채팅 기록이 삭제됩니다</li>
+                    <li>매칭 기록이 모두 삭제됩니다</li>
+                    <li className="text-red-400 font-bold">
+                      삭제된 데이터는 복구할 수 없습니다
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-sm font-mono text-gray-300 mb-2">
+                    탈퇴를 원하시면 아래에{" "}
+                    <span className="text-red-400 font-bold">
+                      "탈퇴하겠습니다"
+                    </span>
+                    를 입력하세요:
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="탈퇴하겠습니다"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white font-mono text-sm focus:outline-none focus:border-red-500"
+                    disabled={deleteAccountLoading}
+                  />
+                </div>
+
+                {deleteAccountError && (
+                  <div className="mb-4 p-2 bg-red-900/30 border border-red-500 rounded text-red-400 text-sm">
+                    {deleteAccountError}
+                  </div>
+                )}
+
+                <div className="flex space-x-2">
+                  <button
+                    onClick={closeDeleteAccountModal}
+                    className="btn-aero-gray flex-1"
+                    disabled={deleteAccountLoading}
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="btn-aero-gray flex-1 bg-red-600 border-red-600 hover:bg-red-700 hover:border-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={
+                      deleteAccountLoading ||
+                      deleteConfirmText !== "탈퇴하겠습니다"
+                    }
+                  >
+                    {deleteAccountLoading ? "처리중..." : "탈퇴하기"}
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}
