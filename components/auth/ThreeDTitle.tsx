@@ -71,7 +71,7 @@ const MetalText: React.FC<MetalTextProps> = ({ onAnimationComplete, isContentVis
       api.start({
         from: { rotationY: 0 }, // 항상 0에서 시작하도록 명시
         to: { rotationY: 3 * Math.PI * 2 }, // 최종 목표 각도 (10바퀴 회전)
-        config: { mass: 1.5, tension: 80, friction: 100 }, // 필요 시 config 재지정
+        config: { mass: 1.5, tension: 150, friction: 80 }, 
         reset: true, // 'from' 상태로 리셋 후 애니메이션 시작
         immediate: false, // 애니메이션 활성화 (true면 즉시 'to' 상태로 이동)
         // onStart: () => console.log("[ThreeDTitle/MetalText] 스핀 애니메이션 시작됨."), // 시작 로그
