@@ -11,7 +11,7 @@ const VerificationModal = memo<VerificationModalProps>(({ onComplete }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-20 backdrop-blur-sm">
     
     {/* 모달 컨테이너: 여기에 glass-effect 클래스를 적용 */}
-    <div className="w-[90%] max-w-md rounded-lg p-6 glass-effect">
+    <div className="w-full max-w-md p-6 glass-effect">
       
       {/* 제목: 텍스트 색상을 검은색으로 변경 */}
       <h2 className="text-2xl text-center font-mono font-bold mb-4 text-black">

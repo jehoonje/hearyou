@@ -3,7 +3,6 @@
 import { useRef, useCallback, useEffect, useMemo, useState, memo } from 'react'; // memo import 추가
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { shaderMaterial } from '@react-three/drei'; // shaderMaterial import 추가
 
 
@@ -11,21 +10,9 @@ interface ThreeSceneProps {
   volume: number;
 }
 
-interface WireframeGlobeProps {
+interface CircularWaveProps {
   volume: number;
-  brightness?: number;
-}
-
-interface NeuralGlobeProps {
-  volume: number;
-}
-interface Connection {
-  startIdx: number;
-  endIdx: number;
-  progress: number;
-  speed: number;
-  active: boolean;
-  createdAt: number;
+  // interactionData 제거 (사용되지 않음)
 }
 
 // PacManProps 인터페이스 추가
@@ -348,14 +335,15 @@ const StarField = memo(() => {
 StarField.displayName = 'StarField';
 
 
-// Wireframe Globe 컴포넌트
-const WireframeGlobe = memo(({ volume }: WireframeGlobeProps) => {
+// 원형 파동 컴포넌트 - 더욱 느리고 부드러운 모션 적용
+const CircularWave = memo(({ volume }: CircularWaveProps) => { // React.memo 적용 및 타입 사용
+  //console.log('%%% [CircularWave] Received volume prop:', volume);
   const groupRef = useRef<THREE.Group>(null);
-  const wireframeParticlesRef = useRef<THREE.Points>(null);
-  const vertexParticlesRef = useRef<THREE.Points>(null);
-  
   const [hue, setHue] = useState(0.6);
   const [smoothVolumeIntensity, setSmoothVolumeIntensity] = useState(0);
+
+  // Jitter 타겟 위치 Ref (더 부드러운 Jitter를 위해)
+  const jitterTargetRef = useRef(new THREE.Vector3(0, 0, 0));
 
   useEffect(() => {
     const colorInterval = setInterval(() => {
@@ -364,318 +352,132 @@ const WireframeGlobe = memo(({ volume }: WireframeGlobeProps) => {
     return () => clearInterval(colorInterval);
   }, []);
 
-  // 구체 지오메트리 생성
-  const geometry = useMemo(() => {
-    return new THREE.SphereGeometry(1, 16, 8);
+  const rings = useMemo(() => {
+    const result: Array<{ geometry: THREE.RingGeometry, initialScale: number, phase: number, baseColor: number[], type: string, rotation?: number }> = [];
+    for (let i = 0; i < 2; i++) {
+      result.push({
+        geometry: new THREE.RingGeometry(1, 1.03, 64),
+        initialScale: 0.5 + i * 0.3,
+        phase: i * Math.PI / 3,
+        baseColor: [0.2, 0.5 + i * 0.1, 1.0],
+        type: 'circle',
+      });
+    }
+    for (let i = 0; i < 3; i++) {
+      const sides = [3, 4, 5][i];
+      result.push({
+        geometry: new THREE.RingGeometry(0.8, 0.83, sides),
+        initialScale: 0.7 + i * 0.4,
+        phase: i * Math.PI / 2.5,
+        baseColor: [0.8, 0.3, 0.5 + i * 0.2],
+        type: 'polygon',
+        rotation: Math.PI / 4,
+      });
+    }
+    return result;
   }, []);
 
-  // 와이어프레임 엣지를 따라 파티클 생성
-  const { wireframeParticleGeometry, wireframeParticleMaterial } = useMemo(() => {
-    const wireframeGeometry = new THREE.WireframeGeometry(geometry);
-    const wireframePositions = wireframeGeometry.attributes.position.array as Float32Array;
-    
-    // 엣지를 따라 파티클 생성 (각 엣지당 여러 개의 파티클)
-    const particlesPerEdge = 8; // 각 엣지당 파티클 수
-    const totalEdges = wireframePositions.length / 6; // 각 엣지는 2개의 점(6개 좌표)
-    const totalParticles = totalEdges * particlesPerEdge;
-    
-    const positions = new Float32Array(totalParticles * 3);
-    const colors = new Float32Array(totalParticles * 3);
-    const sizes = new Float32Array(totalParticles);
-    const flickerStates = new Float32Array(totalParticles); // 반짝임 상태
-    const flickerSpeeds = new Float32Array(totalParticles); // 각 파티클의 반짝임 속도
-
-    let particleIndex = 0;
-    
-    // 각 엣지를 따라 파티클 분산 배치
-    for (let i = 0; i < totalEdges; i++) {
-      const startX = wireframePositions[i * 6];
-      const startY = wireframePositions[i * 6 + 1];
-      const startZ = wireframePositions[i * 6 + 2];
-      const endX = wireframePositions[i * 6 + 3];
-      const endY = wireframePositions[i * 6 + 4];
-      const endZ = wireframePositions[i * 6 + 5];
-      
-      const startPoint = new THREE.Vector3(startX, startY, startZ);
-      const endPoint = new THREE.Vector3(endX, endY, endZ);
-      
-      // 엣지를 따라 파티클 배치
-      for (let j = 0; j < particlesPerEdge; j++) {
-        const t = j / (particlesPerEdge - 1); // 0부터 1까지
-        const particlePos = new THREE.Vector3().lerpVectors(startPoint, endPoint, t);
-        
-        // 약간의 랜덤 오프셋 추가 (가루 효과)
-        const offset = 0.02;
-        particlePos.x += (Math.random() - 0.5) * offset;
-        particlePos.y += (Math.random() - 0.5) * offset;
-        particlePos.z += (Math.random() - 0.5) * offset;
-        
-        positions[particleIndex * 3] = particlePos.x;
-        positions[particleIndex * 3 + 1] = particlePos.y;
-        positions[particleIndex * 3 + 2] = particlePos.z;
-        
-        // 랜덤 색상
-        const hue = Math.random() * 0.3 + 0.5; // 0.5-0.8 범위 (청록-파랑)
-        const color = new THREE.Color().setHSL(hue, 0.8, 0.6);
-        colors[particleIndex * 3] = color.r;
-        colors[particleIndex * 3 + 1] = color.g;
-        colors[particleIndex * 3 + 2] = color.b;
-        
-        // 랜덤 크기
-        sizes[particleIndex] = Math.random() * 0.015 + 0.005;
-        
-        // 반짝임 초기 상태
-        flickerStates[particleIndex] = Math.random();
-        flickerSpeeds[particleIndex] = Math.random() * 0.05 + 0.02; // 0.02-0.07 범위
-        
-        particleIndex++;
-      }
-    }
-
-    const particleGeo = new THREE.BufferGeometry();
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    particleGeo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-    particleGeo.setAttribute('flickerState', new THREE.BufferAttribute(flickerStates, 1));
-    particleGeo.setAttribute('flickerSpeed', new THREE.BufferAttribute(flickerSpeeds, 1));
-
-    const particleMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0.0 },
-        uVolumeIntensity: { value: 0.0 },
-        uHue: { value: 0.6 }
-      },
-      vertexShader: `
-        attribute float size;
-        attribute float flickerState;
-        attribute float flickerSpeed;
-        varying vec3 vColor;
-        varying float vAlpha;
-        uniform float uTime;
-        uniform float uVolumeIntensity;
-        uniform float uHue;
-        
-        void main() {
-          vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-          
-          // 개별 파티클 반짝임 계산
-          float flickerPhase = flickerState * 6.28318; // 2π
-          float flicker = sin(uTime * flickerSpeed * 10.0 + flickerPhase);
-          
-          // 볼륨에 따른 전체적인 활성화
-          float volumeBoost = 1.0 + uVolumeIntensity * 2.0;
-          float finalFlicker = (flicker * 0.5 + 0.5) * volumeBoost;
-          
-          // 임계값을 통한 on/off 효과
-          float threshold = 0.3 + uVolumeIntensity * 0.4;
-          vAlpha = step(threshold, finalFlicker);
-          
-          vec4 viewPosition = viewMatrix * modelPosition;
-          vec4 projectionPosition = projectionMatrix * viewPosition;
-          
-          gl_Position = projectionPosition;
-          
-          // 반짝일 때만 크기 증가
-          float activeSize = vAlpha > 0.5 ? size * (1.5 + finalFlicker * 0.5) : size * 0.1;
-          gl_PointSize = activeSize * (400.0 / -viewPosition.z);
-          
-          // 색상 계산 (반짝일 때 더 밝게)
-          vec3 baseColor = color;
-          if (vAlpha > 0.5) {
-            baseColor = vec3(
-              sin(uHue * 6.28318) * 0.5 + 0.5,
-              sin((uHue + 0.33) * 6.28318) * 0.5 + 0.5,
-              sin((uHue + 0.66) * 6.28318) * 0.5 + 0.5
-            );
-            baseColor *= (3.0 + finalFlicker * 4.0); // 블룸을 위해 밝게
-          }
-          
-          vColor = baseColor;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        varying float vAlpha;
-        
-        void main() {
-          if (vAlpha < 0.5) discard; // 꺼진 파티클은 렌더링하지 않음
-          
-          float distance = length(gl_PointCoord - vec2(0.5));
-          if (distance > 0.5) discard;
-          
-          float alpha = (1.0 - distance * 2.0) * vAlpha;
-          gl_FragColor = vec4(vColor, alpha);
-        }
-      `,
-      transparent: true,
-      vertexColors: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false
-    });
-
-    return { wireframeParticleGeometry: particleGeo, wireframeParticleMaterial: particleMat };
-  }, [geometry]);
-
-  // 꼭지점 파티클 (기존 유지)
-  const { vertexParticleGeometry, vertexParticleMaterial } = useMemo(() => {
-    const positions = geometry.attributes.position;
-    const vertices: THREE.Vector3[] = [];
-    
-    for (let i = 0; i < positions.count; i++) {
-      const vertex = new THREE.Vector3();
-      vertex.fromBufferAttribute(positions, i);
-      vertices.push(vertex);
-    }
-
-    const particlePositions = new Float32Array(vertices.length * 3);
-    const particleColors = new Float32Array(vertices.length * 3);
-    const particleSizes = new Float32Array(vertices.length);
-
-    vertices.forEach((vertex, index) => {
-      particlePositions[index * 3] = vertex.x;
-      particlePositions[index * 3 + 1] = vertex.y;
-      particlePositions[index * 3 + 2] = vertex.z;
-      
-      const color = new THREE.Color().setHSL(0.6, 0.8, 0.6);
-      particleColors[index * 3] = color.r;
-      particleColors[index * 3 + 1] = color.g;
-      particleColors[index * 3 + 2] = color.b;
-      
-      particleSizes[index] = 0.03;
-    });
-
-    const particleGeo = new THREE.BufferGeometry();
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
-    particleGeo.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
-
-    const particleMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0.0 },
-        uVolumeIntensity: { value: 0.0 }
-      },
-      vertexShader: `
-        attribute float size;
-        varying vec3 vColor;
-        uniform float uTime;
-        uniform float uVolumeIntensity;
-        
-        void main() {
-          vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-          
-          float pulse = sin(uTime * 3.0 + modelPosition.x * 10.0) * 0.5 + 0.5;
-          
-          vec4 viewPosition = viewMatrix * modelPosition;
-          vec4 projectionPosition = projectionMatrix * viewPosition;
-          
-          gl_Position = projectionPosition;
-          gl_PointSize = size * (500.0 / -viewPosition.z) * (1.0 + pulse * 0.5) * (1.0 + uVolumeIntensity);
-          
-          vColor = color * (4.0 + uVolumeIntensity * 6.0);
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        
-        void main() {
-          float distance = length(gl_PointCoord - vec2(0.5));
-          if (distance > 0.5) discard;
-          
-          float alpha = 1.0 - distance * 2.0;
-          gl_FragColor = vec4(vColor, alpha);
-        }
-      `,
-      transparent: true,
-      vertexColors: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false
-    });
-
-    return { vertexParticleGeometry: particleGeo, vertexParticleMaterial: particleMat };
-  }, [geometry]);
-
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => { // delta 추가 (Jitter 업데이트 간격 조절용)
     if (!groupRef.current) return;
 
-    const time = clock.getElapsedTime();
-    
+    // --- 수정: 볼륨 강도 업데이트 속도 더 늦춤 ---
     const targetVolumeIntensity = THREE.MathUtils.lerp(0, 0.7, Math.min(1, volume / 100));
+    // lerp 계수를 0.05 -> 0.02로 줄여 더 느리게 반응하도록 함
     const newSmoothIntensity = THREE.MathUtils.lerp(smoothVolumeIntensity, targetVolumeIntensity, 0.05);
     setSmoothVolumeIntensity(newSmoothIntensity);
+    // --- 수정 끝 ---
 
-    // 기본 회전 및 스케일링
-    groupRef.current.rotation.y += 0.002;
-    groupRef.current.rotation.x = Math.sin(time * 0.1) * 0.1;
+    const baseIntensity = 0.3;
+    const totalIntensity = baseIntensity + newSmoothIntensity;
+    const time = clock.getElapsedTime();
 
-    const baseScale = 2;
-    const volumeScale = 1 + newSmoothIntensity * 0.3;
-    const pulseScale = 1 + Math.sin(time * 2) * 0.05 * newSmoothIntensity;
-    const finalScale = baseScale * volumeScale * pulseScale;
-    groupRef.current.scale.set(finalScale, finalScale, finalScale);
+    rings.forEach((ring, i) => {
+      const child = groupRef.current!.children[i];
+      if (child instanceof THREE.Mesh) {
 
-    // 와이어프레임 파티클 애니메이션 업데이트
-    if (wireframeParticlesRef.current && wireframeParticlesRef.current.material instanceof THREE.ShaderMaterial) {
-      wireframeParticlesRef.current.material.uniforms.uTime.value = time;
-      wireframeParticlesRef.current.material.uniforms.uVolumeIntensity.value = newSmoothIntensity;
-      wireframeParticlesRef.current.material.uniforms.uHue.value = (hue + time * 0.05) % 1;
-    }
+        let wave = 0;
+        let baseScale = ring.initialScale;
 
-    // 꼭지점 파티클 애니메이션 업데이트
-    if (vertexParticlesRef.current && vertexParticlesRef.current.material instanceof THREE.ShaderMaterial) {
-      vertexParticlesRef.current.material.uniforms.uTime.value = time;
-      vertexParticlesRef.current.material.uniforms.uVolumeIntensity.value = newSmoothIntensity;
-    }
+        // --- 수정: volumeScale 계산에 newSmoothIntensity 사용 ---
+        // (newSmoothIntensity 범위 0~0.7) -> (volume 범위 0~100) 환산 기준 필요
+        // newSmoothIntensity가 0.7일 때 volume 100에 해당
+        const equivalentVolume = (newSmoothIntensity / 0.7) * 100;
+        let volumeScale: number;
+        // --- 수정 끝 ---
+        // if(volume > 5) console.log(`%%% [CircularWave useFrame] vol:<span class="math-inline">\{volume\.toFixed\(2\)\}, smoothI\:</span>{newSmoothIntensity.toFixed(3)}, eqVol:${equivalentVolume.toFixed(2)}`);
 
-    // 볼륨에 따른 기하학적 왜곡 (파티클에는 적용하지 않음)
-    if (volume > 50 && geometry) {
-      const positions = geometry.attributes.position;
-      const vertex = new THREE.Vector3();
 
-      for (let i = 0; i < positions.count; i++) {
-        vertex.fromBufferAttribute(positions, i);
-        vertex.normalize();
-        const noise = Math.sin(time * 2 + vertex.x * 5) * 0.02 * newSmoothIntensity;
-        vertex.multiplyScalar(1 + noise);
-        positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        if (ring.type === 'circle') {
+          wave = Math.sin(time * 0.75 + ring.phase) * 0.05 * totalIntensity; // 0.1 -> 0.05
+          volumeScale = (equivalentVolume / 300) * ring.initialScale;
+          const scale = baseScale + volumeScale + wave;
+          child.scale.set(scale, scale, 1);
+          child.rotation.z += 0.0005 * (i % 2 === 0 ? 1 : -1); // 속도 유지 (이전 조정)
+        } else { // polygon
+          wave = Math.cos(time * 0.6 + ring.phase) * 0.075 * totalIntensity; // 0.15 -> 0.075
+          volumeScale = (equivalentVolume / 250) * ring.initialScale;
+          const scale = baseScale + volumeScale + wave;
+          child.scale.set(scale, scale, 1);
+          child.rotation.z += (0.001 + newSmoothIntensity * 0.005) * (i % 2 === 0 ? 1 : -1); // 속도 유지 (이전 조정)
+        }
+
+        if (child.material instanceof THREE.MeshBasicMaterial) {
+          const material = child.material;
+          const currentHue = (hue + i * 0.05) % 1;
+          const saturation = 0.7 + newSmoothIntensity * 0.3; // 부드러운 값 사용
+          const lightness = 0.5 + Math.sin(time * 0.25 + i) * 0.2; // 속도 유지 (이전 조정)
+          material.color.setHSL(currentHue, saturation, lightness);
+
+          const baseOpacity = 0.2 + (i * 0.03);
+          const volumeOpacity = (equivalentVolume / 400);
+          material.opacity = baseOpacity + volumeOpacity + Math.sin(time * 0.75 + i) * 0.15; // 속도/진폭 유지 (이전 조정)
+          material.opacity = Math.max(0, Math.min(1, material.opacity));
+        }
       }
-      positions.needsUpdate = true;
+    });
+
+    // 그룹 전체 Jitter 효과
+    if (volume > 20) {
+        // --- 수정: Jitter 타겟을 부드럽게 업데이트하고 강도 더 줄임 ---
+        // 매 프레임 타겟을 바꾸지 않고, 가끔씩만 새 타겟 설정 (예: 약 1초마다)
+        if (Math.random() < delta * 1.0 ) { // delta * N (N=1이면 평균 1초)
+            const randomTargetX = (Math.random() - 0.5) * 0.005 * newSmoothIntensity; // 강도 더 줄임: 0.015 -> 0.005
+            const randomTargetY = (Math.random() - 0.5) * 0.005 * newSmoothIntensity;
+            jitterTargetRef.current.set(randomTargetX, randomTargetY, 0);
+        }
+        // 현재 위치에서 Jitter 타겟으로 천천히 이동
+        groupRef.current.position.lerp(jitterTargetRef.current, 0.33); // lerp 계수도 줄여 더 부드럽게 (0.1 -> 0.03)
+        // --- 수정 끝 ---
+    } else {
+      // 볼륨 낮을 시 중앙으로 복귀 (lerp 계수 조절 가능)
+      groupRef.current.position.lerp(new THREE.Vector3(0, 0, 0), 0.33); // 0.05 -> 0.03
+      jitterTargetRef.current.set(0,0,0); // 타겟도 중앙으로 리셋
     }
   });
 
   return (
-    <>
-      <group ref={groupRef} position={[0, 0, 0]}>
-        {/* 와이어프레임 파티클 (메인 효과) */}
-        <points 
-          ref={wireframeParticlesRef} 
-          geometry={wireframeParticleGeometry} 
-          material={wireframeParticleMaterial} 
-        />
-        
-        {/* 꼭지점 파티클 (보조 효과) */}
-        <points 
-          ref={vertexParticlesRef} 
-          geometry={vertexParticleGeometry} 
-          material={vertexParticleMaterial} 
-        />
-      </group>
-      
-      {/* 블룸 후처리 효과 */}
-      <EffectComposer>
-        <Bloom
-          intensity={1.5}
-          luminanceThreshold={0.05}
-          luminanceSmoothing={0.3}
-          mipmapBlur
-        />
-      </EffectComposer>
-    </>
+    <group ref={groupRef} position={[0, 0, 0]}>
+      {rings.map((ring, i) => (
+        <mesh key={i} position={[0, 0, -0.05 * i]} rotation={[0, 0, ring.rotation || 0]}>
+          <primitive object={ring.geometry} attach="geometry" />
+          <meshBasicMaterial
+            transparent
+            opacity={0.3}
+            side={THREE.DoubleSide}
+            blending={THREE.AdditiveBlending}
+            color={new THREE.Color().setRGB(
+              ring.baseColor[0],
+              ring.baseColor[1],
+              ring.baseColor[2]
+            )}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+    </group>
   );
 });
-
-WireframeGlobe.displayName = 'WireframeGlobe';
+CircularWave.displayName = 'CircularWave'; // 디버깅을 위한 displayName 추가
 
 const ParticleEffect = memo(({ volume }: { volume: number }) => { // React.memo 적용
   const particlesRef = useRef<THREE.Group>(null);
@@ -847,7 +649,6 @@ const getOptimizedConstants = () => {
     PARTICLE_COUNT: isMobile ? 25 : 50,           // ParticleEffect 파티클 수
   };
 };
-
 
 const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
   const constants = useMemo(() => getOptimizedConstants(), []);
@@ -1184,8 +985,8 @@ const ThreeScene = ({ volume }: ThreeSceneProps) => {
       {/* 배경 별 */}
       <StarField />
 
-      {/* Wireframe Globe */}
-      <WireframeGlobe volume={volume} />
+      {/* 원형 파동 */}
+      <CircularWave volume={volume} />
 
       <QuasarJet volume={volume} />
 

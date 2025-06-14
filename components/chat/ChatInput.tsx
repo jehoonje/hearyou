@@ -92,7 +92,7 @@ const ChatInput = memo<ChatInputProps>(({ isDisabled = false }) => {
           disabled={isSendDisabled}
           // 조건부 클래스: 활성(Aero Green), 비활성(Aero Gray + disabled 스타일)
           className={`
-            ml-1 flex-shrink-0 btn-aero text-xs px-3 py-0.5 /* 크기 약간 줄임 */
+            ml-1 flex-shrink-0 btn-aero text-base px-3 py-0.5 /* 크기 약간 줄임 */
             transition-all duration-150 ease-in-out /* 부드러운 전환 효과 */
             ${isSendDisabled
               ? 'btn-aero-gray opacity-60 cursor-not-allowed filter grayscale-[30%]' // 비활성 스타일

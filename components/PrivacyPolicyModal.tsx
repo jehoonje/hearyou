@@ -124,7 +124,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
             <div className="flex text-sm justify-end space-x-4">
               <button
                 onClick={onDisagree}
-                className="px-4 py-1 btn-aero-gray text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50"
+                className="px-4 py-1 text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50"
               >
                 미동의
               </button>

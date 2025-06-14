@@ -274,7 +274,6 @@ const LoginForm = memo<LoginFormProps>(
           variants={titleVariants}
           initial="initial"
           animate={animationStage}
-          onClick={handleTitleClick}
           style={{ y: 0 }}
         >
           <ThreeDTitle
