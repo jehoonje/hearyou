@@ -1,3 +1,5 @@
+// components/auth/LoginForm.tsx (전체 코드)
+
 import {
   useRef,
   useEffect,
@@ -8,13 +10,16 @@ import {
   useState,
   FormEvent,
 } from "react";
+import { FaApple } from "react-icons/fa"; // <-- 1. 애플 아이콘을 import 합니다.
 import { AuthState } from "../../types";
 import ThreeDTitle from "./ThreeDTitle";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import PrivacyPolicyModal from "../PrivacyPolicyModal";
+import VerificationModal from "./VerificationModal"; // 모달을 여기서 직접 사용하지 않으므로, 필요 없다면 제거 가능합니다.
 
+const AppleIcon = FaApple as React.ElementType;
 interface LoginFormProps extends AuthState {
   authView: 'login' | 'signup';
   setEmail: (email: string) => void;
@@ -27,7 +32,6 @@ interface LoginFormProps extends AuthState {
   handleSignUp: (e: React.FormEvent) => void;
   resetFormErrors: () => void;
   isContentVisible: boolean;
-  // 부모로부터 받을 props 추가
   showVerificationModal: boolean;
   handleVerificationComplete: () => void;
 }
@@ -96,8 +100,6 @@ const LoginForm = memo<LoginFormProps>(
     handleLogin,
     handleSignUp,
     resetFormErrors,
-    showVerificationModal, // prop 사용
-    handleVerificationComplete, // prop 사용
   }) => {
     const inputRefs = useRef<{
       email: HTMLInputElement | null;
@@ -125,7 +127,7 @@ const LoginForm = memo<LoginFormProps>(
 
     const handleInitialSpinComplete = useCallback(() => {
       if (animationStage === "initial") {
-        setTimeout(() => setAnimationStage("buttonsVisible"), 100);
+        setAnimationStage("buttonsVisible");
       }
     }, [animationStage]);
 
@@ -281,11 +283,13 @@ const LoginForm = memo<LoginFormProps>(
           />
         </motion.div>
 
-        <div className="w-full mb-4 h-12 -mt-6"> 
+        {/* ▼▼▼ 이 div를 motion.div로 바꾸고 layout prop을 추가합니다 ▼▼▼ */}
+        <motion.div layout className="w-full mb-4 h-12 -mt-6"> 
           <AnimatePresence>
             {authMessage && !authError && (
               <motion.div
                 key="authMessage"
+                layout // 자식 요소에도 layout을 추가하여 더 부드러운 애니메이션을 만듭니다.
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -297,6 +301,7 @@ const LoginForm = memo<LoginFormProps>(
             {authError && !emailError && (
               <motion.div
                 key="authError"
+                layout
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -306,7 +311,7 @@ const LoginForm = memo<LoginFormProps>(
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
 
         {animationStage === "buttonsVisible" && (
           <motion.div
@@ -319,8 +324,14 @@ const LoginForm = memo<LoginFormProps>(
           </motion.div>
         )}
 
-        <div className="w-full relative" style={{ minHeight: "350px" }}>
+<motion.div 
+          layout
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="w-full relative" 
+          style={{ minHeight: "350px" }}
+        >
           <AnimatePresence mode="wait">
+            {/* ... 나머지 코드는 동일 ... */}
             {animationStage === "buttonsVisible" && (
               <motion.div
                 key="initialButtons"
@@ -458,15 +469,8 @@ const LoginForm = memo<LoginFormProps>(
                         disabled={authLoading}
                         className="w-full bg-white hover:bg-gray-200 text-black font-semibold text-sm font-sans py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50 transition duration-200 flex items-center justify-center gap-2"
                       >
-                        <svg
-                          role="img"
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path d="M12.152 6.896c-.922 0-2.016.516-2.884 1.484-.943.951-1.635 2.412-1.635 3.84 0 2.333 1.139 3.527 2.246 3.527.422 0 1.25-.281 2.047-.352v-1.922c-.242.035-.555.088-.832.088-.588 0-.922-.316-.922-.848V9.328c0-.422.334-.78.88-.78.21 0 .488.053.801.123v-1.775Z M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0Zm4.857 16.354c-.21.438-.516.88-1.023 1.22-.588.422-1.14.6-1.9.6-.967 0-1.725-.387-2.45-.988-.71-.588-1.22-1.469-1.375-2.282h1.83c.123.532.472.93.9.93.516 0 .88-.334 1.344-.672a27.03 27.03 0 0 0 1.626-1.453c.612-.66.922-1.363.922-2.125 0-1.22-.6-2.247-1.848-2.247-.453 0-1.023.225-1.574.588-.71.531-1.122 1.332-1.122 2.333h-1.834c0-1.332.555-2.613 1.543-3.48.975-.856 2.25-1.31 3.736-1.31.856 0 1.76.28 2.45.832.68.548 1.054 1.363 1.054 2.333 0 .8-.28 1.516-.832 2.14-.54.613-1.363 1.4-2.27 2.172-.088.07-.152.122-.21.187.734.035 1.554.156 1.988.588.352.367.488.82.488 1.254 0 .043-.012.088-.012.133a.85.85 0 0 1-.168.43Zm-8.42-3.438c-.012-2.112 1.3-3.875 3.48-3.875 1.012 0 1.9.351 2.535 1.023v-1.11h1.666v5.828c0 .088 0 .188.012.297H12.92c-.012-.11-.012-.21-.012-.297v-.951c-.68.78-1.636 1.206-2.75 1.206-2.08 0-3.56-1.726-3.56-3.922Z" />
-                        </svg>
+                        {/* 2. 기존 svg 태그 대신 FaApple 컴포넌트를 사용합니다. */}
+                        <AppleIcon className="w-5 h-5" /> 
                         <span>Apple로 계속하기</span>
                       </button>
                     </motion.div>
@@ -481,14 +485,14 @@ const LoginForm = memo<LoginFormProps>(
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
                       >
-                        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로
+                        <ArrowLeft className="w-4 h-4 mr-1" /> Back
                       </button>
                     </motion.div>
                     <motion.div
                       variants={itemVariants}
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
-                      로그인:
+                      &nbsp;&nbsp;아이디:&nbsp;
                       <span className="font-semibold text-white">
                         {email}
                       </span>
@@ -623,7 +627,7 @@ const LoginForm = memo<LoginFormProps>(
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
 
         <PrivacyPolicyModal
           isOpen={showPrivacyModal}

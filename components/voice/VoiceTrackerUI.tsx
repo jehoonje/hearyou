@@ -398,7 +398,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-gray-800 p-6 rounded-lg shadow-lg bottom-40"
+                className="bg-white/20 w-full p-6 shadow-lg bottom-40"
                 onClick={(e: any) => e.stopPropagation()}
               >
                 <div className="flex flex-col space-y-4">
@@ -431,7 +431,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed bottom-40 inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
               onClick={closeBookmarkModal}
             >
               <motion.div
@@ -439,11 +439,11 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full"
+                className="glass-effect p-6 shadow-lg max-w-sm w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
-                <h2 className="text-lg font-mono font-semibold mb-4">
-                  즐겨찾기 추가
+                <h2 className="text-sm text-center font-mono font-semibold mb-4">
+                  웹 이용 시 즐겨찾기 추가하는 방법
                 </h2>
                 <p className="text-sm font-mono text-gray-300 mb-4">
                   {navigator.userAgent.match(/Android|iPhone|iPad/i) ? (
@@ -496,10 +496,10 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full"
+                className="glass-effect p-6 shadow-lg max-w-sm w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
-                <h2 className="text-lg font-mono font-semibold mb-4 text-red-400">
+                <h2 className="text-lg text-center font-mono font-semibold mb-4 text-red-400">
                   회원 탈퇴
                 </h2>
 
@@ -528,7 +528,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
                     placeholder="탈퇴하겠습니다"
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white font-mono text-sm focus:outline-none focus:border-red-500"
+                    className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-red-500"
                     disabled={deleteAccountLoading}
                   />
                 </div>

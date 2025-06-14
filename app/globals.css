@@ -224,6 +224,14 @@ canvas {
   );
 }
 
+.glass-effect {
+  /* 반투명한 흰색 배경 */
+  background: rgba(255, 255, 255, 0.3);
+  /* layout.tsx에 추가한 SVG 필터를 이용한 배경 블러 및 왜곡 효과 */
+  -webkit-backdrop-filter: url(#frosted);
+  backdrop-filter: url(#frosted);
+}
+
 /* --- Mic Toggle Button 스타일 (반투명 크리스탈) --- */
 .mic-toggle-aero {
   @apply relative inline-flex items-center h-7 w-14 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900/80 focus:ring-blue-400 focus:ring-opacity-70; /* 포커스 스타일 추가 */

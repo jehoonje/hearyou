@@ -32,7 +32,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="w-[365px] h-[500px] max-w-md flex flex-col overflow-hidden rounded-xl shadow-2xl shadow-black/40 bg-transparent backdrop-blur-lg border border-white/20 border-b-black/30 p-6"
+            className="w-[365px] h-[500px] max-w-md flex flex-col overflow-hidden rounded-xl shadow-2xl shadow-black/40 bg-transparent backdrop-blur-lg border-none p-6"
           >
             <h2 className="text-lg font-semibold text-white font-mono mb-4">개인정보처리방침</h2>
             <div className="text-sm text-gray-300 mb-6 max-h-[400px] overflow-y-auto scrollbar-thin">
@@ -121,16 +121,16 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
                 - 효력 발생: 공지 후 7일 경과 시 적용.
               </p>
             </div>
-            <div className="flex justify-end space-x-4">
+            <div className="flex text-sm justify-end space-x-4">
               <button
                 onClick={onDisagree}
-                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50"
+                className="px-4 py-1 btn-aero-gray text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50"
               >
                 미동의
               </button>
               <button
                 onClick={onAgree}
-                className="px-4 py-2 bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FE4848]"
+                className="px-6 bg-[#376ECA] hover:bg-gray-200 text-white hover:text-black rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FE4848]"
               >
                 동의
               </button>
