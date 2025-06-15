@@ -185,7 +185,7 @@ const CameraControls = memo(() => {
         radiusRef.current = newRadius;
         updateCameraPosition(); // 카메라 위치 즉시 업데이트
     }
-  }, [updateCameraPosition]); // PINCH_SENSITIVITY는 상수
+  }, [updateCameraPosition]);
 
   // --- 감쇠 처리 로직 (기존과 동일) ---
   useFrame(() => {
@@ -767,50 +767,39 @@ const ParticleEffect = memo(({ volume }: { volume: number }) => { // React.memo 
 });
 ParticleEffect.displayName = 'ParticleEffect'; // 디버깅을 위한 displayName 추가
 
-// --- 상수 정의 ---
-const ENTRY_LENGTH = 3.2;
-const EXIT_LENGTH = -0.1;
-const TRANSITION_ZONE_LENGTH = 10;
-const MAX_PARTICLES = 4000;
-const BASE_SPAWN_RATE = 2000;
-const MIN_RADIUS = 0.03;
-const END_RADIUS_FACTOR = 80.0;
-const FADE_IN_DURATION = 0.08;
-const FADE_OUT_DURATION = 0.02;
-const MAX_PARTICLE_SIZE = 0.015;
-const MIN_PARTICLE_SIZE = 0.0015;
-const SIZE_CHANGE_POWER = 15;
-const HUE_VARIATION = 0.05;
-const PARTICLE_ROTATION_SPEED = 0.1;
-const WOBBLE_INTENSITY_FACTOR = 0;
-const LIFETIME_ACCELERATION_FACTOR = 10; // 수명 가속도 계수 (값이 클수록 끝에서 더 빨라짐)
-const LIFETIME_ACCELERATION_POWER = 2;    // 수명 가속도 지수 (값이 클수록 가속이 끝에 집중됨)
-const MAX_EFFECTIVE_LIFETIME = 1;     // 파티클 비활성화 기준 수명 (가속도 계산에 사용)
 
+// 모바일 기기 감지를 통한 동적 상수 조절
+const getOptimizedConstants = () => {
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+  const isMobile = ['iphone', 'android', 'mobile'].some(keyword => userAgent.includes(keyword));
 
-// Easing 함수 (easeInOutQuad)
+  return {
+    MAX_PARTICLES: isMobile ? 2000 : 4000,
+    BASE_SPAWN_RATE: isMobile ? 1000 : 2000,
+    FADE_IN_DURATION: 0.5,
+    FADE_OUT_DURATION: 1.0,
+    MAX_PARTICLE_SIZE: 0.015,
+    LIFETIME_ACCELERATION_FACTOR: 10,
+    LIFETIME_ACCELERATION_POWER: 2,
+    MAX_EFFECTIVE_LIFETIME: 3.0, // 수명을 약간 줄여 전체적인 템포를 빠르게 조절
+    PARTICLE_ROTATION_SPEED: 0.1,
+  };
+};
+
+// Easing 함수
 const easeInOutQuad = (t: number): number => {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 };
 
-// Smoothstep 유틸리티 함수
-const smoothstep = (x: number, edge0: number, edge1: number): number => {
-  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
-  return t * t * (3 - 2 * t);
-};
-
-// --- 원형 텍스처 생성 함수 (오류 처리 수정) ---
+// 부드러운 가장자리를 가진 원형 텍스처 생성 함수
 const createCircleTexture = (size: number, color: string): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const context = canvas.getContext('2d');
 
-  // *** 오류 처리 수정: 컨텍스트 없으면 에러 발생 ***
   if (!context) {
-    //console.error("Failed to get 2D context for circle texture.");
-    // 호환되지 않는 Texture 대신 에러를 발생시켜 문제 인지
-    throw new Error("Could not create 2D context for CanvasTexture");
+    throw new Error("Canvas 2D 컨텍스트를 생성할 수 없습니다.");
   }
 
   const centerX = size / 2;
@@ -818,43 +807,28 @@ const createCircleTexture = (size: number, color: string): THREE.CanvasTexture =
   const radius = size / 2;
 
   const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-  // CSS 색상 문자열에서 알파 값 분리 및 적용 (예: #FFFFFF -> #FFFFFFXX)
-  const baseColor = color.slice(0, 7); // #RRGGBB 부분
-  gradient.addColorStop(0, `${baseColor}FF`);   // 중심: 완전 불투명
-  gradient.addColorStop(0.5, `${baseColor}CC`); // 중간: 약간 투명
-  gradient.addColorStop(1, `${baseColor}00`);   // 가장자리: 완전 투명
+  const baseColor = color.slice(0, 7);
+  gradient.addColorStop(0, `${baseColor}FF`);
+  gradient.addColorStop(0.5, `${baseColor}CC`);
+  gradient.addColorStop(1, `${baseColor}00`);
 
   context.fillStyle = gradient;
   context.fillRect(0, 0, size, size);
 
-  // CanvasTexture 생성 및 반환 (이제 항상 CanvasTexture 타입)
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
   return texture;
 };
-// --- 원형 텍스처 생성 함수 끝 ---
 
 
-// components/ThreeScene.tsx - QuasarJet 상수 정의 부분 수정
-// 기존 상수들을 모바일 감지하여 동적 조절
-const getOptimizedConstants = () => {
-  const userAgent = navigator.userAgent.toLowerCase();
-  const isMobile = ['iphone', 'android', 'mobile'].some(keyword => userAgent.includes(keyword));
-  
-  return {
-    MAX_PARTICLES: isMobile ? 2000 : 4000,        // 모바일: 파티클 수 절반
-    BASE_SPAWN_RATE: isMobile ? 1000 : 2000,      // 모바일: 스폰 레이트 절반
-    PARTICLE_COUNT: isMobile ? 25 : 50,           // ParticleEffect 파티클 수
-  };
-};
+// --- QuasarJet 컴포넌트 ---
 
-
-const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 및 타입 사용
+const QuasarJet = memo(({ volume }: QuasarJetProps) => {
   const constants = useMemo(() => getOptimizedConstants(), []);
   const pointsRef = useRef<THREE.Points>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
+  const { camera } = useThree();
 
-  // 파티클 데이터 풀 생성 (모바일 최적화 적용)
   const particleAttributes = useMemo(() => {
     const positions = new Float32Array(constants.MAX_PARTICLES * 3);
     const colors = new Float32Array(constants.MAX_PARTICLES * 4);
@@ -864,12 +838,9 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     const randomFactors = new Float32Array(constants.MAX_PARTICLES * 4);
     const sizes = new Float32Array(constants.MAX_PARTICLES);
     const rotationSpeeds = new Float32Array(constants.MAX_PARTICLES);
+    const startPositions = new Float32Array(constants.MAX_PARTICLES * 3);
 
-    const baseColor = new THREE.Color("#9400D3");
-    const midColor = new THREE.Color("#FFFFFF");
-    const endColor = new THREE.Color("#00FFFF");
-
-    for (let i = 0; i < constants.MAX_PARTICLES; i++) { // MAX_PARTICLES → constants.MAX_PARTICLES
+    for (let i = 0; i < constants.MAX_PARTICLES; i++) {
       const i3 = i * 3;
       const i4 = i * 4;
       const i2 = i * 2;
@@ -880,233 +851,205 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
       const angleXY = Math.random() * Math.PI * 2;
       initDirections[i2 + 0] = Math.cos(angleXY);
       initDirections[i2 + 1] = Math.sin(angleXY);
-      randomFactors[i3 + 0] = Math.random() * Math.PI * 2;
-      randomFactors[i3 + 1] = Math.random() * Math.PI * 2;
       randomFactors[i3 + 2] = 0.6 + Math.random() * 0.8;
-      randomFactors[i3 + 3] = (Math.random() - 0.5) * HUE_VARIATION * 2;
+      randomFactors[i3 + 3] = Math.random();
       sizes[i] = 1.0;
-      rotationSpeeds[i] = (Math.random() - 0.5) * PARTICLE_ROTATION_SPEED * 2;
+      rotationSpeeds[i] = (Math.random() - 0.5) * constants.PARTICLE_ROTATION_SPEED * 2;
+      startPositions.fill(0, i3, i3 + 3);
     }
-    return { positions, colors, lifetimes, activeState, initDirections, randomFactors, sizes, rotationSpeeds, baseColor, midColor, endColor };
-  }, [constants.MAX_PARTICLES]);
-
-  // 원형 텍스처 생성 (useMemo 사용)
+    return { positions, colors, lifetimes, activeState, initDirections, randomFactors, sizes, rotationSpeeds, startPositions };
+  }, [constants.MAX_PARTICLES, constants.PARTICLE_ROTATION_SPEED]);
+  
   const circleTexture = useMemo(() => {
-      try {
-          return createCircleTexture(64, '#FFFFFF'); // 64x64 흰색 원
-      } catch (error) {
-          console.error("Failed to create circle texture in useMemo:", error);
-          // 텍스처 생성 실패 시 null 반환 또는 다른 기본 텍스처 반환
-          return null; // 또는 new THREE.Texture() 등 상황에 맞는 처리
-      }
-  }, []); // 의존성 배열 비어있음 (최초 1회 실행)
+    try {
+      return createCircleTexture(64, '#FFFFFF');
+    } catch (error) {
+      console.error("원형 텍스처 생성 실패:", error);
+      return null;
+    }
+  }, []);
 
-  // 지오메트리 설정 (모바일 최적화 적용)
   useEffect(() => {
     const geometry = geometryRef.current;
     if (!geometry || !particleAttributes) return;
     geometry.setAttribute('position', new THREE.BufferAttribute(particleAttributes.positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(particleAttributes.colors, 4));
     geometry.setAttribute('size', new THREE.BufferAttribute(particleAttributes.sizes, 1));
-    geometry.setDrawRange(0, constants.MAX_PARTICLES); // MAX_PARTICLES → constants.MAX_PARTICLES
+    geometry.setDrawRange(0, constants.MAX_PARTICLES);
     geometry.boundingSphere = null;
     geometry.boundingBox = null;
-  }, [particleAttributes, constants.MAX_PARTICLES]); // 의존성에 constants.MAX_PARTICLES 추가
-
-  // 파티클 머티리얼 (map 속성 추가, circleTexture가 null일 경우 대비)
+  }, [particleAttributes, constants.MAX_PARTICLES]);
+  
   const material = useMemo(() => new THREE.PointsMaterial({
-    size: MAX_PARTICLE_SIZE,
+    size: constants.MAX_PARTICLE_SIZE * 2,
     vertexColors: true,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true,
-    map: circleTexture, // 텍스처 적용 (null일 경우 map이 설정되지 않음)
-    // alphaTest: 0.01,
-  }), [circleTexture]); // circleTexture 의존성 추가
+    map: circleTexture,
+  }), [circleTexture, constants.MAX_PARTICLE_SIZE]);
 
-  // 누적 스폰 카운터
   const spawnCounter = useRef(0);
 
-  // 하이퍼볼라 곡선 파라미터 계산
-  const curveParams = useMemo(() => {
-    const minRadiusSquared = MIN_RADIUS * MIN_RADIUS;
-    const maxRadius = MIN_RADIUS * END_RADIUS_FACTOR;
-    const maxRadiusSquared = maxRadius * maxRadius;
-    const referenceLength = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
-    let k = 0;
-    if (referenceLength > 1e-6) {
-      k = (maxRadiusSquared - minRadiusSquared) / (referenceLength * referenceLength);
-    }
-    k = Math.max(0, k);
-    return { minRadiusSquared, k };
+  const calculateRadius = useCallback((progress: number): number => {
+    const startRadius = 2.5;
+    const endRadius = 0.1;
+    const t = 1 - progress;
+    return endRadius + (startRadius - endRadius) * Math.pow(t, 1.5);
   }, []);
 
-  // z 위치에 따른 제트 반경 계산 함수
-  const calculateRadius = useCallback((z: number): number => {
-    const { minRadiusSquared, k } = curveParams;
-    const halfTransition = TRANSITION_ZONE_LENGTH / 2;
-    const absZ = Math.abs(z);
-    const hyperbolicRadiusSquared = minRadiusSquared + k * z * z;
-    const hyperbolicRadius = Math.sqrt(hyperbolicRadiusSquared);
-    let finalRadius: number;
-    if (absZ <= halfTransition && halfTransition > 1e-6) {
-        const t = smoothstep(absZ, 0, halfTransition);
-        finalRadius = THREE.MathUtils.lerp(MIN_RADIUS, hyperbolicRadius, t);
-    } else {
-        finalRadius = hyperbolicRadius;
-    }
-    return Math.max(MIN_RADIUS, finalRadius);
-  }, [curveParams]);
-
-  // useMemo 훅들
   const tempColor = useMemo(() => new THREE.Color(), []);
-  const currentBaseColor = useMemo(() => particleAttributes.baseColor.clone(), [particleAttributes.baseColor]);
-  const currentMidColor = useMemo(() => particleAttributes.midColor.clone(), [particleAttributes.midColor]);
-  const currentEndColor = useMemo(() => particleAttributes.endColor.clone(), [particleAttributes.endColor]);
 
-  // 애니메이션 루프
   useFrame(({ clock }, delta) => {
     const geometry = geometryRef.current;
-    const points = pointsRef.current;
-     // 텍스처 로딩 실패 시 또는 초기화 중일 때 실행 방지 강화
-    if (!geometry || !points || !material || !geometry.attributes.position || !geometry.attributes.color || !geometry.attributes.size || !particleAttributes) return;
+    if (!geometry || !circleTexture || !material || !particleAttributes) return;
 
     const positions = geometry.attributes.position.array as Float32Array;
     const colors = geometry.attributes.color.array as Float32Array;
     const sizes = geometry.attributes.size.array as Float32Array;
-    const lifetimes = particleAttributes.lifetimes;
-    const activeState = particleAttributes.activeState;
-    const initDirections = particleAttributes.initDirections;
-    const randomFactors = particleAttributes.randomFactors;
-    const rotationSpeeds = particleAttributes.rotationSpeeds;
+    const { lifetimes, activeState, initDirections, randomFactors, rotationSpeeds, startPositions } = particleAttributes;
 
     const time = clock.elapsedTime;
     const normalizedVolume = (volume >= 20) ? Math.min(1, Math.max(0, volume) / 100) : 0;
-    const targetSpawnRate = constants.BASE_SPAWN_RATE * normalizedVolume; // BASE_SPAWN_RATE → constants.BASE_SPAWN_RATE
+    const targetSpawnRate = constants.BASE_SPAWN_RATE * normalizedVolume * 2;
     const numToSpawnFloat = targetSpawnRate * delta + spawnCounter.current;
     const numToSpawnInt = Math.floor(numToSpawnFloat);
     spawnCounter.current = numToSpawnFloat - numToSpawnInt;
     let spawnedCount = 0;
 
     const safeDelta = Math.min(delta, 0.05);
-    const baseSpeed = 0.05 * 3.5;
-    const maxDist = Math.max(ENTRY_LENGTH, EXIT_LENGTH);
-    const minSizeFactor = MAX_PARTICLE_SIZE > 1e-9 ? MIN_PARTICLE_SIZE / MAX_PARTICLE_SIZE : 0;
+    
+    // ✨ 1. 파티클 기본 속도 증가
+    // 이 값을 조절하여 전체적인 흡입 속도를 제어할 수 있습니다.
+    const baseSpeed = 0.3; // (기존 0.05 * 3.5 = 0.175)
 
-    // 파티클 루프도 모바일 최적화 적용
-    for (let i = 0; i < constants.MAX_PARTICLES; i++) { // MAX_PARTICLES → constants.MAX_PARTICLES
+    for (let i = 0; i < constants.MAX_PARTICLES; i++) {
       const i3 = i * 3;
       const i4 = i * 4;
       const i2 = i * 2;
 
-      // 1. 활성 파티클 업데이트
       if (activeState[i] === 1) {
         const currentLifetime = lifetimes[i];
         const baseLifetimeSpeedFactor = randomFactors[i3 + 2];
-        const lifetimeProgress = Math.min(1, currentLifetime / MAX_EFFECTIVE_LIFETIME);
-        const accelerationMultiplier = 1.0 + LIFETIME_ACCELERATION_FACTOR * Math.pow(lifetimeProgress, LIFETIME_ACCELERATION_POWER);
-        const currentSpeedFactor = baseLifetimeSpeedFactor * accelerationMultiplier;
-        lifetimes[i] += safeDelta * baseSpeed * currentSpeedFactor;
+        const lifetimeProgress = Math.min(1, currentLifetime / constants.MAX_EFFECTIVE_LIFETIME);
+        const accelerationMultiplier = 1.0 + constants.LIFETIME_ACCELERATION_FACTOR * Math.pow(lifetimeProgress, constants.LIFETIME_ACCELERATION_POWER);
+        
+        // ✨ 2. 최종 속도 계산
+        const currentSpeedFactor = baseSpeed * baseLifetimeSpeedFactor * accelerationMultiplier;
+        
+        // 파티클의 수명(진행도)을 업데이트합니다.
+        lifetimes[i] += safeDelta * currentSpeedFactor;
 
-        if (lifetimes[i] >= MAX_EFFECTIVE_LIFETIME) {
-            activeState[i] = 0;
-            colors[i4 + 3] = 0;
-            positions[i3 + 2] = Infinity;
-            sizes[i] = minSizeFactor;
-            continue;
+        if (lifetimes[i] >= constants.MAX_EFFECTIVE_LIFETIME) {
+          activeState[i] = 0;
+          colors[i4 + 3] = 0;
+          positions[i3 + 2] = Infinity;
+          continue;
         }
 
-        const normalizedLifetime = Math.min(1.0, lifetimes[i] / MAX_EFFECTIVE_LIFETIME);
+        const normalizedLifetime = Math.min(1.0, lifetimes[i] / constants.MAX_EFFECTIVE_LIFETIME);
         const easedLifetime = easeInOutQuad(normalizedLifetime);
-        const currentZ = THREE.MathUtils.lerp(-ENTRY_LENGTH, EXIT_LENGTH, easedLifetime);
-        const currentRadius = calculateRadius(currentZ);
 
-        const initialAngle = Math.atan2(initDirections[i2 + 1], initDirections[i2 + 0]);
-        const rotationAngle = rotationSpeeds[i] * time;
-        const currentAngle = initialAngle + rotationAngle;
-        const rotatedDirX = Math.cos(currentAngle);
-        const rotatedDirY = Math.sin(currentAngle);
+        const startX = startPositions[i3];
+        const startY = startPositions[i3 + 1];
+        const startZ = startPositions[i3 + 2];
 
-        let currentX = rotatedDirX * currentRadius;
-        let currentY = rotatedDirY * currentRadius;
+        // ... (나머지 로직은 동일)
+        let currentX = THREE.MathUtils.lerp(startX, 0, easedLifetime);
+        let currentY = THREE.MathUtils.lerp(startY, 0, easedLifetime);
+        let currentZ = THREE.MathUtils.lerp(startZ, 0, easedLifetime);
 
-        const randomPhaseX = randomFactors[i3 + 0];
-        const randomPhaseY = randomFactors[i3 + 1];
-        const wobbleFrequency = time * 1.5;
-        const wobbleStrengthFactor = maxDist > 1e-6 ? Math.abs(currentZ) / maxDist : 0;
-        const wobbleAmplitude = currentRadius * WOBBLE_INTENSITY_FACTOR * (0.5 + wobbleStrengthFactor);
-        currentX += Math.sin(wobbleFrequency + randomPhaseX) * wobbleAmplitude;
-        currentY += Math.cos(wobbleFrequency + randomPhaseY) * wobbleAmplitude;
+        const currentRadius = calculateRadius(easedLifetime) * 0.3;
+        const spiralAngle = easedLifetime * Math.PI * 6 + rotationSpeeds[i] * time * 2;
+        const spiralOffsetX = Math.cos(spiralAngle) * currentRadius;
+        const spiralOffsetY = Math.sin(spiralAngle) * currentRadius;
 
-        positions[i3 + 0] = currentX;
+        currentX += spiralOffsetX * initDirections[i2];
+        currentY += spiralOffsetY * initDirections[i2 + 1];
+
+        positions[i3] = currentX;
         positions[i3 + 1] = currentY;
         positions[i3 + 2] = currentZ;
+        
+        const hueOffset = randomFactors[i3 + 3] * 2;
+        const timeHue = (time * 0.1 + i * 0.01) % 1;
+        const rainbowHue = (easedLifetime + timeHue + hueOffset) % 1;
+        
+        tempColor.setHSL(rainbowHue, 0.9, 0.6);
 
-        const hueOffset = randomFactors[i3 + 3];
-        const particleBaseColor = tempColor.copy(currentBaseColor).offsetHSL(hueOffset, 0, 0);
-        const particleEndColor = tempColor.copy(currentEndColor).offsetHSL(hueOffset, 0, 0);
-        let phase: number;
-        if (easedLifetime < 0.5) {
-          phase = easedLifetime * 2;
-          tempColor.copy(particleBaseColor).lerp(currentMidColor, phase);
-        } else {
-          phase = (easedLifetime - 0.5) * 2;
-          tempColor.copy(currentMidColor).lerp(particleEndColor, phase);
-        }
-        colors[i4 + 0] = tempColor.r;
+        colors[i4] = tempColor.r;
         colors[i4 + 1] = tempColor.g;
         colors[i4 + 2] = tempColor.b;
 
         let alpha = 1.0;
         const currentAbsoluteLifetime = lifetimes[i];
-        if (currentAbsoluteLifetime < FADE_IN_DURATION) {
-            alpha = currentAbsoluteLifetime / FADE_IN_DURATION;
-        } else if (currentAbsoluteLifetime > MAX_EFFECTIVE_LIFETIME - FADE_OUT_DURATION) {
-            alpha = (MAX_EFFECTIVE_LIFETIME - currentAbsoluteLifetime) / FADE_OUT_DURATION;
+        if (currentAbsoluteLifetime < constants.FADE_IN_DURATION) {
+          alpha = currentAbsoluteLifetime / constants.FADE_IN_DURATION;
+        } else if (currentAbsoluteLifetime > constants.MAX_EFFECTIVE_LIFETIME - constants.FADE_OUT_DURATION) {
+          alpha = (constants.MAX_EFFECTIVE_LIFETIME - currentAbsoluteLifetime) / constants.FADE_OUT_DURATION;
         }
         colors[i4 + 3] = THREE.MathUtils.clamp(alpha, 0, 1);
 
-        let normalizedDist = 0;
-        if (maxDist > 1e-6) {
-            normalizedDist = Math.abs(currentZ) / maxDist;
-        }
-        normalizedDist = Math.min(normalizedDist, 1.0);
-        const sizeProgress = Math.pow(normalizedDist, SIZE_CHANGE_POWER);
-        const currentSizeFactor = THREE.MathUtils.lerp(minSizeFactor, 1.0, sizeProgress);
-        sizes[i] = currentSizeFactor;
+        const sizeMultiplier = 1 + Math.sin(easedLifetime * Math.PI) * 2;
+        sizes[i] = THREE.MathUtils.lerp(0.3, 1.0, sizeMultiplier / 3);
 
-      // 2. 비활성 파티클 -> 활성 파티클 (생성)
       } else if (spawnedCount < numToSpawnInt) {
+        // ... (파티클 생성 로직 동일)
         activeState[i] = 1;
         lifetimes[i] = 0;
         spawnedCount++;
 
-        const initialZ = -ENTRY_LENGTH;
-        const initialRadius = calculateRadius(initialZ);
-        const initDirX = initDirections[i2 + 0];
-        const initDirY = initDirections[i2 + 1];
-        const biasedRandom = Math.pow(Math.random(), 2.5);
-        const randomRadiusFactor = 0.05 + biasedRandom * 0.95;
+         // 1. 카메라의 방향과 위치 정보 가져오기
+        const cameraDirection = new THREE.Vector3();
+        camera.getWorldDirection(cameraDirection);
+        const spawnDistance = 0.0; 
+        const spawnCenter = camera.position.clone().sub(cameraDirection.multiplyScalar(spawnDistance));
 
-        positions[i3 + 0] = initDirX * initialRadius * randomRadiusFactor;
-        positions[i3 + 1] = initDirY * initialRadius * randomRadiusFactor;
-        positions[i3 + 2] = initialZ;
+        // 2. 카메라의 '오른쪽'과 '위쪽' 방향 벡터 가져오기
+        const cameraRight = new THREE.Vector3();
+        cameraRight.setFromMatrixColumn(camera.matrixWorld, 0); // Right vector
+        
+        const cameraUp = new THREE.Vector3();
+        cameraUp.setFromMatrixColumn(camera.matrixWorld, 1); // Up vector
 
-        const hueOffset = randomFactors[i3 + 3];
-        tempColor.copy(currentBaseColor).offsetHSL(hueOffset, 0, 0);
-        colors[i4 + 0] = tempColor.r;
-        colors[i4 + 1] = tempColor.g;
-        colors[i4 + 2] = tempColor.b;
-        colors[i4 + 3] = 0;
-        sizes[i] = minSizeFactor;
+        // 3. 원형 오프셋 계산
+        const startRadius = calculateRadius(0); // 시작 반경 (넓음)
+        const angle = Math.random() * Math.PI * 2;
+        const radiusOffset = Math.random() * startRadius;
+        
+        const offsetX = Math.cos(angle) * radiusOffset;
+        const offsetY = Math.sin(angle) * radiusOffset;
+
+        // 4. 카메라의 '오른쪽'과 '위쪽' 방향으로 오프셋 적용
+        const finalSpawnPosition = spawnCenter
+            .add(cameraRight.multiplyScalar(offsetX))
+            .add(cameraUp.multiplyScalar(offsetY));
+        
+        // Z축으로 약간의 랜덤성을 주어 입체감 추가
+        finalSpawnPosition.add(cameraDirection.multiplyScalar((Math.random() - 0.5) * 0.5));
+
+        // 시작 위치 저장
+        startPositions[i3] = finalSpawnPosition.x;
+        startPositions[i3 + 1] = finalSpawnPosition.y;
+        startPositions[i3 + 2] = finalSpawnPosition.z;
+
+        // 초기 위치 설정
+        positions[i3] = startPositions[i3];
+        positions[i3 + 1] = startPositions[i3 + 1];
+        positions[i3 + 2] = startPositions[i3 + 2];
+
+        const initialHue = Math.random();
+        tempColor.setHSL(initialHue, 0.9, 0.6);
+        colors.set([tempColor.r, tempColor.g, tempColor.b, 0], i4);
+        sizes[i] = 0.3;
       }
-    } // End of particle loop
+    }
 
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.color.needsUpdate = true;
     geometry.attributes.size.needsUpdate = true;
-  }); // End of useFrame
+  });
 
   return (
     <points ref={pointsRef} material={material}>
@@ -1114,6 +1057,7 @@ const QuasarJet = memo(({ volume }: QuasarJetProps) => { // React.memo 적용 �
     </points>
   );
 });
+
 QuasarJet.displayName = 'QuasarJet';
 
 
