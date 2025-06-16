@@ -355,8 +355,8 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 </div>
               )}
               {!listening && !audioErrorProp && userEmail && (
-                <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/30 rounded">
-                  마이크 버튼을 눌러 시작하세요.
+                <div className="text-gray-400 text-sm font-mono p-2 bg-gray-800/20 rounded">
+                  스위치 버튼을 누르고 말씀해보세요.
                 </div>
               )}
             </div>
@@ -439,13 +439,13 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="glass-effect p-6 shadow-lg max-w-sm w-full"
+                className="bg-white/80 p-6 shadow-lg max-w-sm w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
-                <h2 className="text-sm text-center font-mono font-semibold mb-4">
-                  웹 이용 시 즐겨찾기 추가하는 방법
+                <h2 className="text-sm text-black text-center font-mono font-semibold mb-4">
+                  웹 이용 시 즐겨찾기 추가하는 방법 💡
                 </h2>
-                <p className="text-sm font-mono text-gray-300 mb-4">
+                <p className="text-sm font-mono text-black mb-4">
                   {navigator.userAgent.match(/Android|iPhone|iPad/i) ? (
                     <>
                       Univoice를 홈 화면에 추가하려면:
@@ -496,14 +496,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="glass-effect p-6 shadow-lg max-w-sm w-full"
+                className="bg-white/80 p-6 shadow-lg max-w-sm w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
-                <h2 className="text-lg text-center font-mono font-semibold mb-4 text-red-400">
+                {/* <h2 className="text-lg text-center font-mono font-semibold mb-4 text-red-400">
                   회원 탈퇴
-                </h2>
+                </h2> */}
 
-                <div className="text-sm font-mono text-gray-300 mb-4">
+                <div className="text-sm font-mono text-black mb-4">
                   <p className="mb-2">회원 탈퇴 시 주의사항:</p>
                   <ul className="list-disc list-inside space-y-1 text-xs">
                     <li>모든 키워드 데이터가 삭제됩니다</li>
@@ -516,7 +516,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 </div>
 
                 <div className="mb-4">
-                  <p className="text-sm font-mono text-gray-300 mb-2">
+                  <p className="text-sm font-mono text-black mb-2">
                     탈퇴를 원하시면 아래에{" "}
                     <span className="text-red-400 font-bold">
                       "탈퇴하겠습니다"
@@ -542,7 +542,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 <div className="flex space-x-2">
                   <button
                     onClick={closeDeleteAccountModal}
-                    className="btn-aero-gray flex-1"
+                    className="btn-aero-yellow text-black flex-1"
                     disabled={deleteAccountLoading}
                   >
                     취소

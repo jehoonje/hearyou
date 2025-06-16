@@ -3,7 +3,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { useChatStore } from '../../store/chatStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useMatchStore } from '../../store/matchStore';
-import { Send } from 'lucide-react'; // Send 아이콘 임포트
+import { ArrowUp } from 'lucide-react'; // Send 아이콘 임포트
 
 interface ChatInputProps {
   isDisabled?: boolean;
@@ -95,12 +95,12 @@ const ChatInput = memo<ChatInputProps>(({ isDisabled = false }) => {
                 transition-all duration-150 ease-in-out
                 ${isSendDisabled
                   ? 'bg-gray-600 opacity-50 cursor-not-allowed'
-                  : 'bg-[#6F3ACD] hover:bg-[#6F1dCD] active:scale-95'
+                  : 'bg-[#007AFF] hover:bg-[#0051D5] active:scale-95'
                 }
               `}
               aria-label="메시지 전송"
             >
-              <Send size={14} className="text-white -rotate-45 translate-x-[1px]" />
+              <ArrowUp size={18} className="text-white" />
             </button>
           )}
         </div>

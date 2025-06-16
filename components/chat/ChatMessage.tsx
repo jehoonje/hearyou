@@ -24,7 +24,7 @@ const ChatMessage = memo<ChatMessageProps>(({ message, isSender, senderProfile }
   `;
   
   const senderBubbleStyle = `
-    bg-[#6F3ACD] text-white
+    bg-[#007AFF] text-white
     rounded-br-[4px]
   `;
   

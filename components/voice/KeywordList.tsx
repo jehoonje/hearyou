@@ -76,7 +76,7 @@ const KeywordList = memo<KeywordListProps>(({ keywordList }) => {
                   >
                     <span className="text-shadow mr-2 break-all">{k.keyword}</span>
                     <span className="bg-blue-500/70 px-2 py-1 rounded-full text-xs flex-shrink-0">
-                      {k.count}회
+                      {k.count}
                     </span>
                   </li>
                 ))}
