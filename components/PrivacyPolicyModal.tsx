@@ -35,7 +35,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
             className="w-[365px] h-[500px] max-w-md flex flex-col overflow-hidden rounded-xl shadow-2xl shadow-black/40 bg-transparent backdrop-blur-lg border-none p-6"
           >
             <h2 className="text-lg font-semibold text-white font-mono mb-4">개인정보처리방침</h2>
-            <div className="text-sm text-gray-300 mb-6 max-h-[400px] overflow-y-auto scrollbar-thin">
+            <div className="text-sm text-gray-300 mb-6 max-h-[400px] overflow-y-auto show-scrollbar">
               <p className="mb-2">
                 본 개인정보처리방침은 귀하의 개인정보를 보호하고, 「개인정보보호법」을 준수하기 위해 작성되었습니다.
               </p>
