@@ -12,12 +12,28 @@ const ResponsiveWrapper = ({ children, baseWidth, baseHeight }: ResponsiveWrappe
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [isNativeApp, setIsNativeApp] = useState(false);
-  const [contentHeight, setContentHeight] = useState(baseHeight);
 
   // 네이티브 앱 환경 감지
   useEffect(() => {
     if (typeof window !== 'undefined' && window.ReactNativeWebView) {
       setIsNativeApp(true);
+      
+      // 네이티브 앱에서 안전 영역 정보 받기
+      const handleMessage = (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'safe_area_insets') {
+            // 안전 영역 정보 활용
+            document.documentElement.style.setProperty('--safe-area-top', `${data.payload.top}px`);
+            document.documentElement.style.setProperty('--safe-area-bottom', `${data.payload.bottom}px`);
+          }
+        } catch (e) {
+          console.error('Message parsing error:', e);
+        }
+      };
+      
+      window.addEventListener('message', handleMessage);
+      return () => window.removeEventListener('message', handleMessage);
     }
   }, []);
 
@@ -28,29 +44,15 @@ const ResponsiveWrapper = ({ children, baseWidth, baseHeight }: ResponsiveWrappe
       const parentWidth = wrapperRef.current.clientWidth;
       const parentHeight = wrapperRef.current.clientHeight;
 
-      let newScale = 1;
-      let newHeight = baseHeight;
-
       if (isNativeApp) {
-        // 네이티브 앱: 너비를 화면에 맞추고 높이는 늘림
-        newScale = parentWidth / baseWidth;
-        
-        // 높이를 화면에 맞춤 (비율 무시)
-        newHeight = parentHeight / newScale;
-        
-        // 최소 높이 보장
-        if (newHeight < baseHeight) {
-          newHeight = baseHeight;
-        }
+        // 네이티브 앱: 스케일링 없이 100% 사용
+        setScale(1);
       } else {
-        // 웹 환경: 기존 방식
+        // 웹 환경: 기존 스케일링 방식
         const scaleX = parentWidth / baseWidth;
         const scaleY = parentHeight / baseHeight;
-        newScale = Math.min(scaleX, scaleY);
+        setScale(Math.min(scaleX, scaleY));
       }
-      
-      setScale(newScale);
-      setContentHeight(newHeight);
     };
 
     handleResize();
@@ -61,6 +63,27 @@ const ResponsiveWrapper = ({ children, baseWidth, baseHeight }: ResponsiveWrappe
     };
   }, [baseWidth, baseHeight, isNativeApp]);
 
+  if (isNativeApp) {
+    // 네이티브 앱: 스케일링 없이 전체 화면 사용
+    return (
+      <div
+        ref={wrapperRef}
+        style={{
+          width: '100vw',
+          height: '100dvh', // 동적 뷰포트 높이 (iOS 15+)
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          overflow: 'hidden',
+          backgroundColor: '#000',
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  // 웹 환경: 기존 스케일링 방식
   return (
     <div
       ref={wrapperRef}
@@ -69,32 +92,19 @@ const ResponsiveWrapper = ({ children, baseWidth, baseHeight }: ResponsiveWrappe
         height: '100%',
         display: 'flex',
         justifyContent: 'center',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         overflow: 'hidden',
-        backgroundColor: '#000', // 배경색 유지
       }}
     >
       <div
         style={{
-          transformOrigin: 'top center',
+          transformOrigin: 'center center',
           transform: `scale(${scale})`,
           width: `${baseWidth}px`,
-          height: isNativeApp ? `${contentHeight}px` : `${baseHeight}px`,
+          height: `${baseHeight}px`,
         }}
       >
-        {/* 네이티브 앱에서는 자식 요소를 감싸는 컨테이너 추가 */}
-        {isNativeApp ? (
-          <div style={{ 
-            width: '100%', 
-            height: '100%',
-            position: 'relative',
-            backgroundColor: '#000',
-          }}>
-            {children}
-          </div>
-        ) : (
-          children
-        )}
+        {children}
       </div>
     </div>
   );

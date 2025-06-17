@@ -280,7 +280,11 @@ function MainContent({
   return (
     <ResponsiveWrapper baseWidth={400} baseHeight={668}>
       <div
-        className={`w-[400px] ${isNativeApp ? 'min-h-[668px] h-full' : 'h-[668px]'} bg-black text-white mx-auto overflow-hidden relative font-mono`}
+        className={
+          isNativeApp 
+            ? "w-screen h-screen bg-black text-white overflow-hidden relative font-mono"
+            : "w-[400px] h-[668px] bg-black text-white mx-auto overflow-hidden relative font-mono"
+        }
         // *** 튜토리얼 활성 시에는 onPointer 이벤트들이 위쪽 조건문에서 막히므로 여기 로직은 유지 ***
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
