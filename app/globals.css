@@ -365,3 +365,19 @@ canvas {
   /* IE 및 구형 Edge를 위한 설정 */
   -ms-overflow-style: auto;
 }
+
+/* 네이티브 앱 전체 화면 스타일 */
+@supports (height: 100dvh) {
+  .native-full-screen {
+    width: 100vw !important;
+    height: 100dvh !important;
+  }
+}
+
+/* iOS 안전 영역 대응 (iPhone & iPad) */
+.native-full-screen {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
