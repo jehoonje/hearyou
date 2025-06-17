@@ -55,22 +55,24 @@ function MainContent({
   // *** 튜토리얼 상태 추가 ***
   const [showTutorial, setShowTutorial] = useState(false);
   const [isNativeApp, setIsNativeApp] = useState(false);
-  const [deviceType, setDeviceType] = useState<'phone' | 'tablet' | 'desktop'>('phone');
+  const [deviceType, setDeviceType] = useState<"phone" | "tablet" | "desktop">(
+    "phone"
+  );
 
   useEffect(() => {
     if (window.ReactNativeWebView) {
       setIsNativeApp(true);
-      
+
       // 디바이스 타입 감지
       const width = window.innerWidth;
       const height = window.innerHeight;
-      
+
       if (
-        (width >= 768 && height >= 1024) || 
+        (width >= 768 && height >= 1024) ||
         (width >= 1024 && height >= 768) ||
         navigator.userAgent.match(/iPad/i)
       ) {
-        setDeviceType('tablet');
+        setDeviceType("tablet");
       }
     }
   }, []);
@@ -300,7 +302,7 @@ function MainContent({
     <ResponsiveWrapper baseWidth={400} baseHeight={668}>
       <div
         className={
-          isNativeApp && deviceType === 'phone'
+          isNativeApp
             ? "w-screen h-screen bg-black text-white overflow-hidden relative font-mono"
             : "w-[400px] h-[668px] bg-black text-white mx-auto overflow-hidden relative font-mono"
         }
