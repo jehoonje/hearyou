@@ -62,6 +62,19 @@ function MainContent({
   useEffect(() => {
     if (window.ReactNativeWebView) {
       setIsNativeApp(true);
+      
+      // CSS 변수로 안전 영역 설정
+      document.documentElement.style.setProperty('--sat', `env(safe-area-inset-top, 0px)`);
+      document.documentElement.style.setProperty('--sab', `env(safe-area-inset-bottom, 0px)`);
+      document.documentElement.style.setProperty('--sal', `env(safe-area-inset-left, 0px)`);
+      document.documentElement.style.setProperty('--sar', `env(safe-area-inset-right, 0px)`);
+    }
+  }, []);
+  
+
+  useEffect(() => {
+    if (window.ReactNativeWebView) {
+      setIsNativeApp(true);
 
       // 디바이스 타입 감지
       const width = window.innerWidth;
@@ -302,10 +315,15 @@ function MainContent({
     <ResponsiveWrapper baseWidth={400} baseHeight={668}>
       <div
         className={
-          isNativeApp
-            ? "w-screen h-screen bg-black text-white overflow-hidden relative font-mono"
+          isNativeApp 
+            ? "w-full h-full bg-black text-white overflow-hidden relative font-mono"
             : "w-[400px] h-[668px] bg-black text-white mx-auto overflow-hidden relative font-mono"
         }
+        style={isNativeApp ? {
+          width: '100%',
+          height: '100%',
+          position: 'relative'
+        } : undefined}
         // *** 튜토리얼 활성 시에는 onPointer 이벤트들이 위쪽 조건문에서 막히므로 여기 로직은 유지 ***
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
