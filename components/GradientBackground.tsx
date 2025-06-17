@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './GradientBackground.module.css';
 import { motion } from 'framer-motion'; 
 
@@ -21,6 +21,8 @@ const backgroundVariants = {
 const GradientBackground: React.FC = () => {
   const noiseFilterId = 'noiseFilter';
   const gooFilterId = 'goo'; // Goo 필터 ID
+  
+  const [isNativeApp, setIsNativeApp] = useState(false);
 
   // Refs for DOM elements
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,6 +35,12 @@ const GradientBackground: React.FC = () => {
   const tgY = useRef(0);
   const isInside = useRef(false);
   const animationFrameId = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      setIsNativeApp(true);
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -105,13 +113,13 @@ const GradientBackground: React.FC = () => {
   return (
     // --- Ref 추가 ---
     <motion.div
-      className={styles.backgroundContainer}
+      className={`${styles.backgroundContainer} ${isNativeApp ? 'fixed inset-0' : ''}`}
       ref={containerRef}
       aria-hidden="true"
-      variants={backgroundVariants} // 정의한 variants 적용
-      initial="initial"             // 초기 상태 이름
-      animate="animate"             // 보이는 상태 이름
-      exit="exit"                   // 사라지는 상태 이름
+      variants={backgroundVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
     >
       {/* --- Goo 필터 SVG 정의 --- */}
       <svg xmlns="http://www.w3.org/2000/svg" className={styles.svgGooFilter}>

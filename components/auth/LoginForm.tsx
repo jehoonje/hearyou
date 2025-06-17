@@ -21,7 +21,7 @@ import VerificationModal from "./VerificationModal"; // 모달을 여기서 직�
 
 const AppleIcon = FaApple as React.ElementType;
 interface LoginFormProps extends AuthState {
-  authView: 'login' | 'signup';
+  authView: "login" | "signup";
   setEmail: (email: string) => void;
   setPassword: (password: string) => void;
   setUsername: (username: string) => void;
@@ -120,6 +120,7 @@ const LoginForm = memo<LoginFormProps>(
     const [isExistingUser, setIsExistingUser] = useState<boolean | null>(null);
     const [isCheckingEmail, setIsCheckingEmail] = useState(false);
     const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+    const [isNativeApp, setIsNativeApp] = useState(false);
 
     const handleTitleClick = useCallback(() => {
       window.location.href = "/";
@@ -165,7 +166,9 @@ const LoginForm = memo<LoginFormProps>(
             setShowPrivacyModal(true);
           }
         } catch (error) {
-          setEmailError(error instanceof Error ? error.message : "이메일 확인 중 오류 발생");
+          setEmailError(
+            error instanceof Error ? error.message : "이메일 확인 중 오류 발생"
+          );
         } finally {
           setIsCheckingEmail(false);
           shouldMaintainFocus.current = true;
@@ -184,9 +187,16 @@ const LoginForm = memo<LoginFormProps>(
       setUsernameError("");
       activeFieldName.current = "email";
       shouldMaintainFocus.current = true;
-    }, [resetFormErrors, setPassword, setUsername, setPasswordError, setUsernameError]);
+    }, [
+      resetFormErrors,
+      setPassword,
+      setUsername,
+      setPasswordError,
+      setUsernameError,
+    ]);
 
-    const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = useCallback(
+      (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         activeFieldName.current = name as keyof typeof inputRefs.current;
         shouldMaintainFocus.current = true;
@@ -194,12 +204,22 @@ const LoginForm = memo<LoginFormProps>(
         if (name === "email") setEmail(value);
         if (name === "password") setPassword(value);
         if (name === "username") setUsername(value);
-        
-        if (emailError && name === 'email') setEmailError('');
-        if (passwordError && name === 'password') setPasswordError('');
-        if (usernameError && name === 'username') setUsernameError('');
+
+        if (emailError && name === "email") setEmailError("");
+        if (passwordError && name === "password") setPasswordError("");
+        if (usernameError && name === "username") setUsernameError("");
       },
-      [ emailError, passwordError, usernameError, setEmail, setPassword, setUsername, setEmailError, setPasswordError, setUsernameError ]
+      [
+        emailError,
+        passwordError,
+        usernameError,
+        setEmail,
+        setPassword,
+        setUsername,
+        setEmailError,
+        setPasswordError,
+        setUsernameError,
+      ]
     );
 
     const handleFocus = useCallback((e: FocusEvent<HTMLInputElement>) => {
@@ -208,7 +228,16 @@ const LoginForm = memo<LoginFormProps>(
     }, []);
 
     useEffect(() => {
-      if (email === '' && (formStep === 'passwordInput' || formStep === 'signupInput')) {
+      if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+        setIsNativeApp(true);
+      }
+    }, []);
+
+    useEffect(() => {
+      if (
+        email === "" &&
+        (formStep === "passwordInput" || formStep === "signupInput")
+      ) {
         handleGoBack();
       }
     }, [email, formStep, handleGoBack]);
@@ -231,7 +260,10 @@ const LoginForm = memo<LoginFormProps>(
     }, [animationStage, formStep, isCheckingEmail]);
 
     const setRef = useCallback(
-      (element: HTMLInputElement | null, name: keyof typeof inputRefs.current) => {
+      (
+        element: HTMLInputElement | null,
+        name: keyof typeof inputRefs.current
+      ) => {
         inputRefs.current[name] = element;
       },
       []
@@ -261,16 +293,22 @@ const LoginForm = memo<LoginFormProps>(
 
     const handleAppleLoginRequest = async () => {
       if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: "APPLE_LOGIN_REQUEST" }));
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({ type: "APPLE_LOGIN_REQUEST" })
+        );
       } else {
-        await supabase.auth.signInWithOAuth({ provider: 'apple' });
+        await supabase.auth.signInWithOAuth({ provider: "apple" });
       }
     };
 
     return (
-      <div className="w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full pt-16 md:pt-24">
+      <div className={
+        isNativeApp 
+          ? "w-full h-full mx-auto p-4 flex flex-col items-center justify-start pt-16"
+          : "w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full pt-16 md:pt-24"
+      }>
         <motion.div
-          className="w-full mb-8"
+          className={isNativeApp ? "w-full mb-8 px-4" : "w-full mb-8"}
           variants={titleVariants}
           initial="initial"
           animate={animationStage}
@@ -283,7 +321,10 @@ const LoginForm = memo<LoginFormProps>(
         </motion.div>
 
         {/* ▼▼▼ 이 div를 motion.div로 바꾸고 layout prop을 추가합니다 ▼▼▼ */}
-        <motion.div layout className="w-full mb-4 h-12 -mt-6"> 
+        <motion.div 
+          layout 
+          className={isNativeApp ? "w-full px-4 mb-4 h-12" : "w-full mb-4 h-12 -mt-6"}
+        >
           <AnimatePresence>
             {authMessage && !authError && (
               <motion.div
@@ -314,34 +355,49 @@ const LoginForm = memo<LoginFormProps>(
 
         {animationStage === "buttonsVisible" && (
           <motion.div
-            className="absolute top-32 left-10 text-gray-300 font-mono text-md"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
+          className={
+            isNativeApp 
+              ? "absolute top-32 left-4 text-gray-300 font-mono text-md"
+              : "absolute top-32 left-10 text-gray-300 font-mono text-md"
+          }
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
             univoice
           </motion.div>
         )}
 
-<motion.div 
+<motion.div
           layout
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="w-full relative" 
-          style={{ minHeight: "350px" }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className={
+            isNativeApp 
+              ? "w-full relative px-4 flex-1"
+              : "w-full relative"
+          }
+          style={isNativeApp ? undefined : { minHeight: "350px" }}
         >
           <AnimatePresence mode="wait">
-            {/* ... 나머지 코드는 동일 ... */}
             {animationStage === "buttonsVisible" && (
               <motion.div
                 key="initialButtons"
-                className="flex flex-col items-center w-full"
+                className={
+                  isNativeApp 
+                    ? "flex flex-col items-center w-full"
+                    : "flex flex-col items-center w-full"
+                }
                 variants={itemVariants}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
               >
                 <motion.div variants={itemVariants} className="w-full">
-                  <div className="relative duration-300 ease-in-out hover:scale-[1.02] p-[12px_24px]">
+                <div className={
+                    isNativeApp 
+                      ? "relative duration-300 ease-in-out hover:scale-[1.02] p-[16px_28px]"
+                      : "relative duration-300 ease-in-out hover:scale-[1.02] p-[12px_24px]"
+                  }>
                     <svg
                       viewBox="0 0 100 100"
                       xmlns="http://www.w3.org/2000/svg"
@@ -369,7 +425,11 @@ const LoginForm = memo<LoginFormProps>(
                     </svg>
                     <button
                       onClick={showEmailForm}
-                      className="relative flex items-center justify-between gap-4 w-full h-14 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
+                      className={
+                        isNativeApp 
+                          ? "relative flex items-center justify-between gap-4 w-full h-16 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
+                          : "relative flex items-center justify-between gap-4 w-full h-14 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
+                      }
                     >
                       <span className="font-semibold text-gray-100 transition-colors duration-300 ease-in-out pl-2">
                         Get Started
@@ -397,18 +457,18 @@ const LoginForm = memo<LoginFormProps>(
 
             {animationStage === "formVisible" && (
               <motion.div
-                key={formStep}
-                className="w-full"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-              >
+              key={formStep}
+              className={isNativeApp ? "w-full px-0" : "w-full"}
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
                 {formStep === "emailInput" && (
                   <motion.form
-                    onSubmit={handleEmailSubmit}
-                    className="space-y-4"
-                  >
+                  onSubmit={handleEmailSubmit}
+                  className={isNativeApp ? "space-y-6" : "space-y-4"}
+                >
                     <motion.div
                       variants={itemVariants}
                       className="h-6"
@@ -469,7 +529,7 @@ const LoginForm = memo<LoginFormProps>(
                         className="w-full bg-white hover:bg-gray-200 text-black font-semibold text-sm font-sans py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50 transition duration-200 flex items-center justify-center gap-2"
                       >
                         {/* 2. 기존 svg 태그 대신 FaApple 컴포넌트를 사용합니다. */}
-                        <AppleIcon className="w-5 h-5" /> 
+                        <AppleIcon className="w-5 h-5" />
                         <span>Apple로 계속하기</span>
                       </button>
                     </motion.div>
@@ -492,9 +552,7 @@ const LoginForm = memo<LoginFormProps>(
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
                       &nbsp;&nbsp;아이디:&nbsp;
-                      <span className="font-semibold text-white">
-                        {email}
-                      </span>
+                      <span className="font-semibold text-white">{email}</span>
                     </motion.div>
                     <motion.div variants={itemVariants}>
                       <label
@@ -552,9 +610,7 @@ const LoginForm = memo<LoginFormProps>(
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
                       회원가입:
-                      <span className="font-semibold text-white">
-                        {email}
-                      </span>
+                      <span className="font-semibold text-white">{email}</span>
                     </motion.div>
                     <motion.div variants={itemVariants}>
                       <label
