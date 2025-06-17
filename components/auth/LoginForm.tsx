@@ -357,7 +357,7 @@ const LoginForm = memo<LoginFormProps>(
           <motion.div
           className={
             isNativeApp 
-              ? "absolute top-32 left-4 text-gray-300 font-mono text-md"
+              ? "absolute top-32 left-10 text-gray-300 font-mono text-md"
               : "absolute top-32 left-10 text-gray-300 font-mono text-md"
           }
           initial={{ opacity: 0 }}
@@ -373,7 +373,7 @@ const LoginForm = memo<LoginFormProps>(
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className={
             isNativeApp 
-              ? "w-full relative px-4 flex-1"
+              ? "w-full relative"
               : "w-full relative"
           }
           style={isNativeApp ? undefined : { minHeight: "350px" }}
