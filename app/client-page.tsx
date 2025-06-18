@@ -7,7 +7,7 @@ import VerificationModal from "../components/auth/VerificationModal";
 import VoiceTrackerUI from "../components/voice/VoiceTrackerUI";
 import GradientBackground from "../components/GradientBackground";
 import InAppBrowserBanner from "../components/InAppBrowserBanner";
-import { useAuth as useAppAuth } from "../hooks/useAuth";
+import { useAuth } from "../app/contexts/AuthContext";
 import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
 import { useKeywords } from "../hooks/useKeywords";
 import { Keyword } from "../types";
@@ -127,7 +127,7 @@ function MainContent({
     setShowInAppBanner(false);
   }, []);
 
-  const auth = useAppAuth();
+  const auth = useAuth();
   const currentUser: User | null = auth.user;
 
   const { keywordList, addOrUpdateKeyword } = useKeywords(
@@ -137,7 +137,7 @@ function MainContent({
   );
 
   const handleKeywordSaved = useCallback(
-    (savedKeyword: Keyword) => {
+    (savedKeyword: Keyword | string) => {
       addOrUpdateKeyword(savedKeyword);
     },
     [addOrUpdateKeyword]
@@ -256,34 +256,22 @@ function MainContent({
 
   // *** 👇 튜토리얼 표시 로직 수정 👇 ***
   useEffect(() => {
-    // 사용자가 로그인했고, 메인 콘텐츠가 보이는 상태일 때만 확인
+    // 데모 사용자는 튜토리얼을 보지 않음
     if (currentUser && contentVisible) {
-      let shouldShow = true; // 기본적으로 보여준다고 가정
+      let shouldShow = true;
       try {
-        // 로컬 스토리지에서 'tutorialCompleted' 값 확인
         const tutorialCompleted = localStorage.getItem("tutorialCompleted");
-        // 값이 'true'이면 튜토리얼을 보여주지 않음
         if (tutorialCompleted === "true") {
           shouldShow = false;
-          console.log("튜토리얼 완료 기록 확인됨. 튜토리얼 숨김."); // 확인용 로그
-        } else {
-          console.log("튜토리얼 완료 기록 없음. 튜토리얼 표시."); // 확인용 로그
         }
       } catch (error) {
-        console.error(
-          "튜토리얼 완료 상태 확인 중 localStorage 접근 오류:",
-          error
-        );
-        // 로컬 스토리지 접근 오류 시, 안전하게 튜토리얼을 보여주지 않도록 처리 (선택적)
-        // 또는 오류 시에는 일단 보여주도록 할 수도 있음 (shouldShow = true 유지)
-        // 여기서는 일단 보여주도록 유지 (기본값 true)
+        console.error("튜토리얼 완료 상태 확인 중 오류:", error);
       }
       setShowTutorial(shouldShow);
     } else {
-      // 로그아웃 상태거나 콘텐츠가 아직 안보이면 튜토리얼 숨김
       setShowTutorial(false);
     }
-  }, [currentUser, contentVisible]);
+  }, [currentUser, contentVisible, auth.isDemoUser]);
 
   useEffect(() => {
     // --- Loading logic (변경 없음) ---
@@ -383,18 +371,18 @@ function MainContent({
                 <LoginForm
                   authView={auth.authView}
                   authMessage={auth.authMessage || ""}
-                  authError={auth.authError}
+                  authError={auth.authError || null}
                   email={auth.email}
                   setEmail={auth.setEmail}
                   password={auth.password}
                   setPassword={auth.setPassword}
                   username={auth.username}
                   setUsername={auth.setUsername}
-                  emailError={auth.emailError}
+                  emailError={auth.emailError || null}
                   setEmailError={auth.setEmailError}
-                  passwordError={auth.passwordError}
+                  passwordError={auth.passwordError || null}
                   setPasswordError={auth.setPasswordError}
-                  usernameError={auth.usernameError}
+                  usernameError={auth.usernameError || null}
                   setUsernameError={auth.setUsernameError}
                   authLoading={auth.authLoading}
                   handleLogin={auth.handleLogin}

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '../../lib/supabase';
@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 interface AuthState {
   user: User | null;
   session: Session | null;
+  isDemoUser: boolean;
   authView: 'login' | 'signup';
   setAuthView: (view: 'login' | 'signup') => void;
   authMessage: string;
@@ -35,6 +36,7 @@ interface AuthState {
   handleLogout: () => Promise<void>;
   handleVerificationComplete: () => void;
   resetFormErrors: () => void;
+  startDemoSession: () => void;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -48,6 +50,7 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(initialSession);
+  const [isDemoUser, setIsDemoUser] = useState(false); 
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
   const [authMessage, setAuthMessage] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
@@ -59,6 +62,63 @@ export function AuthProvider({
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+
+  const resetFormErrors = () => {
+    setEmailError(null);
+    setPasswordError(null);
+    setUsernameError(null);
+    setAuthError(null);
+  };
+
+  // 데모 세션 시작 함수
+  const startDemoSession = useCallback(() => {
+    console.log('[AuthContext] 데모 세션 시작');
+    
+    // 폼 초기화
+    setEmail('');
+    setPassword('');
+    setUsername('');
+    resetFormErrors();
+    
+    // 데모 사용자 설정
+    const demoUser = {
+      id: 'demo-user-' + Date.now(),
+      email: 'demo@univoice.app',
+      email_confirmed_at: new Date().toISOString(),
+      user_metadata: { username: '체험 사용자' },
+      app_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+    } as User;
+    
+    setUser(demoUser);
+    setIsDemoUser(true);
+    setSession(null);
+    setAuthView('login');
+    setAuthMessage('체험 모드로 시작되었습니다. 데이터는 저장되지 않습니다.');
+    setAuthError(null);
+  }, [resetFormErrors]);
+
+  useEffect(() => {
+    // 데모 사용자가 아닌 경우에만 auth 상태 변경 감지
+    if (!isDemoUser) {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        console.log('[AuthContext] 인증 상태 변경:', _event, session?.user?.email);
+        
+        // 데모 상태가 아닌 경우에만 업데이트
+        if (!isDemoUser) {
+          setSession(session);
+          setUser(session?.user ?? null);
+          setAuthLoading(false);
+          setAuthError(null);
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }
+  }, [isDemoUser]);
 
   useEffect(() => {
     const {
@@ -135,25 +195,32 @@ export function AuthProvider({
     };
   }, []);
 
-  const resetFormErrors = () => {
-    setEmailError(null);
-    setPasswordError(null);
-    setUsernameError(null);
-    setAuthError(null);
-  };
+ 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 데모 사용자인 경우 먼저 데모 세션 종료
+    if (isDemoUser) {
+      setIsDemoUser(false);
+      setUser(null);
+      setAuthMessage('');
+    }
+    
     resetFormErrors();
     setAuthLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+      
+      // 로그인 성공 시 데모 상태 확실히 해제
+      setIsDemoUser(false);
+      
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
     } finally {
@@ -163,6 +230,14 @@ export function AuthProvider({
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 데모 사용자인 경우 먼저 데모 세션 종료
+    if (isDemoUser) {
+      setIsDemoUser(false);
+      setUser(null);
+      setAuthMessage('');
+    }
+    
     resetFormErrors();
     setAuthLoading(true);
 
@@ -179,6 +254,10 @@ export function AuthProvider({
 
       if (error) throw error;
       setShowVerificationModal(true);
+      
+      // 회원가입 시에도 데모 상태 해제
+      setIsDemoUser(false);
+      
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : '회원가입 중 오류가 발생했습니다.');
     } finally {
@@ -188,6 +267,22 @@ export function AuthProvider({
 
   const handleLogout = async () => {
     try {
+      if (isDemoUser) {
+        // 데모 사용자 로그아웃
+        console.log('[AuthContext] 데모 세션 종료');
+        setIsDemoUser(false);
+        setUser(null);
+        setSession(null);
+        setEmail('');
+        setPassword('');
+        setUsername('');
+        setAuthView('login');
+        setAuthMessage('');
+        setAuthError(null);
+        return;
+      }
+
+      // 일반 사용자 로그아웃
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -200,6 +295,7 @@ export function AuthProvider({
       setAuthView('login');
       setAuthMessage('');
       setAuthError(null);
+      setIsDemoUser(false); // 확실히 데모 상태 해제
       
     } catch (error) {
       console.error('Error logging out:', error);
@@ -215,6 +311,7 @@ export function AuthProvider({
   const value = {
     user,
     session,
+    isDemoUser,
     authView,
     setAuthView,
     authMessage,
@@ -242,6 +339,7 @@ export function AuthProvider({
     handleLogout,
     handleVerificationComplete,
     resetFormErrors,
+    startDemoSession,
   };
 
   return (

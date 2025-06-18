@@ -16,13 +16,13 @@ const tutorialSteps: TutorialStep[] = [
     step: 1,
     target: "mic-button",
     text: "안녕하세요!\n마이크 버튼을 눌러 음성 인식을 시작해보세요.",
-    positionClasses: "top-16 center w-80", // 예시 위치
+    positionClasses: "top-16 w-80", // 예시 위치
   },
   {
     step: 2,
     target: "transcript-display",
     text: "단 시간에 여러번 말한 키워드가 기록됩니다.\n일상적인 대화도, 떠오르는 단어도 좋아요.",
-    positionClasses: "bottom-1/3 center w-80", // 예시 위치
+    positionClasses: "bottom-1/4 w-80", // 예시 위치
   },
   {
     step: 3,
@@ -121,7 +121,7 @@ const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ onComplete }) => {
           animate="visible"
           exit="exit"
           transition={{ duration: 0.3 }} // 단계별 전환 속도
-          className={`absolute bg-gradient-to-br from-purple-600/80 to-blue-500/80 backdrop-blur-sm p-4 rounded-lg shadow-lg text-white font-mono text-sm border border-blue-400/50 ${currentStepData.positionClasses} pointer-events-auto w-80`} // 설명 박스는 이벤트 받아야 함
+          className={`absolute bg-gradient-to-br from-purple-600/80 to-blue-500/80 backdrop-blur-sm p-4 rounded-lg shadow-lg text-white font-mono text-sm border border-blue-400/50 ${currentStepData.positionClasses} pointer-events-auto w-[93%]`} // 설명 박스는 이벤트 받아야 함
         >
           <p className="mb-4 whitespace-pre-line">{currentStepData.text}</p>
           <div className="flex justify-end">

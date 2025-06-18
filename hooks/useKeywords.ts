@@ -3,6 +3,7 @@ import { User } from '@supabase/supabase-js';
 import { Keyword } from '../types';
 import { fetchKeywords } from '../utils/fetchKeywords';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useAuth } from '../app/contexts/AuthContext';
 
 export const useKeywords = (
   user: User | null,
@@ -10,70 +11,95 @@ export const useKeywords = (
   initialKeywords?: Keyword[] | null
 ) => {
   const [keywordList, setKeywordList] = useState<Keyword[]>(initialKeywords || []);
+  const [demoKeywordList, setDemoKeywordList] = useState<Keyword[]>([]); // 데모 키워드 별도 관리
   const [isRefreshing, setIsRefreshing] = useState(false);
   const supabase = createClientComponentClient();
+  const { isDemoUser } = useAuth(); // 데모 사용자 여부 확인
 
-  // 키워드 새로고침 함수
+  // 키워드 새로고침 함수 (데모 모드에서는 동작하지 않음)
   const refreshKeywords = useCallback(async () => {
-    if (!user) return;
+    if (!user || isDemoUser) return;
     
-    //console.log('[useKeywords] 키워드 새로고침 시작');
     setIsRefreshing(true);
     
     try {
       const keywords = await fetchKeywords(user);
-      //console.log('[useKeywords] 새로고침 완료:', keywords);
       if (keywords) {
         setKeywordList(keywords);
       }
     } catch (error) {
+      console.error('[useKeywords] 새로고침 실패:', error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [user]);
+  }, [user, isDemoUser]);
 
-  // 최초 렌더링 시 초기 데이터 설정 또는 새로 불러오기
+  // 최초 렌더링 시 초기 데이터 설정
   useEffect(() => {
-    // console.log('[useKeywords] 상태 업데이트', { 
-    //   userId: user?.id, 
-    //   isLoading, 
-    //   initialKeywordsCount: initialKeywords?.length 
-    // });
-    
     if (!isLoading && user) {
-      if (initialKeywords && initialKeywords.length > 0) {
-        // console.log('[useKeywords] 초기 키워드 설정:', initialKeywords);
+      if (isDemoUser) {
+        // 데모 사용자는 빈 배열로 시작
+        setDemoKeywordList([]);
+      } else if (initialKeywords && initialKeywords.length > 0) {
         setKeywordList(initialKeywords);
       } else {
         refreshKeywords();
       }
     }
-  }, [user, isLoading, initialKeywords, refreshKeywords]);
+  }, [user, isLoading, initialKeywords, refreshKeywords, isDemoUser]);
 
-  // 키워드 추가 함수 (즉시 UI 업데이트용)
-  const addOrUpdateKeyword = useCallback((newKeyword: Keyword) => {
-    setKeywordList(prevList => {
-      // 이미 목록에 있는지 확인
-      const existingIndex = prevList.findIndex(k => k.keyword === newKeyword.keyword);
+  // 키워드 추가 함수 (데모 모드 지원)
+  const addOrUpdateKeyword = useCallback((newKeyword: Keyword | string) => {
+    if (isDemoUser) {
+      // 데모 모드: 문자열로 키워드만 받아서 처리
+      const keyword = typeof newKeyword === 'string' ? newKeyword : newKeyword.keyword;
       
-      if (existingIndex >= 0) {
-        // 기존 키워드 업데이트
-        const newList = [...prevList];
-        newList[existingIndex] = newKeyword;
-        // 카운트 기준 정렬
-        return newList.sort((a, b) => b.count - a.count);
-      } else {
-        // 새 키워드 추가
-        return [...prevList, newKeyword].sort((a, b) => b.count - a.count);
-      }
-    });
-  }, []);
+      setDemoKeywordList(prevList => {
+        const existingIndex = prevList.findIndex(k => k.keyword === keyword);
+        
+        if (existingIndex >= 0) {
+          // 기존 키워드 카운트 증가
+          const newList = [...prevList];
+          newList[existingIndex] = {
+            ...newList[existingIndex],
+            count: newList[existingIndex].count + 1,
+          };
+          return newList.sort((a, b) => b.count - a.count);
+        } else {
+          // 새 키워드 추가
+          const demoKeyword: Keyword = {
+            id: Date.now(), // number 타입으로 변경
+            keyword,
+            count: 1,
+            created_at: new Date().toISOString(),
+            user_id: 'demo-user'
+          };
+          return [...prevList, demoKeyword].sort((a, b) => b.count - a.count);
+        }
+      });
+    } else {
+      // 정식 사용자 모드
+      const keywordObj = typeof newKeyword === 'string' 
+        ? { keyword: newKeyword } as Keyword 
+        : newKeyword;
+        
+      setKeywordList(prevList => {
+        const existingIndex = prevList.findIndex(k => k.keyword === keywordObj.keyword);
+        
+        if (existingIndex >= 0) {
+          const newList = [...prevList];
+          newList[existingIndex] = keywordObj;
+          return newList.sort((a, b) => b.count - a.count);
+        } else {
+          return [...prevList, keywordObj].sort((a, b) => b.count - a.count);
+        }
+      });
+    }
+  }, [isDemoUser]);
 
-  // 실시간 데이터베이스 변경 구독
+  // 실시간 데이터베이스 변경 구독 (데모 모드에서는 비활성화)
   useEffect(() => {
-    if (!user || !user.id) return;
-    
-    // console.log('[useKeywords] 실시간 구독 설정');
+    if (!user || !user.id || isDemoUser) return;
     
     const channel = supabase
       .channel('keywords-changes')
@@ -86,26 +112,12 @@ export const useKeywords = (
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          // console.log('[useKeywords] 변경 감지:', payload);
-          
-          // 변경 유형에 따른 처리
-          if (payload.eventType === 'INSERT') {
-            // 새 키워드 추가
-            const newKeyword = payload.new as Keyword;
-            // console.log('[useKeywords] 새 키워드 추가:', newKeyword);
-            addOrUpdateKeyword(newKeyword);
-          } 
-          else if (payload.eventType === 'UPDATE') {
-            // 키워드 업데이트
-            const updatedKeyword = payload.new as Keyword;
-            // console.log('[useKeywords] 키워드 업데이트:', updatedKeyword);
-            addOrUpdateKeyword(updatedKeyword);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const keyword = payload.new as Keyword;
+            addOrUpdateKeyword(keyword);
           }
           else if (payload.eventType === 'DELETE') {
-            // 키워드 삭제
             const deletedKeyword = payload.old as Keyword;
-            // console.log('[useKeywords] 키워드 삭제:', deletedKeyword);
-            
             setKeywordList(prevList => 
               prevList.filter(k => k.id !== deletedKeyword.id)
             );
@@ -115,15 +127,21 @@ export const useKeywords = (
       .subscribe();
       
     return () => {
-      // console.log('[useKeywords] 구독 정리');
       supabase.removeChannel(channel);
     };
-  }, [supabase, user, addOrUpdateKeyword]);
+  }, [supabase, user, addOrUpdateKeyword, isDemoUser]);
+
+  // 데모 모드 종료 시 데모 키워드 초기화
+  useEffect(() => {
+    if (!isDemoUser && demoKeywordList.length > 0) {
+      setDemoKeywordList([]);
+    }
+  }, [isDemoUser, demoKeywordList.length]);
 
   return { 
-    keywordList, 
+    keywordList: isDemoUser ? demoKeywordList : keywordList, // 데모/정식 사용자에 따라 다른 리스트 반환
     isRefreshing,
     refreshKeywords,
-    addOrUpdateKeyword  // UI 즉시 업데이트용 함수 노출
+    addOrUpdateKeyword
   };
 };

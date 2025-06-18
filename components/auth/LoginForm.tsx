@@ -1,4 +1,4 @@
-// components/auth/LoginForm.tsx (전체 코드)
+// components/auth/LoginForm.tsx
 
 import {
   useRef,
@@ -10,16 +10,17 @@ import {
   useState,
   FormEvent,
 } from "react";
-import { FaApple } from "react-icons/fa"; // <-- 1. 애플 아이콘을 import 합니다.
+import { FaApple } from "react-icons/fa";
 import { AuthState } from "../../types";
 import ThreeDTitle from "./ThreeDTitle";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ChevronRight, ArrowLeft } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import PrivacyPolicyModal from "../PrivacyPolicyModal";
-import VerificationModal from "./VerificationModal"; // 모달을 여기서 직접 사용하지 않으므로, 필요 없다면 제거 가능합니다.
+import { useAuth } from "../../app/contexts/AuthContext";
 
 const AppleIcon = FaApple as React.ElementType;
+
 interface LoginFormProps extends AuthState {
   authView: "login" | "signup";
   setEmail: (email: string) => void;
@@ -33,12 +34,13 @@ interface LoginFormProps extends AuthState {
   resetFormErrors: () => void;
   isContentVisible: boolean;
   showVerificationModal: boolean;
+  onDemoLogin?: () => void;
   handleVerificationComplete: () => void;
 }
 
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, y: -60, transition: { staggerChildren: 0.1 } },
+  visible: { opacity: 1, y: -80, transition: { staggerChildren: 0.1 } },
   exit: {
     opacity: 0,
     transition: { staggerChildren: 0.05, staggerDirection: -1 },
@@ -47,15 +49,21 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 40 },
+  visible: { opacity: 1, y: 70 },
   formVisible: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -20, transition: { duration: 0.2 } },
 };
 
 const titleVariants = {
-  initial: { y: 120 },
-  buttonsVisible: { y: -250, transition: { type: "spring", stiffness: 100 } },
-  formVisible: { y: -20, transition: { type: "spring", stiffness: 100 } },
+  initial: { y: "20vh" },
+  buttonsVisible: {
+    y: "-30vh",
+    transition: { type: "spring", stiffness: 100 },
+  },
+  formVisible: {
+    y: "0vh",
+    transition: { type: "spring", stiffness: 100 },
+  },
 };
 
 const isValidEmail = (email: string): boolean => {
@@ -110,6 +118,8 @@ const LoginForm = memo<LoginFormProps>(
     const shouldMaintainFocus = useRef(false);
     const activeFieldName = useRef<keyof typeof inputRefs.current | null>(null);
 
+    const { startDemoSession, isDemoUser, handleLogout } = useAuth();
+
     const [animationStage, setAnimationStage] = useState<
       "initial" | "buttonsVisible" | "formVisible"
     >("initial");
@@ -122,18 +132,25 @@ const LoginForm = memo<LoginFormProps>(
     const [showPrivacyModal, setShowPrivacyModal] = useState(false);
     const [isNativeApp, setIsNativeApp] = useState(false);
 
+    // prefers-reduced-motion 지원
+    const shouldReduceMotion = useReducedMotion();
+
+    // 타이틀 클릭 시 홈 이동
     const handleTitleClick = useCallback(() => {
       window.location.href = "/";
     }, []);
 
+    // 타이틀 애니메이션 완료 후 버튼 노출
     const handleInitialSpinComplete = useCallback(() => {
       if (animationStage === "initial") {
         setAnimationStage("buttonsVisible");
       }
     }, [animationStage]);
 
+    // 이메일 입력 폼 노출
     const showEmailForm = useCallback(() => {
       if (animationStage === "buttonsVisible") {
+        if (isDemoUser) handleLogout();
         setAnimationStage("formVisible");
         setFormStep("emailInput");
         setIsExistingUser(null);
@@ -143,8 +160,9 @@ const LoginForm = memo<LoginFormProps>(
         activeFieldName.current = "email";
         shouldMaintainFocus.current = true;
       }
-    }, [animationStage, resetFormErrors, setPassword, setUsername]);
+    }, [animationStage, resetFormErrors, setPassword, setUsername, isDemoUser, handleLogout]);
 
+    // 이메일 제출
     const handleEmailSubmit = useCallback(
       async (e: FormEvent) => {
         e.preventDefault();
@@ -177,6 +195,7 @@ const LoginForm = memo<LoginFormProps>(
       [email, setEmailError, resetFormErrors]
     );
 
+    // 뒤로가기
     const handleGoBack = useCallback(() => {
       setFormStep("emailInput");
       setIsExistingUser(null);
@@ -195,6 +214,7 @@ const LoginForm = memo<LoginFormProps>(
       setUsernameError,
     ]);
 
+    // 입력값 변경
     const handleInputChange = useCallback(
       (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -222,17 +242,20 @@ const LoginForm = memo<LoginFormProps>(
       ]
     );
 
+    // 포커스 관리
     const handleFocus = useCallback((e: FocusEvent<HTMLInputElement>) => {
       activeFieldName.current = e.target.name as keyof typeof inputRefs.current;
       shouldMaintainFocus.current = true;
     }, []);
 
+    // 네이티브 앱 감지
     useEffect(() => {
-      if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      if (typeof window !== "undefined" && window.ReactNativeWebView) {
         setIsNativeApp(true);
       }
     }, []);
 
+    // 이메일이 비어있으면 폼 초기화
     useEffect(() => {
       if (
         email === "" &&
@@ -242,6 +265,7 @@ const LoginForm = memo<LoginFormProps>(
       }
     }, [email, formStep, handleGoBack]);
 
+    // 포커스 자동 이동
     useEffect(() => {
       if (
         animationStage === "formVisible" &&
@@ -259,6 +283,7 @@ const LoginForm = memo<LoginFormProps>(
       }
     }, [animationStage, formStep, isCheckingEmail]);
 
+    // ref 할당
     const setRef = useCallback(
       (
         element: HTMLInputElement | null,
@@ -269,6 +294,7 @@ const LoginForm = memo<LoginFormProps>(
       []
     );
 
+    // 컨텐츠 숨김 시 상태 초기화
     useEffect(() => {
       if (!isContentVisible) {
         setAnimationStage("initial");
@@ -277,6 +303,7 @@ const LoginForm = memo<LoginFormProps>(
       }
     }, [isContentVisible]);
 
+    // 개인정보 동의
     const handleAgree = useCallback(() => {
       setShowPrivacyModal(false);
       setFormStep("signupInput");
@@ -291,7 +318,11 @@ const LoginForm = memo<LoginFormProps>(
       shouldMaintainFocus.current = true;
     }, []);
 
+    // 애플 로그인
     const handleAppleLoginRequest = async () => {
+      if (isDemoUser) {
+        await handleLogout();
+      }
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(
           JSON.stringify({ type: "APPLE_LOGIN_REQUEST" })
@@ -301,18 +332,35 @@ const LoginForm = memo<LoginFormProps>(
       }
     };
 
+    // prefers-reduced-motion 적용
+    const getMotionProps = (variant: string) => {
+      if (shouldReduceMotion) {
+        return { y: 0, opacity: 1, transition: { duration: 0 } };
+      }
+      return titleVariants[variant as keyof typeof titleVariants];
+    };
+
     return (
-      <div className={
-        isNativeApp 
-          ? "w-full h-full mx-auto p-4 flex flex-col items-center justify-start pt-16"
-          : "w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full pt-16 md:pt-24"
-      }>
+      <div
+        className={
+          isNativeApp
+            ? "w-full h-full mx-auto p-4 flex flex-col items-center justify-start pt-16"
+            : "w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full pt-16 md:pt-24"
+        }
+      >
         <motion.div
           className={isNativeApp ? "w-full mb-8 px-4" : "w-full mb-8"}
           variants={titleVariants}
           initial="initial"
           animate={animationStage}
-          style={{ y: 0 }}
+          style={{
+            y: 0,
+            willChange: "transform",
+            cursor: "pointer",
+          }}
+          onClick={handleTitleClick}
+          aria-label="홈으로 이동"
+          role="banner"
         >
           <ThreeDTitle
             onInitialSpinComplete={handleInitialSpinComplete}
@@ -320,20 +368,23 @@ const LoginForm = memo<LoginFormProps>(
           />
         </motion.div>
 
-        {/* ▼▼▼ 이 div를 motion.div로 바꾸고 layout prop을 추가합니다 ▼▼▼ */}
-        <motion.div 
-          layout 
-          className={isNativeApp ? "w-full px-4 mb-4 h-12" : "w-full mb-4 h-12 -mt-6"}
+        <motion.div
+          layout
+          className={
+            isNativeApp ? "w-full px-4 mb-4 h-12" : "w-full mb-4 h-12 -mt-6"
+          }
         >
           <AnimatePresence>
             {authMessage && !authError && (
               <motion.div
                 key="authMessage"
-                layout // 자식 요소에도 layout을 추가하여 더 부드러운 애니메이션을 만듭니다.
+                layout
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="p-3 w-full rounded-md text-sm font-mono bg-green-500/30 text-green-200"
+                role="status"
+                aria-live="polite"
               >
                 {authMessage}
               </motion.div>
@@ -346,6 +397,8 @@ const LoginForm = memo<LoginFormProps>(
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 className="p-3 w-full rounded-md text-sm font-mono bg-red-500/30 text-red-200"
+                role="alert"
+                aria-live="assertive"
               >
                 {authError}
               </motion.div>
@@ -355,27 +408,24 @@ const LoginForm = memo<LoginFormProps>(
 
         {animationStage === "buttonsVisible" && (
           <motion.div
-          className={
-            isNativeApp 
-              ? "absolute top-32 left-10 text-gray-300 font-mono text-md"
-              : "absolute top-32 left-10 text-gray-300 font-mono text-md"
-          }
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
+            className={
+              isNativeApp
+                ? "absolute top-32 left-10 text-gray-300 font-mono text-md"
+                : "absolute top-32 left-10 text-gray-300 font-mono text-md"
+            }
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            aria-hidden="true"
+          >
             univoice
           </motion.div>
         )}
 
-<motion.div
+        <motion.div
           layout
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={
-            isNativeApp 
-              ? "w-full relative"
-              : "w-full relative"
-          }
+          className={isNativeApp ? "w-full relative" : "w-full relative"}
           style={isNativeApp ? undefined : { minHeight: "350px" }}
         >
           <AnimatePresence mode="wait">
@@ -383,7 +433,7 @@ const LoginForm = memo<LoginFormProps>(
               <motion.div
                 key="initialButtons"
                 className={
-                  isNativeApp 
+                  isNativeApp
                     ? "flex flex-col items-center w-full"
                     : "flex flex-col items-center w-full"
                 }
@@ -393,11 +443,13 @@ const LoginForm = memo<LoginFormProps>(
                 exit="exit"
               >
                 <motion.div variants={itemVariants} className="w-full">
-                <div className={
-                    isNativeApp 
-                      ? "relative duration-300 ease-in-out hover:scale-[1.02] p-[16px_28px]"
-                      : "relative duration-300 ease-in-out hover:scale-[1.02] p-[12px_24px]"
-                  }>
+                  <div
+                    className={
+                      isNativeApp
+                        ? "relative duration-300 ease-in-out hover:scale-[1.02] p-[16px_28px]"
+                        : "relative duration-300 ease-in-out hover:scale-[1.02] p-[12px_24px]"
+                    }
+                  >
                     <svg
                       viewBox="0 0 100 100"
                       xmlns="http://www.w3.org/2000/svg"
@@ -426,10 +478,11 @@ const LoginForm = memo<LoginFormProps>(
                     <button
                       onClick={showEmailForm}
                       className={
-                        isNativeApp 
+                        isNativeApp
                           ? "relative flex items-center justify-between gap-4 w-full h-16 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
                           : "relative flex items-center justify-between gap-4 w-full h-14 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
                       }
+                      aria-label="이메일로 시작"
                     >
                       <span className="font-semibold text-gray-100 transition-colors duration-300 ease-in-out pl-2">
                         Get Started
@@ -457,22 +510,20 @@ const LoginForm = memo<LoginFormProps>(
 
             {animationStage === "formVisible" && (
               <motion.div
-              key={formStep}
-              className={isNativeApp ? "w-full px-0" : "w-full"}
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
+                key={formStep}
+                className={isNativeApp ? "w-full px-0" : "w-full"}
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+              >
                 {formStep === "emailInput" && (
                   <motion.form
-                  onSubmit={handleEmailSubmit}
-                  className={isNativeApp ? "space-y-6" : "space-y-4"}
-                >
-                    <motion.div
-                      variants={itemVariants}
-                      className="h-6"
-                    ></motion.div>
+                    onSubmit={handleEmailSubmit}
+                    className={isNativeApp ? "space-y-6" : "space-y-4"}
+                    aria-label="이메일 입력 폼"
+                  >
+                    <motion.div variants={itemVariants} className="h-6" />
                     <motion.div variants={itemVariants}>
                       <label
                         htmlFor="email"
@@ -494,9 +545,15 @@ const LoginForm = memo<LoginFormProps>(
                         className={`w-full px-3 py-2 bg-transparent backdrop-blur-sm border rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-gray-200 ${
                           emailError ? "border-red-500" : "border-gray-600"
                         }`}
+                        aria-invalid={!!emailError}
+                        aria-describedby={emailError ? "email-error" : undefined}
                       />
                       {emailError && (
-                        <p className="text-red-400 text-xs mt-1 font-mono">
+                        <p
+                          id="email-error"
+                          className="text-red-400 text-xs mt-1 font-mono"
+                          role="alert"
+                        >
                           {emailError}
                         </p>
                       )}
@@ -506,6 +563,7 @@ const LoginForm = memo<LoginFormProps>(
                         type="submit"
                         disabled={isCheckingEmail}
                         className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black text-sm font-mono py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200 flex items-center justify-center"
+                        aria-busy={isCheckingEmail}
                       >
                         {isCheckingEmail ? "확인 중..." : "계속하기"}
                         {!isCheckingEmail && (
@@ -527,22 +585,32 @@ const LoginForm = memo<LoginFormProps>(
                         onClick={handleAppleLoginRequest}
                         disabled={authLoading}
                         className="w-full bg-white hover:bg-gray-200 text-black font-semibold text-sm font-sans py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50 transition duration-200 flex items-center justify-center gap-2"
+                        aria-label="Apple로 계속하기"
                       >
-                        {/* 2. 기존 svg 태그 대신 FaApple 컴포넌트를 사용합니다. */}
                         <AppleIcon className="w-5 h-5" />
                         <span>Apple로 계속하기</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={startDemoSession}
+                        className="w-full mt-3 bg-transparent border border-gray-500 hover:bg-gray-800 text-gray-300 hover:text-white font-mono text-sm py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 transition duration-200 flex items-center justify-center gap-2"
+                        aria-label="간단히 둘러보기"
+                      >
+                        <span>간단히 둘러보기</span>
                       </button>
                     </motion.div>
                   </motion.form>
                 )}
 
                 {formStep === "passwordInput" && isExistingUser === true && (
-                  <motion.form onSubmit={handleLogin} className="space-y-4">
+                  <motion.form onSubmit={handleLogin} className="space-y-4" aria-label="비밀번호 입력 폼">
                     <motion.div variants={itemVariants}>
                       <button
                         type="button"
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
+                        aria-label="뒤로"
                       >
                         <ArrowLeft className="w-4 h-4 mr-1" /> Back
                       </button>
@@ -575,9 +643,15 @@ const LoginForm = memo<LoginFormProps>(
                         className={`w-full px-3 py-2 bg-transparent border backdrop-blur-sm rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-gray-200 ${
                           passwordError ? "border-red-500" : "border-gray-600"
                         }`}
+                        aria-invalid={!!passwordError}
+                        aria-describedby={passwordError ? "password-error" : undefined}
                       />
                       {passwordError && (
-                        <p className="text-red-400 text-xs mt-1 font-mono">
+                        <p
+                          id="password-error"
+                          className="text-red-400 text-xs mt-1 font-mono"
+                          role="alert"
+                        >
                           {passwordError}
                         </p>
                       )}
@@ -587,6 +661,7 @@ const LoginForm = memo<LoginFormProps>(
                         type="submit"
                         disabled={authLoading}
                         className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black text-sm font-mono py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200"
+                        aria-busy={authLoading}
                       >
                         {authLoading ? "로그인 중..." : "Sign In"}
                       </button>
@@ -595,12 +670,13 @@ const LoginForm = memo<LoginFormProps>(
                 )}
 
                 {formStep === "signupInput" && isExistingUser === false && (
-                  <motion.form onSubmit={handleSignUp} className="space-y-4">
+                  <motion.form onSubmit={handleSignUp} className="space-y-4" aria-label="회원가입 폼">
                     <motion.div variants={itemVariants}>
                       <button
                         type="button"
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
+                        aria-label="뒤로"
                       >
                         <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로
                       </button>
@@ -632,9 +708,15 @@ const LoginForm = memo<LoginFormProps>(
                           usernameError ? "border-red-500" : "border-gray-600"
                         }`}
                         placeholder="닉네임"
+                        aria-invalid={!!usernameError}
+                        aria-describedby={usernameError ? "username-error" : undefined}
                       />
                       {usernameError && (
-                        <p className="text-red-400 text-xs mt-1 font-mono">
+                        <p
+                          id="username-error"
+                          className="text-red-400 text-xs mt-1 font-mono"
+                          role="alert"
+                        >
                           {usernameError}
                         </p>
                       )}
@@ -661,9 +743,15 @@ const LoginForm = memo<LoginFormProps>(
                           passwordError ? "border-red-500" : "border-gray-600"
                         }`}
                         placeholder="비밀번호 (6자 이상)"
+                        aria-invalid={!!passwordError}
+                        aria-describedby={passwordError ? "signup-password-error" : undefined}
                       />
                       {passwordError && (
-                        <p className="text-red-400 text-xs mt-1 font-mono">
+                        <p
+                          id="signup-password-error"
+                          className="text-red-400 text-xs mt-1 font-mono"
+                          role="alert"
+                        >
                           {passwordError}
                         </p>
                       )}
@@ -673,6 +761,7 @@ const LoginForm = memo<LoginFormProps>(
                         type="submit"
                         disabled={authLoading}
                         className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black font-mono py-3 px-4 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200"
+                        aria-busy={authLoading}
                       >
                         {authLoading ? "처리 중..." : "Create account"}
                       </button>

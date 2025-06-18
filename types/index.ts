@@ -18,9 +18,9 @@ export interface AuthState {
   email: string;
   password: string;
   username: string; // 회원가입 시 사용할 username
-  emailError: string;
-  passwordError: string;
-  usernameError: string;
+  emailError: string | null;
+  passwordError: string | null;
+  usernameError: string | null;
 }
 
 export interface VoiceState {
