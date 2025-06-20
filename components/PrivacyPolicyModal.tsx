@@ -43,7 +43,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
               <h3 className="font-bold mt-4 mb-2">1. 수집하는 개인정보의 항목</h3>
               <p>
                 - 필수 항목: 이메일 주소, 사용자 이름(닉네임), 비밀번호, 채팅 내용<br />
-                - 선택 항목: 없음
+                - 선택 항목: 음성 인식을 통한 키워드 (사용자가 기능 ON/OFF 선택 가능)<br />
               </p>
 
               <h3 className="font-bold mt-4 mb-2">2. 개인정보의 수집 및 이용 목적</h3>
@@ -51,7 +51,10 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
                 - 이메일 주소: 회원가입 및 이용자 식별, 서비스 관련 공지 및 고객 지원, 통계 분석을 통한 서비스 개선<br />
                 - 사용자 이름(닉네임): 서비스 내 이용자 식별 및 개인화된 경험 제공<br />
                 - 비밀번호: 계정 보안 및 인증<br />
-                - 채팅 내용: 채팅 서비스 제공, 콘텐츠 모니터링(부적절한 콘텐츠 방지), 서비스 개선을 위한 분석
+                - 채팅 내용: 채팅 서비스 제공, 콘텐츠 모니터링(부적절한 콘텐츠 방지), 서비스 개선을 위한 분석<br />
+                - 음성 인식 키워드:<br />
+                  사용자가 기능을 OFF로 전환할 경우 수집중지, 매일 12시 정각에 파기<br />
+                  회원 탈퇴 시 즉시 파기
               </p>
 
               <h3 className="font-bold mt-4 mb-2">3. 개인정보의 보유 및 이용 기간</h3>
