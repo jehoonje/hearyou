@@ -311,7 +311,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               <div className="flex items-center space-x-1">
                 {!isDemoUser && (
                   <>
-                    {/* <button
+                    <button
                       onClick={runManualMatchmaking}
                       disabled={isMatchButtonDisabled}
                       className={`btn-aero-yellow ${
@@ -319,7 +319,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                       }`}
                     >
                       {isMatchmakingRunning ? "매칭중..." : "Match"}
-                    </button> */}
+                    </button>
                     {currentMatch && !isMatchLoading && (
                       <button onClick={openChat} className="btn-aero-green">
                         Chat
