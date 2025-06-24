@@ -18,6 +18,7 @@ import { ChevronRight, ArrowLeft } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import PrivacyPolicyModal from "../PrivacyPolicyModal";
 import { useAuth } from "../../app/contexts/AuthContext";
+import { useLanguage } from "../../app/contexts/LanguageContext";
 
 const AppleIcon = FaApple as React.ElementType;
 
@@ -118,6 +119,8 @@ const LoginForm = memo<LoginFormProps>(
     const shouldMaintainFocus = useRef(false);
     const activeFieldName = useRef<keyof typeof inputRefs.current | null>(null);
 
+    const { t, language } = useLanguage();
+
     const { startDemoSession, isDemoUser, handleLogout } = useAuth();
 
     const [animationStage, setAnimationStage] = useState<
@@ -160,7 +163,14 @@ const LoginForm = memo<LoginFormProps>(
         activeFieldName.current = "email";
         shouldMaintainFocus.current = true;
       }
-    }, [animationStage, resetFormErrors, setPassword, setUsername, isDemoUser, handleLogout]);
+    }, [
+      animationStage,
+      resetFormErrors,
+      setPassword,
+      setUsername,
+      isDemoUser,
+      handleLogout,
+    ]);
 
     // 이메일 제출
     const handleEmailSubmit = useCallback(
@@ -359,7 +369,7 @@ const LoginForm = memo<LoginFormProps>(
             cursor: "pointer",
           }}
           onClick={handleTitleClick}
-          aria-label="홈으로 이동"
+          aria-label={language === "ko" ? "홈으로 이동" : "Go to home"}
           role="banner"
         >
           <ThreeDTitle
@@ -482,10 +492,10 @@ const LoginForm = memo<LoginFormProps>(
                           ? "relative flex items-center justify-between gap-4 w-full h-16 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
                           : "relative flex items-center justify-between gap-4 w-full h-14 text-lg leading-none text-[#131313] whitespace-nowrap focus:outline-none transition-transform duration-300 ease-in-out"
                       }
-                      aria-label="이메일로 시작"
+                      aria-label={t.common.getStarted}
                     >
                       <span className="font-semibold text-gray-100 transition-colors duration-300 ease-in-out pl-2">
-                        Get Started
+                        {t.common.getStarted}
                       </span>
                       <span className="relative z-10 flex items-center justify-center rounded-full h-full aspect-square bg-transparent text-gray-100 transition-transform duration-300 ease-in-out">
                         <svg
@@ -521,7 +531,9 @@ const LoginForm = memo<LoginFormProps>(
                   <motion.form
                     onSubmit={handleEmailSubmit}
                     className={isNativeApp ? "space-y-6" : "space-y-4"}
-                    aria-label="이메일 입력 폼"
+                    aria-label={
+                      language === "ko" ? "이메일 입력 폼" : "Email input form"
+                    }
                   >
                     <motion.div variants={itemVariants} className="h-6" />
                     <motion.div variants={itemVariants}>
@@ -529,7 +541,7 @@ const LoginForm = memo<LoginFormProps>(
                         htmlFor="email"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        Email
+                        {t.common.email}
                       </label>
                       <input
                         id="email"
@@ -541,12 +553,14 @@ const LoginForm = memo<LoginFormProps>(
                         ref={(el) => setRef(el, "email")}
                         required
                         autoComplete="email"
-                        placeholder="이메일 주소"
+                        placeholder={t.auth.emailPlaceholder}
                         className={`w-full px-3 py-2 bg-transparent backdrop-blur-sm border rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-gray-200 ${
                           emailError ? "border-red-500" : "border-gray-600"
                         }`}
                         aria-invalid={!!emailError}
-                        aria-describedby={emailError ? "email-error" : undefined}
+                        aria-describedby={
+                          emailError ? "email-error" : undefined
+                        }
                       />
                       {emailError && (
                         <p
@@ -565,7 +579,11 @@ const LoginForm = memo<LoginFormProps>(
                         className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black text-sm font-mono py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200 flex items-center justify-center"
                         aria-busy={isCheckingEmail}
                       >
-                        {isCheckingEmail ? "확인 중..." : "계속하기"}
+                        {isCheckingEmail
+                          ? language === "ko"
+                            ? "확인 중..."
+                            : "Checking..."
+                          : t.common.continue}
                         {!isCheckingEmail && (
                           <ChevronRight className="w-4 h-4 ml-1" />
                         )}
@@ -575,7 +593,7 @@ const LoginForm = memo<LoginFormProps>(
                       <div className="flex items-center my-2">
                         <div className="flex-grow border-t border-gray-600"></div>
                         <span className="flex-shrink mx-4 text-gray-400 text-xs font-mono">
-                          OR
+                          {t.common.or}
                         </span>
                         <div className="flex-grow border-t border-gray-600"></div>
                       </div>
@@ -585,41 +603,49 @@ const LoginForm = memo<LoginFormProps>(
                         onClick={handleAppleLoginRequest}
                         disabled={authLoading}
                         className="w-full bg-white hover:bg-gray-200 text-black font-semibold text-sm font-sans py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50 transition duration-200 flex items-center justify-center gap-2"
-                        aria-label="Apple로 계속하기"
+                        aria-label={t.auth.continueWithApple}
                       >
                         <AppleIcon className="w-5 h-5" />
-                        <span>Apple로 계속하기</span>
+                        <span>{t.auth.continueWithApple}</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={startDemoSession}
                         className="w-full mt-3 bg-transparent border border-gray-500 hover:bg-gray-800 text-gray-300 hover:text-white font-mono text-sm py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 transition duration-200 flex items-center justify-center gap-2"
-                        aria-label="간단히 둘러보기"
+                        aria-label={t.auth.quickTour}
                       >
-                        <span>간단히 둘러보기</span>
+                        <span>{t.auth.quickTour}</span>
                       </button>
                     </motion.div>
                   </motion.form>
                 )}
 
                 {formStep === "passwordInput" && isExistingUser === true && (
-                  <motion.form onSubmit={handleLogin} className="space-y-4" aria-label="비밀번호 입력 폼">
+                  <motion.form
+                    onSubmit={handleLogin}
+                    className="space-y-4"
+                    aria-label={
+                      language === "ko"
+                        ? "비밀번호 입력 폼"
+                        : "Password input form"
+                    }
+                  >
                     <motion.div variants={itemVariants}>
                       <button
                         type="button"
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
-                        aria-label="뒤로"
+                        aria-label={t.common.back}
                       >
-                        <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                        <ArrowLeft className="w-4 h-4 mr-1" /> {t.common.back}
                       </button>
                     </motion.div>
                     <motion.div
                       variants={itemVariants}
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
-                      &nbsp;&nbsp;아이디:&nbsp;
+                      &nbsp;&nbsp;{t.auth.accountInfo}&nbsp;
                       <span className="font-semibold text-white">{email}</span>
                     </motion.div>
                     <motion.div variants={itemVariants}>
@@ -627,7 +653,7 @@ const LoginForm = memo<LoginFormProps>(
                         htmlFor="password"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        Password
+                        {t.common.password}
                       </label>
                       <input
                         id="password"
@@ -639,12 +665,14 @@ const LoginForm = memo<LoginFormProps>(
                         ref={(el) => setRef(el, "password")}
                         required
                         autoComplete="current-password"
-                        placeholder="비밀번호"
+                        placeholder={t.auth.passwordPlaceholder}
                         className={`w-full px-3 py-2 bg-transparent border backdrop-blur-sm rounded-md text-white font-mono focus:outline-none focus:ring-1 focus:ring-gray-200 ${
                           passwordError ? "border-red-500" : "border-gray-600"
                         }`}
                         aria-invalid={!!passwordError}
-                        aria-describedby={passwordError ? "password-error" : undefined}
+                        aria-describedby={
+                          passwordError ? "password-error" : undefined
+                        }
                       />
                       {passwordError && (
                         <p
@@ -660,32 +688,40 @@ const LoginForm = memo<LoginFormProps>(
                       <button
                         type="submit"
                         disabled={authLoading}
-                        className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black text-sm font-mono py-3 px-4 rounded-full focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200"
+                        className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black font-mono py-3 px-4 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200"
                         aria-busy={authLoading}
                       >
-                        {authLoading ? "로그인 중..." : "Sign In"}
+                        {authLoading
+                          ? t.auth.signupProcessing
+                          : t.auth.createAccount}
                       </button>
                     </motion.div>
                   </motion.form>
                 )}
 
                 {formStep === "signupInput" && isExistingUser === false && (
-                  <motion.form onSubmit={handleSignUp} className="space-y-4" aria-label="회원가입 폼">
+                  <motion.form
+                    onSubmit={handleSignUp}
+                    className="space-y-4"
+                    aria-label={
+                      language === "ko" ? "회원가입 폼" : "Sign up form"
+                    }
+                  >
                     <motion.div variants={itemVariants}>
                       <button
                         type="button"
                         onClick={handleGoBack}
                         className="flex items-center text-sm text-gray-400 hover:text-gray-200 font-mono mb-2"
-                        aria-label="뒤로"
+                        aria-label={t.common.back}
                       >
-                        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로
+                        <ArrowLeft className="w-4 h-4 mr-1" /> {t.common.back}
                       </button>
                     </motion.div>
                     <motion.div
                       variants={itemVariants}
                       className="text-gray-300 font-mono text-sm mb-2"
                     >
-                      회원가입:
+                      {t.auth.signupInfo}
                       <span className="font-semibold text-white">{email}</span>
                     </motion.div>
                     <motion.div variants={itemVariants}>
@@ -693,7 +729,7 @@ const LoginForm = memo<LoginFormProps>(
                         htmlFor="username"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        Name
+                        {t.common.name}
                       </label>
                       <input
                         id="username"
@@ -707,9 +743,11 @@ const LoginForm = memo<LoginFormProps>(
                         className={`w-full px-3 py-2 bg-transparent border rounded-md backdrop-blur-sm text-white font-mono focus:outline-none focus:ring-1 focus:ring-gray-200 ${
                           usernameError ? "border-red-500" : "border-gray-600"
                         }`}
-                        placeholder="닉네임"
+                        placeholder={t.auth.namePlaceholder}
                         aria-invalid={!!usernameError}
-                        aria-describedby={usernameError ? "username-error" : undefined}
+                        aria-describedby={
+                          usernameError ? "username-error" : undefined
+                        }
                       />
                       {usernameError && (
                         <p
@@ -726,7 +764,7 @@ const LoginForm = memo<LoginFormProps>(
                         htmlFor="password"
                         className="block text-sm font-mono text-gray-300 mb-1"
                       >
-                        Password
+                        {t.common.password}
                       </label>
                       <input
                         id="password"
@@ -742,9 +780,11 @@ const LoginForm = memo<LoginFormProps>(
                         className={`w-full px-3 py-2 bg-transparent border rounded-md text-white font-mono backdrop-blur-sm focus:outline-none focus:ring-1 focus:ring-gray-200 ${
                           passwordError ? "border-red-500" : "border-gray-600"
                         }`}
-                        placeholder="비밀번호 (6자 이상)"
+                        placeholder={t.auth.passwordHint}
                         aria-invalid={!!passwordError}
-                        aria-describedby={passwordError ? "signup-password-error" : undefined}
+                        aria-describedby={
+                          passwordError ? "signup-password-error" : undefined
+                        }
                       />
                       {passwordError && (
                         <p
@@ -763,7 +803,9 @@ const LoginForm = memo<LoginFormProps>(
                         className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black font-mono py-3 px-4 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200"
                         aria-busy={authLoading}
                       >
-                        {authLoading ? "처리 중..." : "Create account"}
+                        {authLoading
+                          ? t.auth.signupProcessing
+                          : t.auth.createAccount}
                       </button>
                     </motion.div>
                   </motion.form>

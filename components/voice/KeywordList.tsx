@@ -3,6 +3,8 @@ import { Keyword } from '../../types'; // 경로가 올바르다고 가정
 import { motion, AnimatePresence } from 'framer-motion'; // framer-motion 임포트
 // import { MdExpandLess, MdExpandMore } from 'react-icons/md'; // 이전 아이콘 임포트 주석 처리
 import { ChevronDown, ChevronUp } from 'lucide-react'; // lucide-react 아이콘 임포트
+import { useLanguage } from "../../app/contexts/LanguageContext";
+
 
 interface KeywordListProps {
   keywordList: Keyword[];
@@ -34,6 +36,8 @@ const KeywordList = memo<KeywordListProps>(({ keywordList }) => {
 
   // 토글 함수 (변경 없음)
   const toggleOpen = () => setIsOpen(!isOpen);
+
+  const { t, language } = useLanguage();
 
   return (
     <div className="bg-transparent p-1 pt-2 px-3 rounded-lg border border-gray-700/50 overflow-hidden" data-tutorial-target="transcript-display">
@@ -83,7 +87,7 @@ const KeywordList = memo<KeywordListProps>(({ keywordList }) => {
               </ul>
             ) : (
               <p className="text-sm font-mono text-gray-400 mt-1">
-                아직 기록된 키워드가 없습니다.
+                {language === "ko" ? "아직 등록된 키워드가 없습니다." : t.voice.emptyKeyword}
               </p>
             )}
           </motion.div>
