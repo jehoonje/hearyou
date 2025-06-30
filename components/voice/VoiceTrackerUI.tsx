@@ -359,7 +359,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   <>
                     <button
                       onClick={runManualMatchmaking}
-                      disabled={isMatchButtonDisabled}
                       className={`btn-aero-yellow ${
                         isMatchButtonDisabled ? "" : ""
                       }`}
