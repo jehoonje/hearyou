@@ -11,8 +11,8 @@ interface ChatInputProps {
 }
 
 // 부적절한 콘텐츠 필터링을 위한 금지어 목록 (영문 금지어도 고려)
-const INAPPROPRIATE_WORDS_KO = ['욕설1', '욕설2', '비속어1', '비속어2'];
-const INAPPROPRIATE_WORDS_EN = ['badword1', 'badword2', 'slang1', 'slang2'];
+const INAPPROPRIATE_WORDS_KO = ['카카오톡', '씨발', '비속어1', '비속어2'];
+const INAPPROPRIATE_WORDS_EN = ['contact', 'instagram', 'telegram', 'fuck'];
 
 // 부적절한 패턴 감지 (정규표현식)
 const INAPPROPRIATE_PATTERNS = [
