@@ -13,6 +13,7 @@ import { Keyword } from "../../types";
 import MicToggleButton from "./MicToggleButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import BlockedUsersManager from "../settings/BlockedUsersManager";
 
 interface VoiceTrackerUIProps {
   volume: number;
@@ -70,7 +71,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       null
     );
     const [deleteConfirmText, setDeleteConfirmText] = useState(""); // 추가: 확인 텍스트
-
+    const [isBlockedUsersModalOpen, setIsBlockedUsersModalOpen] = useState(false);
     const supabase = createClientComponentClient();
     const deleteConfirmationText =
       language === "ko" ? "탈퇴하겠습니다" : "DELETE MY ACCOUNT";
@@ -318,6 +319,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       t.modal.deleteAccountSuccess,
     ]);
 
+    // 차단 목록 관리 모달 열기/닫기 (추가)
+    const openBlockedUsersModal = useCallback(() => {
+      setIsBlockedUsersModalOpen(true);
+      closeModal();
+    }, [closeModal]);
+    const closeBlockedUsersModal = useCallback(() => setIsBlockedUsersModalOpen(false), []);
+
+
     return (
       <>
         <div className="absolute inset-0 flex flex-col w-full h-full pointer-events-none">
@@ -436,6 +445,12 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
         {isChatOpen && <ChatInterface onClose={closeChat} />}
 
+        {/* 차단 목록 관리 모달 렌더링 (추가) */}
+        <BlockedUsersManager 
+          isOpen={isBlockedUsersModalOpen}
+          onClose={closeBlockedUsersModal}
+        />
+
         {/* 도움말 모달 */}
         <AnimatePresence>
           {isModalOpen && (
@@ -465,6 +480,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                   >
                     {t.common.bookmark}
                   </button>
+                  {!isDemoUser && ( // 차단 목록 관리 버튼 추가
+                    <button
+                      onClick={openBlockedUsersModal}
+                      className="btn-aero-gray hover:bg-gray-600 hover:border-gray-600 transition-colors"
+                    >
+                      {t.settings.manageBlockedList}
+                    </button>
+                  )}
                   {!isDemoUser && (
                     <button
                       onClick={openDeleteAccountModal}

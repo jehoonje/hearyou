@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../app/contexts/LanguageContext';
+import { Shield, Eye, Flag, Ban, Clock, AlertTriangle } from 'lucide-react';
 
 interface PrivacyPolicyModalProps {
   isOpen: boolean;
@@ -18,6 +19,32 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
     }, 10);
     return () => clearTimeout(timer);
   }, [isOpen]);
+
+  // 커뮤니티 가이드라인 내용 (언어별)
+  const communityGuidelines = {
+    ko: {
+      title: "커뮤니티 안전 가이드라인",
+      noTolerance: "부적절한 콘텐츠 및 학대적 행동 무관용 정책",
+      noToleranceDesc: "욕설, 혐오 표현, 성적 콘텐츠, 스팸, 괴롭힘 등은 엄격히 금지되며 즉시 제재됩니다.",
+      contentFiltering: "실시간 콘텐츠 필터링",
+      contentFilteringDesc: "자동 필터링 시스템으로 부적절한 콘텐츠를 실시간으로 차단합니다.",
+      reportingSystem: "신고 및 차단 시스템",
+      reportingSystemDesc: "부적절한 콘텐츠나 사용자를 쉽게 신고하고 차단할 수 있습니다.",
+      quickResponse: "24시간 내 신속 대응",
+      quickResponseDesc: "신고된 내용은 24시간 내에 검토되어 콘텐츠 삭제 및 사용자 제재가 이루어집니다."
+    },
+    en: {
+      title: "Community Safety Guidelines",
+      noTolerance: "Zero Tolerance for Objectionable Content and Abusive Behavior",
+      noToleranceDesc: "Profanity, hate speech, sexual content, spam, and harassment are strictly prohibited and will result in immediate action.",
+      contentFiltering: "Real-time Content Filtering",
+      contentFilteringDesc: "Automated filtering systems block inappropriate content in real-time.",
+      reportingSystem: "Reporting and Blocking System",
+      reportingSystemDesc: "Users can easily report and block inappropriate content or abusive users.",
+      quickResponse: "Swift Response Within 24 Hours",
+      quickResponseDesc: "Reported content is reviewed within 24 hours, leading to content removal and user sanctions."
+    }
+  };
 
   // 개인정보처리방침 내용 (언어별로 분리)
   const privacyContent = {
@@ -260,6 +287,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
   };
 
   const currentContent = privacyContent[language as keyof typeof privacyContent] || privacyContent.ko;
+  const currentGuidelines = communityGuidelines[language as keyof typeof communityGuidelines] || communityGuidelines.ko;
 
   return (
     <AnimatePresence>
@@ -281,9 +309,56 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
             <h2 className="text-lg font-semibold text-white font-mono mb-4">
               {currentContent.title}
             </h2>
+            
             <div className="text-sm text-gray-300 mb-6 max-h-[400px] overflow-y-auto show-scrollbar">
+              {/* 커뮤니티 안전 가이드라인 섹션 추가 */}
+              <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="text-blue-400" size={18} />
+                  <h3 className="text-base font-semibold text-white">
+                    {currentGuidelines.title}
+                  </h3>
+                </div>
+                
+                <div className="space-y-3 text-xs text-gray-300">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="text-red-400 mt-0.5 flex-shrink-0" size={14} />
+                    <div>
+                      <strong className="text-white">{currentGuidelines.noTolerance}</strong>
+                      <p className="text-gray-400 mt-1">{currentGuidelines.noToleranceDesc}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2">
+                    <Eye className="text-green-400 mt-0.5 flex-shrink-0" size={14} />
+                    <div>
+                      <strong className="text-white">{currentGuidelines.contentFiltering}</strong>
+                      <p className="text-gray-400 mt-1">{currentGuidelines.contentFilteringDesc}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2">
+                    <Flag className="text-yellow-400 mt-0.5 flex-shrink-0" size={14} />
+                    <div>
+                      <strong className="text-white">{currentGuidelines.reportingSystem}</strong>
+                      <p className="text-gray-400 mt-1">{currentGuidelines.reportingSystemDesc}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-2">
+                    <Clock className="text-blue-400 mt-0.5 flex-shrink-0" size={14} />
+                    <div>
+                      <strong className="text-white">{currentGuidelines.quickResponse}</strong>
+                      <p className="text-gray-400 mt-1">{currentGuidelines.quickResponseDesc}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 기존 개인정보처리방침 내용 */}
               {currentContent.content}
             </div>
+            
             <div className="flex text-sm justify-end space-x-4">
               <button
                 onClick={onDisagree}

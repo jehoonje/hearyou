@@ -85,4 +85,78 @@ export interface Translations {
       suggestion: string;
     };
   };
+  chat: {
+    headerTitle: string;
+    headerStatusChanged: string;
+    partner: string;
+    menuTooltip: string;
+    reportUser: string;
+    blockUser: string;
+    firstMessagePrompt: string;
+    blockedUserMessage: string;
+    closeChatInfo: string;
+    reportModalTitle: string;
+    blockModalTitle: string;
+    reportReasonLabel: string;
+    reportDescriptionLabel: string;
+    reportPlaceholder: string;
+    reportNotice: string;
+    submitting: string;
+    processing: string;
+    blockConfirm: string;
+    reportMessage: string;
+    messageOptionsTooltip: string;
+    reportTargetMessage: string;
+    inputPlaceholderDisabled: string;
+    inputPlaceholderDefault: string;
+    inappropriateContentWarning: string;
+    policyViolationWarning: string;
+    cantSendWarning: string;
+    inappropriateContentDetected: string;
+    sendButtonBlockedTooltip: string;
+    sendButtonTooltip: string;
+    moderationNotice: string;
+    alert: {
+      selfReport: string;
+      alreadyReportedUser: string;
+      alreadyReportedMessage: string;
+      permissionError: string;
+      duplicateError: string;
+      reportError: string;
+      reportSuccess: string;
+      genericError: string;
+      selfBlock: string;
+      alreadyBlocked: string;
+      blockError: string;
+      blockSuccess: string;
+      selfReportMessage: string;
+    };
+    reportReasons: {
+      select: string;
+      inappropriateContent: string;
+      harassment: string;
+      spam: string;
+      impersonation: string;
+      sexualContent: string;
+      other: string;
+    };
+  };
+  settings: {
+    title: string;
+    manageBlockedList: string;
+    refresh: string;
+    unblock: string;
+    unblocking: string;
+    unblockConfirm: string;
+    unblockNotice: string;
+    blockedOnDate: string;
+    noBlockedUsers: string;
+    unknownUser: string;
+    loginRequired: string;
+    alert: {
+      loadError: string;
+      unblockError: string;
+      unblockSuccess: string;
+    };
+  };
 }
