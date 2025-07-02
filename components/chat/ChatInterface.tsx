@@ -1,14 +1,21 @@
 // src/components/chat/ChatInterface.tsx
 
-import { memo, useEffect, useRef, useState, useCallback } from 'react';
-import { useChatStore } from '../../store/chatStore';
-import { useMatchStore } from '../../store/matchStore';
-import { useAuth } from '../../hooks/useAuth';
-import ChatMessage from './ChatMessage';
-import ChatInput from './ChatInput';
-import { ChevronLeft, MoreVertical, Flag, Ban, AlertTriangle } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useLanguage } from '../../app/contexts/LanguageContext'; // 언어 컨텍스트 import
+import { memo, useEffect, useRef, useState, useCallback } from "react";
+import { useChatStore } from "../../store/chatStore";
+import { useMatchStore } from "../../store/matchStore";
+import { useAuth } from "../../hooks/useAuth";
+import ChatMessage from "./ChatMessage";
+import ChatInput from "./ChatInput";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ChevronLeft,
+  MoreVertical,
+  Flag,
+  Ban,
+  AlertTriangle,
+} from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useLanguage } from "../../app/contexts/LanguageContext"; // 언어 컨텍스트 import
 
 interface ChatInterfaceProps {
   onClose: () => void;
@@ -17,34 +24,40 @@ interface ChatInterfaceProps {
 const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const { t } = useLanguage(); // 언어 컨텍스트 사용
   const { user } = useAuth();
-  const { matchedUserProfile, matchStatusMessage, activeChatPartnerId, currentMatch } = useMatchStore();
-  const { messages, subscribeToChatMessages, unsubscribeFromChatMessages } = useChatStore();
+  const {
+    matchedUserProfile,
+    matchStatusMessage,
+    activeChatPartnerId,
+    currentMatch,
+  } = useMatchStore();
+  const { messages, subscribeToChatMessages, unsubscribeFromChatMessages } =
+    useChatStore();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [show, setShow] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockModal, setShowBlockModal] = useState(false);
-  const [reportReason, setReportReason] = useState('');
-  const [reportDescription, setReportDescription] = useState('');
+  const [reportReason, setReportReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [blockSubscription, setBlockSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const supabase = createClientComponentClient();
   const chatPartnerId = activeChatPartnerId;
 
   // 차단된 사용자 목록 불러오기
   const loadBlockedUsers = useCallback(async () => {
     if (!user) return;
-    
+
     const { data, error } = await supabase
-      .from('blocked_users')
-      .select('blocked_user_id')
-      .eq('user_id', user.id);
-    
+      .from("blocked_users")
+      .select("blocked_user_id")
+      .eq("user_id", user.id);
+
     if (data) {
-      setBlockedUsers(data.map(item => item.blocked_user_id));
+      setBlockedUsers(data.map((item) => item.blocked_user_id));
     }
   }, [user, supabase]);
 
@@ -56,20 +69,22 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     const subscription = supabase
       .channel(`blocked_users_${user.id}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'blocked_users',
-          filter: `user_id=eq.${user.id}`
+          event: "*",
+          schema: "public",
+          table: "blocked_users",
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === "INSERT") {
             const newBlockedUserId = payload.new.blocked_user_id;
-            setBlockedUsers(prev => [...prev, newBlockedUserId]);
-          } else if (payload.eventType === 'DELETE') {
+            setBlockedUsers((prev) => [...prev, newBlockedUserId]);
+          } else if (payload.eventType === "DELETE") {
             const unblockedUserId = payload.old.blocked_user_id;
-            setBlockedUsers(prev => prev.filter(id => id !== unblockedUserId));
+            setBlockedUsers((prev) =>
+              prev.filter((id) => id !== unblockedUserId)
+            );
           }
         }
       )
@@ -100,13 +115,25 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   }, [onClose]);
 
   useEffect(() => {
-    if (chatPartnerId && currentMatch?.matchDate && user && !blockedUsers.includes(chatPartnerId)) {
+    if (
+      chatPartnerId &&
+      currentMatch?.matchDate &&
+      user &&
+      !blockedUsers.includes(chatPartnerId)
+    ) {
       subscribeToChatMessages(user, chatPartnerId, currentMatch.matchDate);
     }
     return () => {
       unsubscribeFromChatMessages();
     };
-  }, [user, chatPartnerId, currentMatch?.matchDate, subscribeToChatMessages, unsubscribeFromChatMessages, blockedUsers]);
+  }, [
+    user,
+    chatPartnerId,
+    currentMatch?.matchDate,
+    subscribeToChatMessages,
+    unsubscribeFromChatMessages,
+    blockedUsers,
+  ]);
 
   useEffect(() => {
     if (show) {
@@ -120,35 +147,35 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (showMenu && !(e.target as HTMLElement).closest('.menu-container')) {
+      if (showMenu && !(e.target as HTMLElement).closest(".menu-container")) {
         setShowMenu(false);
       }
     };
-    
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, [showMenu]);
 
   // 신고 제출
   const handleReport = useCallback(async () => {
     if (!user || !chatPartnerId || !reportReason) return;
-    
+
     if (user.id === chatPartnerId) {
       alert(t.chat.alert.selfReport);
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       const { data: existingReports, error: checkError } = await supabase
-        .from('reports')
-        .select('id')
-        .eq('reporter_id', user.id)
-        .eq('reported_user_id', chatPartnerId)
-        .eq('report_type', 'user');
+        .from("reports")
+        .select("id")
+        .eq("reporter_id", user.id)
+        .eq("reported_user_id", chatPartnerId)
+        .eq("report_type", "user");
 
       if (checkError) {
-        console.error('중복 신고 확인 오류:', checkError);
+        console.error("중복 신고 확인 오류:", checkError);
       } else if (existingReports && existingReports.length > 0) {
         alert(t.chat.alert.alreadyReportedUser);
         setShowReportModal(false);
@@ -158,48 +185,47 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       const reportData = {
         reporter_id: user.id,
         reported_user_id: chatPartnerId,
-        report_type: 'user' as const,
+        report_type: "user" as const,
         reason: reportReason,
         description: reportDescription || null,
-        status: 'pending' as const
+        status: "pending" as const,
       };
 
-      const { error } = await supabase.from('reports').insert(reportData);
+      const { error } = await supabase.from("reports").insert(reportData);
 
       if (error) {
-        console.error('Supabase 사용자 신고 오류:', error);
-        if (error.code === '42501') {
+        console.error("Supabase 사용자 신고 오류:", error);
+        if (error.code === "42501") {
           alert(t.chat.alert.permissionError);
-        } else if (error.code === '23505') {
+        } else if (error.code === "23505") {
           alert(t.chat.alert.alreadyReportedUser);
         } else {
-          alert(t.chat.alert.reportError.replace('{message}', error.message));
+          alert(t.chat.alert.reportError.replace("{message}", error.message));
         }
         return;
       }
 
       alert(t.chat.alert.reportSuccess);
       setShowReportModal(false);
-      setReportReason('');
-      setReportDescription('');
+      setReportReason("");
+      setReportDescription("");
     } catch (error) {
-      console.error('사용자 신고 예외:', error);
+      console.error("사용자 신고 예외:", error);
       alert(t.chat.alert.genericError);
     } finally {
       setIsSubmitting(false);
     }
   }, [user, chatPartnerId, reportReason, reportDescription, supabase, t]);
 
-
   // 사용자 차단
   const handleBlock = useCallback(async () => {
     if (!user || !chatPartnerId) return;
-    
+
     if (user.id === chatPartnerId) {
       alert(t.chat.alert.selfBlock);
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       if (blockedUsers.includes(chatPartnerId)) {
@@ -208,16 +234,18 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
         return;
       }
 
-      const { error } = await supabase.from('blocked_users').insert({ user_id: user.id, blocked_user_id: chatPartnerId });
+      const { error } = await supabase
+        .from("blocked_users")
+        .insert({ user_id: user.id, blocked_user_id: chatPartnerId });
 
       if (error) {
-        console.error('Supabase 차단 오류:', error);
-        if (error.code === '42501') {
+        console.error("Supabase 차단 오류:", error);
+        if (error.code === "42501") {
           alert(t.chat.alert.permissionError);
-        } else if (error.code === '23505') {
+        } else if (error.code === "23505") {
           alert(t.chat.alert.alreadyBlocked);
         } else {
-          alert(t.chat.alert.blockError.replace('{message}', error.message));
+          alert(t.chat.alert.blockError.replace("{message}", error.message));
         }
         return;
       }
@@ -226,18 +254,23 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       setShowBlockModal(false);
       handleClose();
     } catch (error) {
-      console.error('차단 예외:', error);
+      console.error("차단 예외:", error);
       alert(t.chat.alert.genericError);
     } finally {
       setIsSubmitting(false);
     }
   }, [user, chatPartnerId, blockedUsers, supabase, handleClose, t]);
 
-  const isChatInvalid = !!matchStatusMessage || blockedUsers.includes(chatPartnerId || '');
+  const isChatInvalid =
+    !!matchStatusMessage || blockedUsers.includes(chatPartnerId || "");
   const partnerName = matchedUserProfile?.username || t.chat.partner;
 
   return (
-    <div className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${show ? 'opacity-100' : 'opacity-0'}`}>
+    <div
+      className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
+        show ? "opacity-100" : "opacity-0"
+      }`}
+    >
       <div
         className={`
           w-[375px] h-[648px] max-w-md flex flex-col overflow-hidden
@@ -245,7 +278,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
           border border-white/20 box-shadow: inset 0 1.5px 1.5px rgba(255, 255, 255, 0.1)
           transition-all duration-1000 ease-in-out
-          ${show ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
+          ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
       >
         {/* Header */}
@@ -258,9 +291,15 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           >
             <ChevronLeft size={20} />
           </button>
-          
-          <h2 className={`flex-1 text-lg font-semibold text-white font-mono transition-colors ${isChatInvalid ? 'text-gray-400' : 'text-shadow'}`}>
-            {isChatInvalid ? t.chat.headerStatusChanged : t.chat.headerTitle.replace('{name}', partnerName)}
+
+          <h2
+            className={`flex-1 text-lg font-semibold text-white font-mono transition-colors ${
+              isChatInvalid ? "text-gray-400" : "text-shadow"
+            }`}
+          >
+            {isChatInvalid
+              ? t.chat.headerStatusChanged
+              : t.chat.headerTitle.replace("{name}", partnerName)}
           </h2>
 
           {!isChatInvalid && (
@@ -274,22 +313,36 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
               </button>
 
               {showMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-gray-900/95 backdrop-blur-md rounded-lg shadow-lg border border-white/10 overflow-hidden z-10">
-                  <button
-                    onClick={() => { setShowMenu(false); setShowReportModal(true); }}
-                    className="w-full px-4 py-3 text-left text-yellow-400 hover:bg-white/10 flex items-center gap-3 transition-colors"
+                <AnimatePresence>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute right-[-14px] top-12 w-48 bg-gray-800/50 backdrop-blur-md shadow-lg border border-white/10 overflow-hidden z-10"
                   >
-                    <Flag size={16} />
-                    <span>{t.chat.reportUser}</span>
-                  </button>
-                  <button
-                    onClick={() => { setShowMenu(false); setShowBlockModal(true); }}
-                    className="w-full px-4 py-3 text-left text-red-400 hover:bg-white/10 flex items-center gap-3 transition-colors"
-                  >
-                    <Ban size={16} />
-                    <span>{t.chat.blockUser}</span>
-                  </button>
-                </div>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        setShowReportModal(true);
+                      }}
+                      className="w-full px-4 py-3 text-left text-yellow-400 hover:bg-white/10 flex items-center gap-3 transition-colors"
+                    >
+                      <Flag size={16} />
+                      <span>{t.chat.reportUser}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        setShowBlockModal(true);
+                      }}
+                      className="w-full px-4 py-3 text-left text-red-400 hover:bg-white/10 flex items-center gap-3 transition-colors"
+                    >
+                      <Ban size={16} />
+                      <span>{t.chat.blockUser}</span>
+                    </button>
+                  </motion.div>
+                </AnimatePresence>
               )}
             </div>
           )}
@@ -297,7 +350,11 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
 
         {/* Messages Area */}
         <div className="relative flex-grow overflow-hidden">
-          <div className={`absolute inset-0 p-4 overflow-y-auto scrollbar-thin transition-opacity duration-300 ${isChatInvalid ? 'opacity-30 filter blur-[2px]' : 'opacity-100'}`}>
+          <div
+            className={`absolute inset-0 p-4 overflow-y-auto scrollbar-thin transition-opacity duration-300 ${
+              isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
+            }`}
+          >
             {messages.length === 0 && !isChatInvalid && (
               <div className="text-center text-gray-400/60 text-sm mt-8">
                 {t.chat.firstMessagePrompt}
@@ -308,7 +365,9 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
                 key={msg.id}
                 message={msg}
                 isSender={msg.sender_id === user?.id}
-                senderProfile={msg.sender_id === chatPartnerId ? matchedUserProfile : null}
+                senderProfile={
+                  msg.sender_id === chatPartnerId ? matchedUserProfile : null
+                }
               />
             ))}
             <div ref={messagesEndRef} />
@@ -318,10 +377,17 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-10">
               <div className="text-center p-6 rounded-lg shadow-xl bg-transparent">
                 <p className="text-yellow-300 font-semibold text-lg text-shadow">
-                  {blockedUsers.includes(chatPartnerId || '') ? t.chat.blockedUserMessage : matchStatusMessage}
+                  {blockedUsers.includes(chatPartnerId || "")
+                    ? t.chat.blockedUserMessage
+                    : matchStatusMessage}
                 </p>
-                <p className="text-gray-300/90 text-sm mt-3">{t.chat.closeChatInfo}</p>
-                <button onClick={handleClose} className="mt-5 btn-aero btn-aero-yellow">
+                <p className="text-gray-300/90 text-sm mt-3">
+                  {t.chat.closeChatInfo}
+                </p>
+                <button
+                  onClick={handleClose}
+                  className="mt-5 btn-aero btn-aero-yellow"
+                >
                   {t.common.close}
                 </button>
               </div>
@@ -330,38 +396,60 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
         </div>
 
         {/* Input Area */}
-        <div className={`flex-shrink-0 border-t border-white/10 ${isChatInvalid ? 'opacity-50' : ''}`}>
+        <div
+          className={`flex-shrink-0 border-t border-white/10 ${
+            isChatInvalid ? "opacity-50" : ""
+          }`}
+        >
           <ChatInput isDisabled={isChatInvalid} />
         </div>
       </div>
 
       {/* 신고 모달 */}
       {showReportModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-gray-900/95 backdrop-blur-md rounded-lg p-6 max-w-md w-full border border-white/20">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+        >
+          <div className="bg-gray-900/20 backdrop-blur-md rounded-lg p-6 max-w-md w-full">
             <div className="flex items-center gap-3 mb-4">
               <AlertTriangle className="text-yellow-500" size={24} />
-              <h3 className="text-lg font-semibold text-white">{t.chat.reportModalTitle}</h3>
+              <h3 className="text-lg font-semibold text-white">
+                {t.chat.reportModalTitle}
+              </h3>
             </div>
-            
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-2">{t.chat.reportReasonLabel}</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  {t.chat.reportReasonLabel}
+                </label>
                 <select
                   value={reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
                   className="w-full bg-gray-800/50 text-white border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 >
                   <option value="">{t.chat.reportReasons.select}</option>
-                  <option value="inappropriate_content">{t.chat.reportReasons.inappropriateContent}</option>
-                  <option value="harassment">{t.chat.reportReasons.harassment}</option>
+                  <option value="inappropriate_content">
+                    {t.chat.reportReasons.inappropriateContent}
+                  </option>
+                  <option value="harassment">
+                    {t.chat.reportReasons.harassment}
+                  </option>
                   <option value="spam">{t.chat.reportReasons.spam}</option>
-                  <option value="impersonation">{t.chat.reportReasons.impersonation}</option>
+                  <option value="impersonation">
+                    {t.chat.reportReasons.impersonation}
+                  </option>
                   <option value="other">{t.chat.reportReasons.other}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">{t.chat.reportDescriptionLabel}</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  {t.chat.reportDescriptionLabel}
+                </label>
                 <textarea
                   value={reportDescription}
                   onChange={(e) => setReportDescription(e.target.value)}
@@ -371,43 +459,73 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
               </div>
               <div className="text-xs text-gray-400">{t.chat.reportNotice}</div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => { setShowReportModal(false); setReportReason(''); setReportDescription(''); }} className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors" disabled={isSubmitting}>
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setReportReason("");
+                    setReportDescription("");
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  disabled={isSubmitting}
+                >
                   {t.common.cancel}
                 </button>
-                <button onClick={handleReport} className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50" disabled={!reportReason || isSubmitting}>
+                <button
+                  onClick={handleReport}
+                  className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50"
+                  disabled={!reportReason || isSubmitting}
+                >
                   {isSubmitting ? t.chat.submitting : t.chat.reportUser}
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* 차단 확인 모달 */}
       {showBlockModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-gray-900/95 backdrop-blur-md rounded-lg p-6 max-w-md w-full border border-white/20">
-            <div className="flex items-center gap-3 mb-4">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4"
+        >
+          <div className="bg-gray-900/20  rounded-lg p-6 max-w-md w-full">
+             <div className="flex items-center gap-3 mb-4">
               <Ban className="text-red-500" size={24} />
-              <h3 className="text-lg font-semibold text-white">{t.chat.blockModalTitle}</h3>
+              <h3 className="text-lg font-semibold text-white">
+                {t.chat.blockModalTitle}
+              </h3>
             </div>
-            
-            <p className="text-gray-300 mb-6">{t.chat.blockConfirm.replace('{name}', partnerName)}</p>
+
+            <p className="text-gray-300 mb-6">
+              {t.chat.blockConfirm.replace("{name}", partnerName)}
+            </p>
 
             <div className="flex gap-3">
-              <button onClick={() => setShowBlockModal(false)} className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors" disabled={isSubmitting}>
+              <button
+                onClick={() => setShowBlockModal(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                disabled={isSubmitting}
+              >
                 {t.common.cancel}
               </button>
-              <button onClick={handleBlock} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50" disabled={isSubmitting}>
+              <button
+                onClick={handleBlock}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                disabled={isSubmitting}
+              >
                 {isSubmitting ? t.chat.processing : t.chat.blockUser}
               </button>
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );
 });
 
-ChatInterface.displayName = 'ChatInterface';
+ChatInterface.displayName = "ChatInterface";
 export default ChatInterface;

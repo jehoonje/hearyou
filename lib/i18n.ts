@@ -3,7 +3,6 @@ import { Translations } from '../types/i18n';
 
 export const translations: Record<string, Translations> = {
   ko: {
-    
     common: {
       loading: '로딩 중...',
       error: '오류',
@@ -39,7 +38,7 @@ export const translations: Record<string, Translations> = {
       loginProcessing: '로그인 중...',
       signupProcessing: '처리 중...',
       processing: '처리 중...',
-      createAccount: 'Create account',
+      createAccount: 'Sign In',
       continueWithApple: 'Apple로 계속하기',
       quickTour: '간단히 둘러보기',
       emailSent: '완료!',
@@ -146,6 +145,14 @@ export const translations: Record<string, Translations> = {
         other: '기타',
       },
     },
+    tutorial: {
+      step1: '안녕하세요!\n마이크 버튼을 눌러 음성 인식을 시작해보세요.',
+      step2: '단 시간에 여러번 말한 키워드가 기록됩니다.\n일상적인 대화도, 떠오르는 단어도 좋아요.',
+      step3: '매일 자정, 오늘 하루동안 나와 비슷한 키워드를 가진 사람이 있다면 Chat 버튼이 나타나요.',
+      step4: '우연히 만난 상대와 단 하루동안 대화할 수 있어요. 키워드는 자정에 초기화 돼요.',
+      next: '다음',
+      start: '시작하기',
+    },
     settings: {
       title: '차단된 사용자 관리',
       manageBlockedList: '차단 목록 관리',
@@ -201,7 +208,7 @@ export const translations: Record<string, Translations> = {
       loginProcessing: 'Signing in...',
       signupProcessing: 'Processing...',
       processing: 'Processing...',
-      createAccount: 'Create account',
+      createAccount: 'Sign In',
       continueWithApple: 'Continue with Apple',
       quickTour: 'Quick Tour',
       emailSent: 'Done!',
@@ -307,6 +314,14 @@ export const translations: Record<string, Translations> = {
         sexualContent: 'Sexual Content',
         other: 'Other',
       },
+    },
+    tutorial: {
+      step1: 'Hello!\nPress the microphone button to start voice recognition.',
+      step2: 'Keywords you say multiple times in a short period will be recorded.\nEveryday conversations or random words are all good.',
+      step3: 'Every day at midnight, if there\'s someone with similar keywords to yours from today, a Chat button will appear.',
+      step4: 'You can chat with the person you randomly met for just one day. Keywords reset at midnight.',
+      next: 'Next',
+      start: 'Get Started',
     },
     settings: {
       title: 'Manage Blocked Users',

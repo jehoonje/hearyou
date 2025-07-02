@@ -2,41 +2,15 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLanguage } from "../../app/contexts/LanguageContext";
+import type { Translations } from "../../types/i18n";
 
 interface TutorialStep {
   step: number;
   target: string; // data-tutorial-target 값
-  text: string;
+  textKey: keyof Translations["tutorial"]; 
   positionClasses: string; // Tailwind CSS 클래스로 위치 지정 (예: 'top-10 left-10')
 }
-
-// 튜토리얼 단계 정의
-const tutorialSteps: TutorialStep[] = [
-  {
-    step: 1,
-    target: "mic-button",
-    text: "안녕하세요!\n마이크 버튼을 눌러 음성 인식을 시작해보세요.",
-    positionClasses: "top-16 w-80", // 예시 위치
-  },
-  {
-    step: 2,
-    target: "transcript-display",
-    text: "단 시간에 여러번 말한 키워드가 기록됩니다.\n일상적인 대화도, 떠오르는 단어도 좋아요.",
-    positionClasses: "bottom-1/4 w-80", // 예시 위치
-  },
-  {
-    step: 3,
-    target: "match-button-area",
-    text: "매일 자정, 오늘 하루동안 나와 비슷한 키워드를 가진 사람이 있다면 Chat 버튼이 나타나요. ",
-    positionClasses: "top-16 center w-80", // 예시 위치
-  },
-  {
-    step: 4,
-    target: "match-button-area",
-    text: "우연히 만난 상대와 단 하루동안 대화할 수 있어요. 키워드는 자정에 초기화 돼요.",
-    positionClasses: "top-16 center w-80", // 예시 위치
-  },
-];
 
 interface TutorialOverlayProps {
   onComplete: () => void;
@@ -44,10 +18,39 @@ interface TutorialOverlayProps {
 
 const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ onComplete }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const { t } = useLanguage();
+
+  // 튜토리얼 단계 정의 (번역 키를 사용)
+  const tutorialSteps: TutorialStep[] = useMemo(() => [
+    {
+      step: 1,
+      target: "mic-button",
+      textKey: "step1" as keyof typeof t.tutorial,
+      positionClasses: "top-16 w-80", // 예시 위치
+    },
+    {
+      step: 2,
+      target: "transcript-display",
+      textKey: "step2" as keyof typeof t.tutorial,
+      positionClasses: "bottom-1/4 w-80", // 예시 위치
+    },
+    {
+      step: 3,
+      target: "match-button-area",
+      textKey: "step3" as keyof typeof t.tutorial,
+      positionClasses: "top-16 center w-80", // 예시 위치
+    },
+    {
+      step: 4,
+      target: "match-button-area",
+      textKey: "step4" as keyof typeof t.tutorial,
+      positionClasses: "top-16 center w-80", // 예시 위치
+    },
+  ], [t.tutorial]);
 
   const currentStepData = useMemo(
     () => tutorialSteps[currentStepIndex],
-    [currentStepIndex]
+    [currentStepIndex, tutorialSteps]
   );
 
   // *** 👇 페이드 인/아웃 애니메이션 variants 정의 👇 ***
@@ -123,15 +126,15 @@ const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ onComplete }) => {
           transition={{ duration: 0.3 }} // 단계별 전환 속도
           className={`absolute bg-gradient-to-br from-purple-600/80 to-blue-500/80 backdrop-blur-sm p-4 rounded-lg shadow-lg text-white font-mono text-sm border border-blue-400/50 ${currentStepData.positionClasses} pointer-events-auto w-[93%]`} // 설명 박스는 이벤트 받아야 함
         >
-          <p className="mb-4 whitespace-pre-line">{currentStepData.text}</p>
+          <p className="mb-4 whitespace-pre-line">{t.tutorial[currentStepData.textKey]}</p>
           <div className="flex justify-end">
             <button
               onClick={handleNext}
               className="bg-white text-purple-700 px-4 py-1 rounded font-semibold hover:bg-gray-200 transition-colors text-xs"
             >
               {currentStepIndex < tutorialSteps.length - 1
-                ? "다음"
-                : "시작하기"}
+                ? t.tutorial.next
+                : t.tutorial.start}
             </button>
           </div>
         </motion.div>

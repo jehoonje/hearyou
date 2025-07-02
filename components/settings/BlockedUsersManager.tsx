@@ -116,7 +116,7 @@ const BlockedUsersManager = ({ isOpen, onClose }: BlockedUsersManagerProps) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4"
           onClick={onClose}
         >
           <motion.div
@@ -124,7 +124,7 @@ const BlockedUsersManager = ({ isOpen, onClose }: BlockedUsersManagerProps) => {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="max-w-md w-full mx-auto bg-gray-900/20 backdrop-blur-md rounded-lg border border-white/20 overflow-hidden"
+            className="max-w-md w-full mx-auto bg-gray-900/10 backdrop-blur-md rounded-lg overflow-hidden"
             onClick={(e: any) => e.stopPropagation()}
           >
             {/* 헤더 */}

@@ -73,6 +73,14 @@ export interface Translations {
     deleteAccountProcessing: string;
     deleteAccountSuccess: string;
   };
+  tutorial: {
+    step1: string;
+    step2: string;
+    step3: string;
+    step4: string;
+    next: string;
+    start: string;
+  };
   bookmark: {
     title: string;
     mobileInstructions: string;
