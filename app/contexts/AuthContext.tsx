@@ -228,6 +228,11 @@ export function AuthProvider({
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (authLoading) {
+      console.log('[AuthContext] 이미 회원가입 처리 중입니다.');
+      return;
+    }
     
     // 데모 사용자인 경우 먼저 데모 세션 종료
     if (isDemoUser) {
@@ -312,7 +317,7 @@ export function AuthProvider({
   const handleVerificationComplete = useCallback(() => {
     setShowVerificationModal(false);
     setAuthView('login');
-    setAuthMessage('전송되었습니다. 인증 후 로그인해주세요.');
+    setAuthMessage('인증 후 뒤로가기 하여 로그인 해주세요.');
   }, []);
 
   const value = {
