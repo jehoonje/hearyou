@@ -15,14 +15,14 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useLanguage } from "../../app/contexts/LanguageContext"; // 언어 컨텍스트 import
+import { useLanguage } from "../../app/contexts/LanguageContext";
 
 interface ChatInterfaceProps {
   onClose: () => void;
 }
 
 const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
-  const { t } = useLanguage(); // 언어 컨텍스트 사용
+  const { t } = useLanguage();
   const { user } = useAuth();
   const {
     matchedUserProfile,
@@ -33,7 +33,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const { messages, subscribeToChatMessages, unsubscribeFromChatMessages } =
     useChatStore();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement | null>(null); // 채팅창 전체 컨테이너를 위한 ref 추가
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const [show, setShow] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -44,6 +44,11 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [blockSubscription, setBlockSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // 키보드 상태 관리를 위한 state 추가
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   const supabase = createClientComponentClient();
   const chatPartnerId = activeChatPartnerId;
@@ -108,32 +113,41 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  // [추가된 코드] 키보드 이슈 해결을 위한 useEffect
+  // 키보드 및 viewport 감지를 위한 useEffect
   useEffect(() => {
-    const chatContainer = chatContainerRef.current;
-    if (!chatContainer) return;
+    const initialViewportHeight = window.innerHeight;
+    setViewportHeight(initialViewportHeight);
 
-    // visualViewport를 지원하는지 확인 (대부분의 모던 브라우저에서 지원)
-    if (window.visualViewport) {
-      const handleResize = () => {
-        if (window.visualViewport) {
-          // visualViewport의 높이를 채팅 컨테이너의 높이로 설정
-          chatContainer.style.height = `${window.visualViewport.height}px`;
-          
-          // 키보드가 올라왔을 때 메시지 목록의 끝(입력창 바로 위)으로 스크롤
+    const handleResize = () => {
+      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
+      const heightDifference = initialViewportHeight - currentViewportHeight;
+      
+      // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
+      const keyboardIsOpen = heightDifference > 150;
+      
+      setViewportHeight(currentViewportHeight);
+      setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
+      setIsKeyboardOpen(keyboardIsOpen);
+      
+      // 키보드가 열렸을 때 메시지 끝으로 스크롤
+      if (keyboardIsOpen) {
+        setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }
-      };
+        }, 100);
+      }
+    };
 
-      // 처음 마운트 시 높이 설정
-      handleResize();
-
-      // visualViewport의 크기가 변경될 때마다 handleResize 함수 실행
+    // visualViewport API 사용 (모던 브라우저)
+    if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleResize);
-
-      // 컴포넌트 언마운트 시 이벤트 리스너 제거
       return () => {
         window.visualViewport?.removeEventListener('resize', handleResize);
+      };
+    } else {
+      // 폴백: window resize 이벤트 사용
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
       };
     }
   }, []);
@@ -296,23 +310,46 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     !!matchStatusMessage || blockedUsers.includes(chatPartnerId || "");
   const partnerName = matchedUserProfile?.username || t.chat.partner;
 
+  // 채팅창 스타일 계산
+  const getChatContainerStyle = () => {
+    if (isKeyboardOpen) {
+      return {
+        height: `${viewportHeight}px`,
+        position: 'fixed' as const,
+        top: '0px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        justifyContent: 'flex-end',
+        alignItems: 'center'
+      };
+    }
+    
+    return {
+      height: '648px',
+      position: 'relative' as const,
+      justifyContent: 'center',
+      alignItems: 'center'
+    };
+  };
+
   return (
     <div
       className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
         show ? "opacity-100" : "opacity-0"
       }`}
+      style={isKeyboardOpen ? { alignItems: 'flex-start', justifyContent: 'center' } : {}}
     >
       <div
-        // [수정된 부분] ref를 추가하고 높이 관련 클래스(h-[648px])를 제거
         ref={chatContainerRef}
         className={`
           w-[375px] max-w-md flex flex-col overflow-hidden
           rounded-xl shadow-2xl shadow-black/40 bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
-          border border-white/20 box-shadow: inset 0 1.5px 1.5px rgba(255, 255, 255, 0.1)
-          transition-all duration-1000 ease-in-out
+          border border-white/20
+          transition-all duration-300 ease-in-out
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
+        style={getChatContainerStyle()}
       >
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex items-center flex-shrink-0">
@@ -525,7 +562,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           transition={{ duration: 0.3 }}
           className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4"
         >
-          <div className="bg-gray-900/20  rounded-lg p-6 max-w-md w-full">
+          <div className="bg-gray-900/20 rounded-lg p-6 max-w-md w-full">
              <div className="flex items-center gap-3 mb-4">
               <Ban className="text-red-500" size={24} />
               <h3 className="text-lg font-semibold text-white">
