@@ -63,12 +63,12 @@ export function AuthProvider({
   const [authLoading, setAuthLoading] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  const resetFormErrors = () => {
+  const resetFormErrors = useCallback(() => {
     setEmailError(null);
     setPasswordError(null);
     setUsernameError(null);
     setAuthError(null);
-  };
+  }, []);
 
   // 데모 세션 시작 함수
   const startDemoSession = useCallback(() => {
@@ -99,42 +99,37 @@ export function AuthProvider({
     setAuthError(null);
   }, [resetFormErrors]);
 
+  // ✅ 하나의 useEffect로 통합하여 중복 제거
   useEffect(() => {
-    // 데모 사용자가 아닌 경우에만 auth 상태 변경 감지
-    if (!isDemoUser) {
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        console.log('[AuthContext] 인증 상태 변경:', _event, session?.user?.email);
-        
-        // 데모 상태가 아닌 경우에만 업데이트
-        if (!isDemoUser) {
-          setSession(session);
-          setUser(session?.user ?? null);
-          setAuthLoading(false);
-          setAuthError(null);
-        }
-      });
-
-      return () => subscription.unsubscribe();
+    // 데모 사용자인 경우 auth 상태 변경 감지하지 않음
+    if (isDemoUser) {
+      console.log('[AuthContext] 데모 모드 - auth 리스너 비활성화');
+      return;
     }
-  }, [isDemoUser]);
 
-  useEffect(() => {
+    console.log('[AuthContext] auth 리스너 등록');
+    
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('[AuthContext] 인증 상태 변경:', _event, session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-      setAuthError(null);
+      
+      // 데모 상태가 아닌 경우에만 업데이트
+      if (!isDemoUser) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+        setAuthError(null);
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      console.log('[AuthContext] auth 리스너 정리');
+      subscription.unsubscribe();
+    };
+  }, [isDemoUser]); // isDemoUser 의존성만 유지
 
-  // 네이티브 앱과의 통신을 위한 리스너 - 수정된 버전
+  // 네이티브 앱과의 통신을 위한 리스너
   useEffect(() => {
     // 네이티브 인증 처리 함수
     const handleNativeAuth = async (data: { token?: string; nonce?: string; error?: string }) => {
@@ -156,7 +151,7 @@ export function AuthProvider({
           const { data: authData, error } = await supabase.auth.signInWithIdToken({
             provider: 'apple',
             token: data.token,
-            nonce: data.nonce, // nonce 추가
+            nonce: data.nonce,
           });
 
           if (error) {
@@ -192,10 +187,9 @@ export function AuthProvider({
     return () => {
       delete window.handleNativeAuth;
       window.removeEventListener('nativeauth', handleNativeAuthEvent as EventListener);
+      console.log('[AuthContext] Native auth 리스너 정리 완료');
     };
-  }, []);
-
- 
+  }, []); // 빈 의존성 배열로 한 번만 실행
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +205,8 @@ export function AuthProvider({
     setAuthLoading(true);
 
     try {
+      console.log('[AuthContext] 로그인 시도:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -218,10 +214,12 @@ export function AuthProvider({
 
       if (error) throw error;
       
+      console.log('[AuthContext] 로그인 성공');
       // 로그인 성공 시 데모 상태 확실히 해제
       setIsDemoUser(false);
       
     } catch (error) {
+      console.error('[AuthContext] 로그인 오류:', error);
       setAuthError(error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.');
     } finally {
       setAuthLoading(false);
@@ -242,6 +240,8 @@ export function AuthProvider({
     setAuthLoading(true);
 
     try {
+      console.log('[AuthContext] 회원가입 시도:', email);
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -253,12 +253,15 @@ export function AuthProvider({
       });
 
       if (error) throw error;
+      
+      console.log('[AuthContext] 회원가입 성공');
       setShowVerificationModal(true);
       
       // 회원가입 시에도 데모 상태 해제
       setIsDemoUser(false);
       
     } catch (error) {
+      console.error('[AuthContext] 회원가입 오류:', error);
       setAuthError(error instanceof Error ? error.message : '회원가입 중 오류가 발생했습니다.');
     } finally {
       setAuthLoading(false);
@@ -282,9 +285,13 @@ export function AuthProvider({
         return;
       }
 
+      console.log('[AuthContext] 로그아웃 시작');
+      
       // 일반 사용자 로그아웃
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      console.log('[AuthContext] 로그아웃 성공');
       
       // 상태 초기화
       setUser(null);
@@ -298,15 +305,15 @@ export function AuthProvider({
       setIsDemoUser(false); // 확실히 데모 상태 해제
       
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('[AuthContext] 로그아웃 오류:', error);
     }
   };
 
-  const handleVerificationComplete = () => {
+  const handleVerificationComplete = useCallback(() => {
     setShowVerificationModal(false);
     setAuthView('login');
-    setAuthMessage('이메일 인증이 완료되었습니다. 로그인해주세요.');
-  };
+    setAuthMessage('전송되었습니다. 인증 후 로그인해주세요.');
+  }, []);
 
   const value = {
     user,
