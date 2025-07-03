@@ -50,7 +50,7 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 70 },
+  visible: { opacity: 1, y: 40 },
   formVisible: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -20, transition: { duration: 0.2 } },
 };

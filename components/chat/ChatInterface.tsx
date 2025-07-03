@@ -33,6 +33,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const { messages, subscribeToChatMessages, unsubscribeFromChatMessages } =
     useChatStore();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null); // 채팅창 전체 컨테이너를 위한 ref 추가
   const [show, setShow] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -105,6 +106,36 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       setShow(true);
     }, 10);
     return () => clearTimeout(timer);
+  }, []);
+
+  // [추가된 코드] 키보드 이슈 해결을 위한 useEffect
+  useEffect(() => {
+    const chatContainer = chatContainerRef.current;
+    if (!chatContainer) return;
+
+    // visualViewport를 지원하는지 확인 (대부분의 모던 브라우저에서 지원)
+    if (window.visualViewport) {
+      const handleResize = () => {
+        if (window.visualViewport) {
+          // visualViewport의 높이를 채팅 컨테이너의 높이로 설정
+          chatContainer.style.height = `${window.visualViewport.height}px`;
+          
+          // 키보드가 올라왔을 때 메시지 목록의 끝(입력창 바로 위)으로 스크롤
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
+      };
+
+      // 처음 마운트 시 높이 설정
+      handleResize();
+
+      // visualViewport의 크기가 변경될 때마다 handleResize 함수 실행
+      window.visualViewport.addEventListener('resize', handleResize);
+
+      // 컴포넌트 언마운트 시 이벤트 리스너 제거
+      return () => {
+        window.visualViewport?.removeEventListener('resize', handleResize);
+      };
+    }
   }, []);
 
   const handleClose = useCallback(() => {
@@ -272,8 +303,10 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       }`}
     >
       <div
+        // [수정된 부분] ref를 추가하고 높이 관련 클래스(h-[648px])를 제거
+        ref={chatContainerRef}
         className={`
-          w-[375px] h-[648px] max-w-md flex flex-col overflow-hidden
+          w-[375px] max-w-md flex flex-col overflow-hidden
           rounded-xl shadow-2xl shadow-black/40 bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
           border border-white/20 box-shadow: inset 0 1.5px 1.5px rgba(255, 255, 255, 0.1)

@@ -366,14 +366,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               <div className="flex items-center space-x-1">
                 {!isDemoUser && (
                   <>
-                    {/* <button
+                    <button
                       onClick={runManualMatchmaking}
                       className={`btn-aero-yellow ${
                         isMatchButtonDisabled ? "" : ""
                       }`}
                     >
                       {isMatchmakingRunning ? t.voice.matching : t.common.match}
-                    </button> */}
+                    </button>
                     {currentMatch && !isMatchLoading && (
                       <button onClick={openChat} className="btn-aero-green">
                         {t.common.chat}
