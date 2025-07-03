@@ -310,34 +310,17 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     !!matchStatusMessage || blockedUsers.includes(chatPartnerId || "");
   const partnerName = matchedUserProfile?.username || t.chat.partner;
 
-  // 채팅창 스타일 계산
-  const getChatContainerStyle = () => {
-    if (isKeyboardOpen) {
-      return {
-        height: `${viewportHeight}px`,
-        position: 'fixed' as const,
-        top: '0px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        justifyContent: 'flex-end',
-        alignItems: 'center'
-      };
-    }
-    
-    return {
-      height: '648px',
-      position: 'relative' as const,
-      justifyContent: 'center',
-      alignItems: 'center'
-    };
-  };
-
   return (
     <div
-      className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
+      className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
         show ? "opacity-100" : "opacity-0"
       }`}
-      style={isKeyboardOpen ? { alignItems: 'flex-start', justifyContent: 'center' } : {}}
+      style={{
+        display: 'flex',
+        alignItems: isKeyboardOpen ? 'flex-start' : 'center',
+        justifyContent: 'center',
+        paddingTop: isKeyboardOpen ? '20px' : '0'
+      }}
     >
       <div
         ref={chatContainerRef}
@@ -349,7 +332,10 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           transition-all duration-300 ease-in-out
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
-        style={getChatContainerStyle()}
+        style={{
+          height: isKeyboardOpen ? `${viewportHeight - 40}px` : '648px',
+          maxHeight: isKeyboardOpen ? `${viewportHeight - 40}px` : '648px'
+        }}
       >
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex items-center flex-shrink-0">
@@ -419,11 +405,14 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
         </div>
 
         {/* Messages Area */}
-        <div className="relative flex-grow overflow-hidden">
+        <div className="relative flex-grow overflow-hidden min-h-0">
           <div
             className={`absolute inset-0 p-4 overflow-y-auto scrollbar-thin transition-opacity duration-300 ${
               isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
             }`}
+            style={{
+              paddingBottom: isKeyboardOpen ? '20px' : '16px'
+            }}
           >
             {messages.length === 0 && !isChatInvalid && (
               <div className="text-center text-gray-400/60 text-sm mt-8">
@@ -440,13 +429,13 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
                 }
               />
             ))}
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef} className="h-2" />
           </div>
 
           {isChatInvalid && (
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-10">
-              <div className="text-center p-6 rounded-lg shadow-xl bg-transparent">
-                <p className="text-yellow-300 font-semibold text-lg text-shadow">
+            <div className="absolute inset-0 bg-transparent backdrop-blur-sm flex items-center justify-center p-6 z-20">
+              <div className="text-center p-6 rounded-lg shadow-xl backdrop-blur-md">
+                <p className="text-yellow-300 font-semibold text-lg">
                   {blockedUsers.includes(chatPartnerId || "")
                     ? t.chat.blockedUserMessage
                     : matchStatusMessage}
@@ -456,7 +445,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
                 </p>
                 <button
                   onClick={handleClose}
-                  className="mt-5 btn-aero btn-aero-yellow"
+                  className="mt-5 px-6 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors font-medium"
                 >
                   {t.common.close}
                 </button>
@@ -470,6 +459,9 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           className={`flex-shrink-0 border-t border-white/10 ${
             isChatInvalid ? "opacity-50" : ""
           }`}
+          style={{
+            paddingBottom: isKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : '0px'
+          }}
         >
           <ChatInput isDisabled={isChatInvalid} />
         </div>
