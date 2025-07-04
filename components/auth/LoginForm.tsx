@@ -135,12 +135,6 @@ const LoginForm = memo<LoginFormProps>(
     const [showPrivacyModal, setShowPrivacyModal] = useState(false);
     const [isNativeApp, setIsNativeApp] = useState(false);
 
-    // 키보드 상태 관리를 위한 state 추가
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
-    const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
-    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-    const [containerPadding, setContainerPadding] = useState({ top: 0, bottom: 0 });
-
     // prefers-reduced-motion 지원
     const shouldReduceMotion = useReducedMotion();
 
@@ -271,64 +265,6 @@ const LoginForm = memo<LoginFormProps>(
       }
     }, []);
 
-    // 키보드 및 viewport 감지를 위한 useEffect
-    useEffect(() => {
-      const initialViewportHeight = window.innerHeight;
-      setViewportHeight(initialViewportHeight);
-
-      const handleResize = () => {
-        const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
-        const heightDifference = initialViewportHeight - currentViewportHeight;
-        
-        // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
-        const keyboardIsOpen = heightDifference > 150;
-        
-        setViewportHeight(currentViewportHeight);
-        setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
-        setIsKeyboardOpen(keyboardIsOpen);
-        
-        // 키보드가 열렸을 때 패딩 조정
-        if (keyboardIsOpen) {
-          // 폼이 표시되고 있을 때만 패딩 조정
-          if (animationStage === "formVisible") {
-            setContainerPadding({ 
-              top: Math.max(20, (currentViewportHeight - 500) / 2), 
-              bottom: 20 
-            });
-          }
-          
-          // 활성 입력 필드로 스크롤
-          if (activeFieldName.current) {
-            const activeField = inputRefs.current[activeFieldName.current];
-            if (activeField) {
-              setTimeout(() => {
-                activeField.scrollIntoView({ 
-                  behavior: "smooth", 
-                  block: "center" 
-                });
-              }, 100);
-            }
-          }
-        } else {
-          setContainerPadding({ top: 0, bottom: 0 });
-        }
-      };
-
-      // visualViewport API 사용 (모던 브라우저)
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', handleResize);
-        return () => {
-          window.visualViewport?.removeEventListener('resize', handleResize);
-        };
-      } else {
-        // 폴백: window resize 이벤트 사용
-        window.addEventListener('resize', handleResize);
-        return () => {
-          window.removeEventListener('resize', handleResize);
-        };
-      }
-    }, [animationStage]);
-
     // 이메일이 비어있으면 폼 초기화
     useEffect(() => {
       if (
@@ -414,39 +350,17 @@ const LoginForm = memo<LoginFormProps>(
       return titleVariants[variant as keyof typeof titleVariants];
     };
 
-    // 동적 타이틀 애니메이션 적용
-    const getDynamicTitleVariants = () => {
-      if (isKeyboardOpen && animationStage === "formVisible") {
-        return {
-          ...titleVariants,
-          formVisible: {
-            y: "-10vh",
-            transition: { type: "spring", stiffness: 100 },
-          },
-        };
-      }
-      return titleVariants;
-    };
-
     return (
       <div
         className={
           isNativeApp
-            ? "w-full h-full mx-auto p-4 flex flex-col items-center justify-start"
-            : "w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full"
+            ? "w-full h-full mx-auto p-4 flex flex-col items-center justify-start pt-16"
+            : "w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full pt-16 md:pt-24"
         }
-        style={{
-          paddingTop: isKeyboardOpen && animationStage === "formVisible" 
-            ? `${containerPadding.top}px` 
-            : isNativeApp ? '64px' : '96px',
-          paddingBottom: isKeyboardOpen ? `${containerPadding.bottom}px` : '0',
-          transition: 'padding 0.3s ease',
-          overflow: isKeyboardOpen ? 'auto' : 'visible'
-        }}
       >
         <motion.div
           className={isNativeApp ? "w-full mb-8 px-4" : "w-full mb-8"}
-          variants={getDynamicTitleVariants()}
+          variants={titleVariants}
           initial="initial"
           animate={animationStage}
           style={{
@@ -777,7 +691,9 @@ const LoginForm = memo<LoginFormProps>(
                         className="w-full bg-[#FE4848] hover:bg-gray-200 text-white hover:text-black font-mono py-3 px-4 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#FE4848] disabled:opacity-50 transition duration-200"
                         aria-busy={authLoading}
                       >
-                        Sign In
+                        {authLoading
+                          ? t.auth.signupProcessing
+                          : t.auth.createAccount}
                       </button>
                     </motion.div>
                   </motion.form>
