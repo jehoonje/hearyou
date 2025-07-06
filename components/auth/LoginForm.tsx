@@ -139,7 +139,6 @@ const LoginForm = memo<LoginFormProps>(
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [viewportHeight, setViewportHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 0);
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-    const [containerPadding, setContainerPadding] = useState({ top: 0, bottom: 0 });
 
     // prefers-reduced-motion 지원
     const shouldReduceMotion = useReducedMotion();
@@ -262,73 +261,102 @@ const LoginForm = memo<LoginFormProps>(
     const handleFocus = useCallback((e: FocusEvent<HTMLInputElement>) => {
       activeFieldName.current = e.target.name as keyof typeof inputRefs.current;
       shouldMaintainFocus.current = true;
-    }, []);
+      
+      // 네이티브 앱에서 입력 필드에 포커스가 갈 때 키보드가 열렸다고 가정
+      if (isNativeApp && animationStage === "formVisible") {
+        console.log('Input focused, opening keyboard');
+        setTimeout(() => {
+          setIsKeyboardOpen(true);
+        }, 100);
+      }
+    }, [isNativeApp, animationStage]);
+
+    // 블러 처리 (포커스가 벗어날 때)
+    const handleBlur = useCallback(() => {
+      // 다른 입력 필드로 이동하는 경우를 확인
+      setTimeout(() => {
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement && 
+          (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+        
+        if (!isInputFocused && isNativeApp) {
+          console.log('Input blurred, closing keyboard');
+          setIsKeyboardOpen(false);
+        }
+      }, 100);
+    }, [isNativeApp]);
 
     // 네이티브 앱 감지
     useEffect(() => {
       if (typeof window !== "undefined" && window.ReactNativeWebView) {
+        console.log('Native app detected');
         setIsNativeApp(true);
       }
     }, []);
 
     // 키보드 및 viewport 감지를 위한 useEffect
     useEffect(() => {
-      if (!isNativeApp || typeof window === 'undefined') return; // 네이티브 앱이 아니거나 window가 없으면 비활성화
+      if (!isNativeApp || typeof window === 'undefined') return;
       
       try {
         const initialViewportHeight = window.innerHeight;
         setViewportHeight(initialViewportHeight);
 
-        const handleResize = () => {
-          const currentViewportHeight = window.innerHeight;
+        const handleViewportChange = () => {
+          const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
           const heightDifference = initialViewportHeight - currentViewportHeight;
           
-          // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
-          const keyboardIsOpen = heightDifference > 150;
+          // 키보드가 열렸는지 판단 (높이 차이가 100px 이상이면 키보드로 간주)
+          const keyboardIsOpen = heightDifference > 100;
           
           setViewportHeight(currentViewportHeight);
           setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
           setIsKeyboardOpen(keyboardIsOpen);
           
-          // 키보드가 열렸을 때 패딩 조정
-          if (keyboardIsOpen) {
-            // 폼이 표시되고 있을 때만 패딩 조정
-            if (animationStage === "formVisible") {
-              setContainerPadding({ 
-                top: Math.max(20, (currentViewportHeight - 500) / 2), 
-                bottom: 20 
-              });
-            }
-            
-            // 활성 입력 필드로 스크롤
-            if (activeFieldName.current) {
-              const activeField = inputRefs.current[activeFieldName.current];
-              if (activeField) {
-                setTimeout(() => {
-                  try {
-                    activeField.scrollIntoView({ 
-                      behavior: "smooth", 
-                      block: "center" 
-                    });
-                  } catch (e) {
-                    // scrollIntoView 실패 시 무시
-                  }
-                }, 100);
+          // 키보드가 열렸을 때 처리
+          if (keyboardIsOpen && animationStage === "formVisible") {
+            // 입력 필드가 보이도록 스크롤
+            setTimeout(() => {
+              if (activeFieldName.current) {
+                const activeField = inputRefs.current[activeFieldName.current];
+                if (activeField) {
+                  activeField.scrollIntoView({ 
+                    behavior: "smooth", 
+                    block: "center",
+                    inline: "nearest"
+                  });
+                }
               }
-            }
-          } else {
-            setContainerPadding({ top: 0, bottom: 0 });
+            }, 300);
           }
         };
 
-        // window resize 이벤트만 사용 (visualViewport는 웹뷰에서 문제 발생 가능)
-        window.addEventListener('resize', handleResize);
+        // visualViewport API가 있으면 사용 (웹뷰에서 더 정확함)
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', handleViewportChange);
+          window.visualViewport.addEventListener('scroll', handleViewportChange);
+        }
+        
+        // 폴백으로 window resize도 등록
+        window.addEventListener('resize', handleViewportChange);
+        
+        // 입력 필드 포커스 시에도 체크
+        const handleFocusCheck = () => {
+          setTimeout(handleViewportChange, 100);
+        };
+        
+        document.addEventListener('focusin', handleFocusCheck);
+        
         return () => {
-          window.removeEventListener('resize', handleResize);
+          if (window.visualViewport) {
+            window.visualViewport.removeEventListener('resize', handleViewportChange);
+            window.visualViewport.removeEventListener('scroll', handleViewportChange);
+          }
+          window.removeEventListener('resize', handleViewportChange);
+          document.removeEventListener('focusin', handleFocusCheck);
         };
       } catch (error) {
         console.error('Keyboard detection error:', error);
-        // 에러 발생 시 기본 상태 유지
         return;
       }
     }, [animationStage, isNativeApp]);
@@ -418,20 +446,6 @@ const LoginForm = memo<LoginFormProps>(
       return titleVariants[variant as keyof typeof titleVariants];
     };
 
-    // 동적 타이틀 애니메이션 적용
-    const getDynamicTitleVariants = () => {
-      if (isNativeApp && isKeyboardOpen && animationStage === "formVisible") {
-        return {
-          ...titleVariants,
-          formVisible: {
-            y: "-10vh",
-            transition: { type: "spring", stiffness: 100 },
-          },
-        };
-      }
-      return titleVariants;
-    };
-
     return (
       <div
         className={
@@ -440,17 +454,18 @@ const LoginForm = memo<LoginFormProps>(
             : "w-full max-w-md mx-auto p-2 flex flex-col items-center justify-start h-full"
         }
         style={{
-          paddingTop: isNativeApp && isKeyboardOpen && animationStage === "formVisible" 
-            ? `${containerPadding.top}px` 
-            : isNativeApp ? '64px' : '96px',
-          paddingBottom: isNativeApp && isKeyboardOpen ? `${containerPadding.bottom}px` : '0',
-          transition: 'padding 0.3s ease',
-          overflow: isNativeApp && isKeyboardOpen ? 'auto' : 'visible'
+          paddingTop: isNativeApp ? '64px' : '96px',
+          paddingBottom: '0',
+          transition: 'transform 0.3s ease',
+          transform: isNativeApp && isKeyboardOpen && animationStage === "formVisible" 
+            ? 'translateY(-200px)' 
+            : 'translateY(0)',
+          overflow: 'visible'
         }}
       >
         <motion.div
           className={isNativeApp ? "w-full mb-8 px-4" : "w-full mb-8"}
-          variants={getDynamicTitleVariants()}
+          variants={titleVariants}
           initial="initial"
           animate={animationStage}
           style={{
@@ -458,6 +473,7 @@ const LoginForm = memo<LoginFormProps>(
             willChange: "transform",
             cursor: "pointer",
           }}
+          aria-label={language === "ko" ? "홈으로 이동" : "Go to home"}
           role="banner"
         >
           <ThreeDTitle
