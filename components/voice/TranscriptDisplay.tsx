@@ -25,7 +25,7 @@ const TranscriptDisplay = memo<TranscriptDisplayProps>(({ transcript }) => (
                 }`}
     >
       {/* transcript가 null이거나 빈 문자열일 경우 대기 메시지 표시 */}
-      {transcript || "음성 대기 중... (말씀해 보세요)"}
+      {transcript || "어떤 말도 좋아요. 말씀해보세요. "}
     </p>
   </div>
 ));

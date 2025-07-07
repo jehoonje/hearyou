@@ -59,12 +59,32 @@ export interface DailyMatchInfo {
 
 // 채팅 메시지 데이터 타입 (DB 스키마 기반)
 export interface ChatMessageData {
-  id: number;
+  id: string; 
   sender_id: string;
   receiver_id: string;
   message_text: string;
-  sent_at: string; // ISO 8601 형식 문자열
-  match_date: string; // YYYY-MM-DD 형식
+  sent_at: string;
+  match_date: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  is_read?: boolean; // 추가
+  read_at?: string;  // 추가
+}
+
+export interface MessageReadReceipt {
+  id: string;
+  message_id: string;
+  user_id: string;
+  read_at: string;
+}
+
+export interface PushNotificationToken {
+  id: string;
+  user_id: string;
+  token: string;
+  platform: 'ios' | 'android';
+  created_at: string;
+  updated_at: string;
 }
 
 // 사용자 프로필 타입 (DB 스키마 기반)

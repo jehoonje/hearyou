@@ -1,11 +1,11 @@
 // src/components/chat/ChatMessage.tsx
 import { memo, useState, useCallback } from "react";
 import { ChatMessageData, UserProfile } from "../../types";
-import { Flag, MoreHorizontal } from "lucide-react";
+import { Flag, MoreHorizontal, Check, CheckCheck } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useAuth } from "../../hooks/useAuth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLanguage } from "../../app/contexts/LanguageContext"; // 언어 컨텍스트 import
+import { useLanguage } from "../../app/contexts/LanguageContext";
 
 interface ChatMessageProps {
   message: ChatMessageData;
@@ -16,7 +16,7 @@ interface ChatMessageProps {
 
 const ChatMessage = memo<ChatMessageProps>(
   ({ message, isSender, senderProfile, onReport }) => {
-    const { t } = useLanguage(); // 언어 컨텍스트 사용
+    const { t } = useLanguage();
     const { user } = useAuth();
     const [showOptions, setShowOptions] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
@@ -32,21 +32,21 @@ const ChatMessage = memo<ChatMessageProps>(
 
     // Apple 스타일 말풍선
     const bubbleBaseStyle = `
-    px-4 py-2 rounded-2xl
-    transition-all duration-150 ease-in-out
-    text-[14px] leading-[1.4]
-    ${isShortMessage ? "inline-block" : "block max-w-[70%]"}
-  `;
+      px-4 py-2 rounded-2xl
+      transition-all duration-150 ease-in-out
+      text-[14px] leading-[1.4]
+      ${isShortMessage ? "inline-block" : "block max-w-[70%]"}
+    `;
 
     const senderBubbleStyle = `
-    bg-[#007AFF] text-white
-    rounded-br-[4px]
-  `;
+      bg-[#007AFF] text-white
+      rounded-br-[4px]
+    `;
 
     const receiverBubbleStyle = `
-    bg-[#333] text-white
-    rounded-bl-[4px]
-  `;
+      bg-[#333] text-white
+      rounded-bl-[4px]
+    `;
 
     const bubbleClass = isSender
       ? `${bubbleBaseStyle} ${senderBubbleStyle}`
@@ -57,6 +57,21 @@ const ChatMessage = memo<ChatMessageProps>(
       minute: "2-digit",
       hour12: true,
     });
+
+    // 읽음 상태 아이콘 렌더링
+    const renderReadStatus = () => {
+      if (!isSender) return null;
+
+      return (
+        <div className="ml-1 flex items-center">
+          {message.is_read ? (
+            <CheckCheck size={14} className="text-blue-400" />
+          ) : (
+            <Check size={14} className="text-gray-400" />
+          )}
+        </div>
+      );
+    };
 
     // 메시지 신고 처리
     const handleReport = useCallback(async () => {
@@ -200,21 +215,22 @@ const ChatMessage = memo<ChatMessageProps>(
             {isSender && <div className="w-2"></div>}
           </div>
 
-          <span
-            className={`text-[11px] text-gray-500/70 mt-1 ${
+          <div
+            className={`flex items-center gap-1 text-[11px] text-gray-500/70 mt-1 ${
               isSender ? "self-end mr-3" : "self-start ml-3"
             }`}
           >
-            {time}
-          </span>
+            <span>{time}</span>
+            {renderReadStatus()}
+          </div>
         </div>
 
         {showReportModal && (
           <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
             className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[70] p-4"
             onClick={() => setShowReportModal(false)}
           >
