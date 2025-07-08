@@ -2,10 +2,12 @@
 import { useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useAuth } from './useAuth';
+import { useRouter } from 'next/navigation';
 
 export const usePushNotifications = () => {
   const { user } = useAuth();
   const supabase = createClientComponentClient();
+  const router = useRouter();
 
   useEffect(() => {
     if (!user) return;
@@ -15,13 +17,16 @@ export const usePushNotifications = () => {
       try {
         console.log('[Web] 푸시 토큰 받음:', token);
         
+        // 플랫폼 감지
+        const platform = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'android';
+        
         // Supabase에 토큰 저장
         const { error } = await supabase
           .from('push_tokens')
           .upsert({
             user_id: user.id,
             token: token,
-            platform: 'ios', // 또는 동적으로 결정
+            platform: platform,
             updated_at: new Date().toISOString()
           }, {
             onConflict: 'user_id,token'
@@ -61,7 +66,7 @@ export const usePushNotifications = () => {
       // 알림 처리 로직
       if (notification.request?.content?.data?.type === 'chat_message') {
         // 채팅 메시지 알림 처리
-        // 예: 알림 배지 업데이트, 토스트 표시 등
+        // 토스트 표시 등
       }
     };
 
@@ -71,16 +76,18 @@ export const usePushNotifications = () => {
     const navigateToChat = (chatData: any) => {
       console.log('[Web] 채팅으로 이동:', chatData);
       // 채팅 화면으로 라우팅
-      // 예: router.push(`/chat/${chatData.senderId}`);
+      if (chatData?.senderId) {
+        // 매칭 상태 확인 후 채팅 열기
+        router.push(`/?chat=${chatData.senderId}`);
+      }
     };
 
     (window as any).navigateToChat = navigateToChat;
 
+    // cleanup 시 푸시 토큰 상태는 유지
     return () => {
       window.removeEventListener('pushtoken', tokenListener as EventListener);
-      delete (window as any).handlePushToken;
-      delete (window as any).handleNotification;
-      delete (window as any).navigateToChat;
+      // handlePushToken은 유지 (다른 컴포넌트에서도 사용 가능)
     };
-  }, [user, supabase]);
+  }, [user, supabase, router]);
 };
