@@ -16,10 +16,21 @@ const TranscriptDisplay = memo<TranscriptDisplayProps>(({ transcript }) => {
     const fetchPrompt = async () => {
       setIsLoading(true);
       try {
+        // 사용자의 현재 시간 정보 가져오기
+        const now = new Date();
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
         const { data, error } = await supabase.functions.invoke('get-voice-prompt', {
-          body: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+          body: { 
+            timezone: userTimezone,
+            // 사용자의 현재 시간 정보 추가
+            currentTime: now.toISOString(),
+            localHour: now.getHours(),
+            localMinute: now.getMinutes(),
+            dayOfWeek: now.getDay()
+          }
         });
-
+    
         if (!error && data) {
           setPlaceholder(language === 'ko' ? data.prompt_text : data.prompt_text_en);
         }
