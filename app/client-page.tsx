@@ -11,6 +11,7 @@ import { useAuth } from "../app/contexts/AuthContext";
 import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
 import { useKeywords } from "../hooks/useKeywords";
 import { Keyword } from "../types";
+import { usePushNotifications } from './hooks/usePushNotifications';
 import ResponsiveWrapper from "../components/ResponsiveWrapper";
 import { Session, User } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "framer-motion";
@@ -58,6 +59,8 @@ function MainContent({
   const [deviceType, setDeviceType] = useState<"phone" | "tablet" | "desktop">(
     "phone"
   );
+
+  usePushNotifications(); // 여기서 훅 사용
 
   useEffect(() => {
     if (window.ReactNativeWebView) {
