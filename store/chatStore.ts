@@ -75,13 +75,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (error) throw error;
 
-      // 푸시 알림 트리거 (서버사이드에서 처리)
+      // 사용자 이름 가져오기
+      let senderName = 'User';
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', sender.id)
+        .single();
+      
+      if (profileData?.username) {
+        senderName = profileData.username;
+      }
+
+      // 푸시 알림 트리거
       await supabase.functions.invoke('send-push-notification', {
         body: {
           receiverId,
           message: currentMessage.trim(),
           senderId: sender.id,
-          senderName: sender.user_metadata?.username || '사용자'
+          senderName: senderName
         }
       });
 
@@ -179,6 +191,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 )
               `)
               .eq('match_date', matchDate)
+              .eq('is_deleted', false)
               .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerUserId}),and(sender_id.eq.${partnerUserId},receiver_id.eq.${currentUserId})`)
               .order('sent_at', { ascending: true });
    
@@ -186,9 +199,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
           // 메시지 데이터 가공 (읽음 상태 포함)
           const processedMessages = (messages || []).map(msg => {
-            const readReceipt = msg.message_read_receipts?.find(
+            // message_read_receipts가 배열인지 확인
+            const readReceipts = Array.isArray(msg.message_read_receipts) 
+              ? msg.message_read_receipts 
+              : [];
+            
+            const readReceipt = readReceipts.find(
               (receipt: any) => receipt.user_id === msg.receiver_id
             );
+            
             return {
               ...msg,
               is_read: !!readReceipt,

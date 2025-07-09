@@ -318,6 +318,13 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
 
   // 메시지를 볼 때 자동으로 읽음 처리
   useEffect(() => {
+    if (show) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, show]);
+
+  // 메시지를 볼 때 자동으로 읽음 처리
+  useEffect(() => {
     if (!user || !show || isChatInvalid) return;
 
     const markUnreadMessages = async () => {
@@ -332,13 +339,8 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       }
     };
 
-    // 채팅창이 열려있을 때 실시간으로 읽음 처리
+    // 즉시 실행
     markUnreadMessages();
-    
-    // 새 메시지가 올 때마다 읽음 처리
-    const interval = setInterval(markUnreadMessages, 1000);
-    
-    return () => clearInterval(interval);
   }, [messages, user, show, isChatInvalid]);
   
   return (
