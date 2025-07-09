@@ -6,7 +6,6 @@ import { User, Session } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 import { supabase } from '../lib/supabase'; // 공유 클라이언트 import
 
-
 export function useAuth(initialSession: Session | null = null) {
   const searchParams = useSearchParams();
 
@@ -36,6 +35,9 @@ export function useAuth(initialSession: Session | null = null) {
   // 메시지 자동 제거를 위한 타이머 ref
   const messageTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 안정화된 supabase 클라이언트 ref
+  const supabaseRef = useRef(supabase);
+
   // 이메일 형식 검증 함수
   const validateEmail = useCallback((email: string): boolean => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,7 +52,7 @@ export function useAuth(initialSession: Session | null = null) {
     setAuthError(null);
   }, []);
 
-  // 메시지 설정 함수 (3초 후 자동 제거)
+  // 메시지 설정 함수 (3초 후 자동 제거) - 의존성 제거
   const setAuthMessageWithTimer = useCallback((message: string) => {
     setAuthMessage(message);
     
@@ -64,16 +66,16 @@ export function useAuth(initialSession: Session | null = null) {
       setAuthMessage(null);
       messageTimerRef.current = null;
     }, 3000);
-  }, []);
+  }, []); // 의존성 제거
 
-  // 세션 갱신 함수 (429 오류 처리 포함)
+  // 세션 갱신 함수 (429 오류 처리 포함) - 의존성 안정화
   const refreshSession = useCallback(
     async (retryDelay = 0): Promise<void> => {
       if (retryDelay) {
         await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabaseRef.current.auth.getSession();
         if (error) {
           if (error.status === 429) {
             console.warn('429 Too Many Requests, 10초 후 재시도...');
@@ -87,12 +89,17 @@ export function useAuth(initialSession: Session | null = null) {
         setAuthError(error.message || '세션 갱신에 실패했습니다.');
       }
     },
-    [supabase.auth]
+    [] // 의존성 제거
   );
 
+  // 네이티브 인증 처리 - 한 번만 등록
   useEffect(() => {
+    let isSubscribed = true;
+
     // 네이티브 Apple 인증 데이터 처리 함수
     const handleNativeAuth = async (data: { token?: string; error?: string }) => {
+      if (!isSubscribed) return;
+      
       console.log('[useAuth] 네이티브 인증 데이터 수신:', data);
       
       if (data.error) {
@@ -107,7 +114,7 @@ export function useAuth(initialSession: Session | null = null) {
         setAuthLoading(true);
 
         try {
-          const { data: authData, error } = await supabase.auth.signInWithIdToken({
+          const { data: authData, error } = await supabaseRef.current.auth.signInWithIdToken({
             provider: 'apple',
             token: data.token,
           });
@@ -131,6 +138,7 @@ export function useAuth(initialSession: Session | null = null) {
 
     // nativeauth 이벤트 리스너 등록
     const handleNativeAuthEvent = (event: CustomEvent) => {
+      if (!isSubscribed) return;
       const authData = event.detail;
       console.log('[useAuth] nativeauth 이벤트 수신:', authData);
       handleNativeAuth(authData);
@@ -144,15 +152,18 @@ export function useAuth(initialSession: Session | null = null) {
 
     return () => {
       console.log('[useAuth] nativeauth 이벤트 리스너 제거');
+      isSubscribed = false;
       window.removeEventListener('nativeauth', handleNativeAuthEvent as EventListener);
       delete window.handleNativeAuth;
     };
-  }, [supabase.auth]);
+  }, []); // 빈 의존성 배열
 
-  // 사용자 상태 확인 및 인증 상태 감지
+  // 초기화 및 인증 상태 감지 - 한 번만 실행
   useEffect(() => {
-    // URL 파라미터에서 메시지 가져오기
-    const urlMessage = searchParams.get('message');
+    let isSubscribed = true;
+
+    // URL 파라미터에서 메시지 가져오기 (한 번만)
+    const urlMessage = searchParams?.get('message');
     if (urlMessage) {
       setAuthMessageWithTimer(urlMessage);
     }
@@ -166,7 +177,9 @@ export function useAuth(initialSession: Session | null = null) {
     }
 
     // 인증 상태 변경 리스너
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: authListener } = supabaseRef.current.auth.onAuthStateChange((event, session) => {
+      if (!isSubscribed) return;
+      
       console.log('Auth state change:', event);
       setUser(session?.user || null);
       
@@ -185,13 +198,14 @@ export function useAuth(initialSession: Session | null = null) {
     });
 
     return () => {
+      isSubscribed = false;
       authListener.subscription.unsubscribe();
       // 타이머 정리
       if (messageTimerRef.current) {
         clearTimeout(messageTimerRef.current);
       }
     };
-  }, [searchParams, initialSession, supabase.auth, refreshSession, setAuthMessageWithTimer]);
+  }, []); // 빈 의존성 배열로 한 번만 실행
 
   // 로그인 처리
   const handleLogin = useCallback(
@@ -218,7 +232,7 @@ export function useAuth(initialSession: Session | null = null) {
       setAuthLoading(true);
 
       try {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabaseRef.current.auth.signInWithPassword({
           email,
           password,
         });
@@ -239,7 +253,7 @@ export function useAuth(initialSession: Session | null = null) {
         setAuthLoading(false);
       }
     },
-    [email, password, resetFormErrors, validateEmail, supabase.auth]
+    [email, password, resetFormErrors, validateEmail]
   );
 
   // 회원가입 처리
@@ -274,7 +288,7 @@ export function useAuth(initialSession: Session | null = null) {
       try {
         console.log('회원가입 시도:', { email, username });
         
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await supabaseRef.current.auth.signUp({
           email: email.trim(),
           password: password,
           options: {
@@ -314,14 +328,13 @@ export function useAuth(initialSession: Session | null = null) {
         setAuthLoading(false);
       }
     },
-    [email, password, username, resetFormErrors, validateEmail, supabase.auth]
+    [email, password, username, resetFormErrors, validateEmail]
   );
   
-
   // 로그아웃 처리
   const handleLogout = useCallback(async () => {
     try {
-      await supabase.auth.signOut();
+      await supabaseRef.current.auth.signOut();
       setUser(null);
       
       // 추가 상태 초기화
@@ -338,7 +351,7 @@ export function useAuth(initialSession: Session | null = null) {
       // 에러가 있어도 로컬 상태는 초기화
       setUser(null);
     }
-  }, [supabase.auth]);
+  }, []);
 
   // 회원가입 완료 후 처리
   const handleVerificationComplete = useCallback(() => {

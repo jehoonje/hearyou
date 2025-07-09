@@ -44,7 +44,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [blockSubscription, setBlockSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // 키보드 상태 관리를 위한 state 추가
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
@@ -103,7 +103,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
         supabase.removeChannel(subscription);
       }
     };
-  }, [user, supabase, chatPartnerId, loadBlockedUsers]);
+  }, [user?.id, supabase, loadBlockedUsers]);
 
   // Mount/Unmount 애니메이션
   useEffect(() => {
@@ -119,16 +119,17 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     setViewportHeight(initialViewportHeight);
 
     const handleResize = () => {
-      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
+      const currentViewportHeight =
+        window.visualViewport?.height || window.innerHeight;
       const heightDifference = initialViewportHeight - currentViewportHeight;
-      
+
       // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
       const keyboardIsOpen = heightDifference > 150;
-      
+
       setViewportHeight(currentViewportHeight);
       setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
       setIsKeyboardOpen(keyboardIsOpen);
-      
+
       // 키보드가 열렸을 때 메시지 끝으로 스크롤
       if (keyboardIsOpen) {
         setTimeout(() => {
@@ -139,15 +140,15 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
 
     // visualViewport API 사용 (모던 브라우저)
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize);
+      window.visualViewport.addEventListener("resize", handleResize);
       return () => {
-        window.visualViewport?.removeEventListener('resize', handleResize);
+        window.visualViewport?.removeEventListener("resize", handleResize);
       };
     } else {
       // 폴백: window resize 이벤트 사용
-      window.addEventListener('resize', handleResize);
+      window.addEventListener("resize", handleResize);
       return () => {
-        window.removeEventListener('resize', handleResize);
+        window.removeEventListener("resize", handleResize);
       };
     }
   }, []);
@@ -159,25 +160,44 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     }, 1000);
   }, [onClose]);
 
+  // 채팅 구독 관리 (안정화)
   useEffect(() => {
-    if (
-      chatPartnerId &&
-      currentMatch?.matchDate &&
-      user &&
-      !blockedUsers.includes(chatPartnerId)
-    ) {
-      subscribeToChatMessages(user, chatPartnerId, currentMatch.matchDate);
+    console.log('[ChatInterface] 채팅 구독 useEffect 실행', {
+      user: !!user,
+      chatPartnerId,
+      matchDate: currentMatch?.matchDate,
+      blockedUsersCount: blockedUsers.length,
+      show
+    });
+
+    // 필수 조건 체크
+    if (!user || !chatPartnerId || !currentMatch?.matchDate || !show) {
+      console.log('[ChatInterface] 채팅 구독 조건 미충족, 구독 해제');
+      unsubscribeFromChatMessages();
+      return;
     }
+
+    // 차단된 사용자 체크
+    if (blockedUsers.includes(chatPartnerId)) {
+      console.log('[ChatInterface] 차단된 사용자, 구독 해제');
+      unsubscribeFromChatMessages();
+      return;
+    }
+
+    console.log('[ChatInterface] 채팅 구독 시작');
+    subscribeToChatMessages(user, chatPartnerId, currentMatch.matchDate);
+
+    // 클린업
     return () => {
+      console.log('[ChatInterface] 채팅 구독 클린업');
       unsubscribeFromChatMessages();
     };
   }, [
-    user,
+    user?.id, // user 객체 대신 user.id만 의존성으로
     chatPartnerId,
     currentMatch?.matchDate,
-    subscribeToChatMessages,
-    unsubscribeFromChatMessages,
-    blockedUsers,
+    show,
+    blockedUsers.join(',') // 배열을 문자열로 변환하여 안정적인 비교
   ]);
 
   const toggleMenu = useCallback(() => {
@@ -304,60 +324,126 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     !!matchStatusMessage || blockedUsers.includes(chatPartnerId || "");
   const partnerName = matchedUserProfile?.username || t.chat.partner;
 
-  useEffect(() => {
-    if (show) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, show]);
-
   // 채팅창이 열릴 때 배지 제거
   useEffect(() => {
     if (show && window.ReactNativeWebView) {
       // 네이티브 앱에서 실행 중일 때 배지 제거
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'CLEAR_BADGE'
-      }));
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: "CLEAR_BADGE",
+        })
+      );
     }
   }, [show]);
 
-  // 메시지를 볼 때 자동으로 읽음 처리
+  // 메시지 읽음 처리 (간소화)
+  useEffect(() => {
+    if (!user || !show || isChatInvalid || messages.length === 0) return;
+
+    console.log('[ChatInterface] 메시지 읽음 처리 체크');
+
+    const unreadMessages = messages.filter(
+      msg => msg.receiver_id === user.id && !msg.is_read
+    );
+    
+    if (unreadMessages.length === 0) return;
+
+    const unreadIds = unreadMessages.map(msg => msg.id);
+    console.log('[ChatInterface] 읽지 않은 메시지 읽음 처리:', unreadIds);
+    
+    // 디바운싱 적용
+    const timer = setTimeout(async () => {
+      try {
+        await useChatStore.getState().markMessagesAsRead(unreadIds, user.id);
+        console.log('[ChatInterface] 메시지 읽음 처리 완료');
+      } catch (error) {
+        console.error('[ChatInterface] 메시지 읽음 처리 실패:', error);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [messages.length, user?.id, show, isChatInvalid]);
+
+  // 디바운싱된 읽음 상태 체크 (메시지 변경 시)
   useEffect(() => {
     if (!user || !show || isChatInvalid) return;
 
-    const markUnreadMessages = async () => {
-      const unreadMessages = messages.filter(
-        msg => msg.receiver_id === user.id && !msg.is_read
-      );
-      
-      if (unreadMessages.length > 0) {
-        const unreadIds = unreadMessages.map(msg => msg.id);
-        console.log('[Chat] 읽지 않은 메시지 읽음 처리:', unreadIds);
-        
-        // 각 메시지를 개별적으로 처리 (에러 처리 개선)
-        for (const messageId of unreadIds) {
-          try {
-            await useChatStore.getState().markMessagesAsRead([messageId], user.id);
-          } catch (error) {
-            console.error(`메시지 ${messageId} 읽음 처리 실패:`, error);
-          }
-        }
+    console.log("[ChatInterface] 메시지 변경 감지 - 읽음 상태 체크 예약");
+
+    // 디바운싱: 1초 내에 연속된 메시지 변경이 있으면 마지막 것만 실행
+    const debouncedRefresh = setTimeout(() => {
+      console.log("[ChatInterface] 디바운싱된 읽음 상태 체크 실행");
+      useChatStore.getState().refreshReadStatus();
+    }, 1000);
+
+    return () => clearTimeout(debouncedRefresh);
+  }, [messages.length, user?.id, show, isChatInvalid]);
+
+  // 주기적 읽음 상태 체크 (최소화)
+  useEffect(() => {
+    if (!user || !show || isChatInvalid) return;
+
+    console.log('[ChatInterface] 주기적 읽음 상태 체크 설정');
+
+    // 초기 체크 (3초 후)
+    const initialTimer = setTimeout(() => {
+      console.log('[ChatInterface] 초기 읽음 상태 체크');
+      useChatStore.getState().refreshReadStatus();
+    }, 3000);
+
+    // 주기적 체크 (15초마다)
+    // const interval = setInterval(() => {
+    //   console.log('[ChatInterface] 주기적 읽음 상태 체크');
+    //   useChatStore.getState().refreshReadStatus();
+    // }, 15000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      // clearInterval(interval);
+    };
+  }, [user?.id, show, isChatInvalid]);
+
+  // 채팅창 포커스 관리
+  useEffect(() => {
+    if (!show) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[ChatInterface] 앱 포커스 복귀 - 읽음 상태 체크');
+        setTimeout(() => {
+          useChatStore.getState().refreshReadStatus();
+        }, 1000);
       }
     };
 
-    // 즉시 실행
-    markUnreadMessages();
-  }, [messages, user, show, isChatInvalid]); // messages가 변경될 때마다 실행
-  
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [show]);
+
+  // 스크롤 관리 (분리)
+  useEffect(() => {
+    if (show && messages.length > 0) {
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, show]);
+
   return (
     <div
       className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
         show ? "opacity-100" : "opacity-0"
       }`}
       style={{
-        display: 'flex',
-        alignItems: isKeyboardOpen ? 'flex-start' : 'center',
-        justifyContent: 'center',
-        paddingTop: isKeyboardOpen ? '20px' : '0'
+        display: "flex",
+        alignItems: isKeyboardOpen ? "flex-start" : "center",
+        justifyContent: "center",
+        paddingTop: isKeyboardOpen ? "20px" : "0",
       }}
     >
       <div
@@ -371,8 +457,8 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
         style={{
-          height: isKeyboardOpen ? `${viewportHeight - 40}px` : '648px',
-          maxHeight: isKeyboardOpen ? `${viewportHeight - 40}px` : '648px'
+          height: isKeyboardOpen ? `${viewportHeight - 40}px` : "648px",
+          maxHeight: isKeyboardOpen ? `${viewportHeight - 40}px` : "648px",
         }}
       >
         {/* Header */}
@@ -449,7 +535,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
               isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
             }`}
             style={{
-              paddingBottom: isKeyboardOpen ? '20px' : '16px'
+              paddingBottom: isKeyboardOpen ? "20px" : "16px",
             }}
           >
             {messages.length === 0 && !isChatInvalid && (
@@ -498,7 +584,9 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
             isChatInvalid ? "opacity-50" : ""
           }`}
           style={{
-            paddingBottom: isKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : '0px'
+            paddingBottom: isKeyboardOpen
+              ? "env(safe-area-inset-bottom, 0px)"
+              : "0px",
           }}
         >
           <ChatInput isDisabled={isChatInvalid} />
@@ -593,7 +681,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4"
         >
           <div className="bg-gray-900/20 rounded-lg p-6 max-w-md w-full">
-             <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-4">
               <Ban className="text-red-500" size={24} />
               <h3 className="text-lg font-semibold text-white">
                 {t.chat.blockModalTitle}
