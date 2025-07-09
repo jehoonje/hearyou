@@ -180,12 +180,6 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     blockedUsers,
   ]);
 
-  useEffect(() => {
-    if (show) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, show]);
-
   const toggleMenu = useCallback(() => {
     setShowMenu(!showMenu);
   }, [showMenu]);
@@ -316,12 +310,15 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     }
   }, [messages, show]);
 
-  // 메시지를 볼 때 자동으로 읽음 처리
+  // 채팅창이 열릴 때 배지 제거
   useEffect(() => {
-    if (show) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (show && window.ReactNativeWebView) {
+      // 네이티브 앱에서 실행 중일 때 배지 제거
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'CLEAR_BADGE'
+      }));
     }
-  }, [messages, show]);
+  }, [show]);
 
   // 메시지를 볼 때 자동으로 읽음 처리
   useEffect(() => {
@@ -335,13 +332,21 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       if (unreadMessages.length > 0) {
         const unreadIds = unreadMessages.map(msg => msg.id);
         console.log('[Chat] 읽지 않은 메시지 읽음 처리:', unreadIds);
-        await useChatStore.getState().markMessagesAsRead(unreadIds, user.id);
+        
+        // 각 메시지를 개별적으로 처리 (에러 처리 개선)
+        for (const messageId of unreadIds) {
+          try {
+            await useChatStore.getState().markMessagesAsRead([messageId], user.id);
+          } catch (error) {
+            console.error(`메시지 ${messageId} 읽음 처리 실패:`, error);
+          }
+        }
       }
     };
 
     // 즉시 실행
     markUnreadMessages();
-  }, [messages, user, show, isChatInvalid]);
+  }, [messages, user, show, isChatInvalid]); // messages가 변경될 때마다 실행
   
   return (
     <div

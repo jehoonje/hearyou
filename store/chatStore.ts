@@ -76,7 +76,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (error) throw error;
 
       // 사용자 이름 가져오기
-      let senderName = 'User';
+      let senderName = '사용자';
       const { data: profileData } = await supabase
         .from('profiles')
         .select('username')
@@ -105,22 +105,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   markMessagesAsRead: async (messageIds: string[], userId: string) => {
     try {
-      const readReceipts = messageIds.map(messageId => ({
-        message_id: messageId,
-        user_id: userId
-      }));
-
-      const { error } = await supabase
-        .from('message_read_receipts')
-        .upsert(readReceipts, { onConflict: 'message_id,user_id' });
-
-      if (error) throw error;
-
-      // 로컬 상태 업데이트
+      // 먼저 로컬 상태를 즉시 업데이트
       messageIds.forEach(messageId => {
         get().updateMessageReadStatus(messageId, true, new Date().toISOString());
       });
 
+      // 그 다음 DB에 저장
+      for (const messageId of messageIds) {
+        const { error } = await supabase
+          .from('message_read_receipts')
+          .insert({
+            message_id: messageId,
+            user_id: userId
+          })
+          .select()
+          .single();
+
+        if (error && error.code !== '23505') { // UNIQUE 제약 오류는 무시
+          console.error(`메시지 ${messageId} 읽음 표시 오류:`, error);
+          // 실패한 경우 로컬 상태 롤백
+          get().updateMessageReadStatus(messageId, false);
+        }
+      }
     } catch (err) {
       console.error('메시지 읽음 표시 오류:', err);
     }
