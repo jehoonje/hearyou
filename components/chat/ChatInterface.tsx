@@ -44,7 +44,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [blockSubscription, setBlockSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-
+  
   // 키보드 상태 관리를 위한 state 추가
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
@@ -119,17 +119,16 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     setViewportHeight(initialViewportHeight);
 
     const handleResize = () => {
-      const currentViewportHeight =
-        window.visualViewport?.height || window.innerHeight;
+      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
       const heightDifference = initialViewportHeight - currentViewportHeight;
-
+      
       // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
       const keyboardIsOpen = heightDifference > 150;
-
+      
       setViewportHeight(currentViewportHeight);
       setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
       setIsKeyboardOpen(keyboardIsOpen);
-
+      
       // 키보드가 열렸을 때 메시지 끝으로 스크롤
       if (keyboardIsOpen) {
         setTimeout(() => {
@@ -140,15 +139,15 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
 
     // visualViewport API 사용 (모던 브라우저)
     if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", handleResize);
+      window.visualViewport.addEventListener('resize', handleResize);
       return () => {
-        window.visualViewport?.removeEventListener("resize", handleResize);
+        window.visualViewport?.removeEventListener('resize', handleResize);
       };
     } else {
       // 폴백: window resize 이벤트 사용
-      window.addEventListener("resize", handleResize);
+      window.addEventListener('resize', handleResize);
       return () => {
-        window.removeEventListener("resize", handleResize);
+        window.removeEventListener('resize', handleResize);
       };
     }
   }, []);
@@ -323,58 +322,37 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
 
     const markUnreadMessages = async () => {
       const unreadMessages = messages.filter(
-        (msg) => msg.receiver_id === user.id && !msg.is_read
+        msg => msg.receiver_id === user.id && !msg.is_read
       );
-
+      
       if (unreadMessages.length > 0) {
-        const unreadIds = unreadMessages.map((msg) => msg.id);
-        console.log("[Chat] 읽지 않은 메시지 읽음 처리:", unreadIds);
+        const unreadIds = unreadMessages.map(msg => msg.id);
+        console.log('[Chat] 읽지 않은 메시지 읽음 처리:', unreadIds);
         await useChatStore.getState().markMessagesAsRead(unreadIds, user.id);
       }
     };
 
     // 채팅창이 열려있을 때 실시간으로 읽음 처리
     markUnreadMessages();
-
+    
     // 새 메시지가 올 때마다 읽음 처리
     const interval = setInterval(markUnreadMessages, 1000);
-
+    
     return () => clearInterval(interval);
   }, [messages, user, show, isChatInvalid]);
-  const testPushNotification = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke(
-        "send-push-notification",
-        {
-          body: {
-            receiverId: user?.id,
-            message: "테스트 푸시 알림입니다",
-            senderId: user?.id,
-            senderName: "테스트",
-          },
-        }
-      );
-      console.log("테스트 푸시 결과:", data, error);
-    } catch (err) {
-      console.error("테스트 푸시 오류:", err);
-    }
-  };
-
+  
   return (
     <div
       className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
         show ? "opacity-100" : "opacity-0"
       }`}
       style={{
-        display: "flex",
-        alignItems: isKeyboardOpen ? "flex-start" : "center",
-        justifyContent: "center",
-        paddingTop: isKeyboardOpen ? "20px" : "0",
+        display: 'flex',
+        alignItems: isKeyboardOpen ? 'flex-start' : 'center',
+        justifyContent: 'center',
+        paddingTop: isKeyboardOpen ? '20px' : '0'
       }}
     >
-      <button onClick={testPushNotification} className="text-xs text-blue-400">
-        푸시 테스트
-      </button>
       <div
         ref={chatContainerRef}
         className={`
@@ -386,8 +364,8 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
         style={{
-          height: isKeyboardOpen ? `${viewportHeight - 40}px` : "648px",
-          maxHeight: isKeyboardOpen ? `${viewportHeight - 40}px` : "648px",
+          height: isKeyboardOpen ? `${viewportHeight - 40}px` : '648px',
+          maxHeight: isKeyboardOpen ? `${viewportHeight - 40}px` : '648px'
         }}
       >
         {/* Header */}
@@ -464,7 +442,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
               isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
             }`}
             style={{
-              paddingBottom: isKeyboardOpen ? "20px" : "16px",
+              paddingBottom: isKeyboardOpen ? '20px' : '16px'
             }}
           >
             {messages.length === 0 && !isChatInvalid && (
@@ -513,9 +491,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
             isChatInvalid ? "opacity-50" : ""
           }`}
           style={{
-            paddingBottom: isKeyboardOpen
-              ? "env(safe-area-inset-bottom, 0px)"
-              : "0px",
+            paddingBottom: isKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : '0px'
           }}
         >
           <ChatInput isDisabled={isChatInvalid} />
@@ -610,7 +586,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
           className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4"
         >
           <div className="bg-gray-900/20 rounded-lg p-6 max-w-md w-full">
-            <div className="flex items-center gap-3 mb-4">
+             <div className="flex items-center gap-3 mb-4">
               <Ban className="text-red-500" size={24} />
               <h3 className="text-lg font-semibold text-white">
                 {t.chat.blockModalTitle}
