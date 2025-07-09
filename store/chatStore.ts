@@ -222,6 +222,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (!currentUser || !partnerId) return;
 
+    console.log('[ChatStore] 읽음 표시 구독 시작:', { currentUser: currentUser.id, partnerId });
+
     const channel = supabase
       .channel(`read-receipts-${[currentUser.id, partnerId].sort().join('-')}`)
       .on<MessageReadReceipt>(
@@ -229,21 +231,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'message_read_receipts'
+          table: 'message_read_receipts',
+          filter: `user_id=eq.${partnerId}` // 상대방이 읽음 표시한 것만 구독
         },
         (payload) => {
           const readReceipt = payload.new as MessageReadReceipt;
+          console.log('[ChatStore] 읽음 표시 수신:', readReceipt);
           
-          // 상대방이 내 메시지를 읽었을 때만 업데이트
+          // 내가 보낸 메시지 중에서 상대방이 읽은 메시지 찾기
           const messages = get().messages;
-          const message = messages.find(msg => msg.id === readReceipt.message_id);
+          const message = messages.find(msg => 
+            msg.id === readReceipt.message_id && 
+            msg.sender_id === currentUser.id
+          );
           
-          if (message && message.sender_id === currentUser.id && readReceipt.user_id === partnerId) {
+          if (message) {
+            console.log('[ChatStore] 메시지 읽음 상태 업데이트:', message.id);
             get().updateMessageReadStatus(readReceipt.message_id, true, readReceipt.read_at);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[ChatStore] 읽음 표시 구독 상태:', status);
+      });
 
     set({ readReceiptsChannel: channel });
   },

@@ -10,18 +10,25 @@ export const usePushNotifications = () => {
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) return;
+    console.log('[usePushNotifications] 훅 실행, user:', user?.id);
+    
+    if (!user) {
+      console.log('[usePushNotifications] 사용자 없음, 종료');
+      return;
+    }
 
     // 푸시 토큰 핸들러 등록
     const handlePushToken = async (token: string) => {
       try {
         console.log('[Web] 푸시 토큰 받음:', token);
+        console.log('[Web] 현재 사용자:', user.id);
         
         // 플랫폼 감지
         const platform = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'ios' : 'android';
+        console.log('[Web] 플랫폼:', platform);
         
         // Supabase에 토큰 저장
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('push_tokens')
           .upsert({
             user_id: user.id,
@@ -44,20 +51,28 @@ export const usePushNotifications = () => {
 
     // 전역 함수로 등록
     (window as any).handlePushToken = handlePushToken;
+    console.log('[Web] handlePushToken 함수 등록 완료');
 
     // 이미 토큰이 있는지 확인
-    if ((window as any).__EXPO_PUSH_TOKEN__) {
-      handlePushToken((window as any).__EXPO_PUSH_TOKEN__);
-    }
+    setTimeout(() => {
+      if ((window as any).__EXPO_PUSH_TOKEN__) {
+        console.log('[Web] 기존 토큰 발견, 저장 시도');
+        handlePushToken((window as any).__EXPO_PUSH_TOKEN__);
+      } else {
+        console.log('[Web] 저장된 토큰 없음');
+      }
+    }, 1000);
 
     // 토큰 이벤트 리스너
     const tokenListener = (event: CustomEvent) => {
+      console.log('[Web] pushtoken 이벤트 수신:', event.detail);
       if (event.detail?.token) {
         handlePushToken(event.detail.token);
       }
     };
 
     window.addEventListener('pushtoken', tokenListener as EventListener);
+    console.log('[Web] pushtoken 이벤트 리스너 등록 완료');
 
     // 알림 핸들러 등록
     const handleNotification = (notification: any) => {
@@ -87,7 +102,7 @@ export const usePushNotifications = () => {
     // cleanup 시 푸시 토큰 상태는 유지
     return () => {
       window.removeEventListener('pushtoken', tokenListener as EventListener);
-      // handlePushToken은 유지 (다른 컴포넌트에서도 사용 가능)
+      console.log('[Web] pushtoken 이벤트 리스너 제거');
     };
   }, [user, supabase, router]);
 };
