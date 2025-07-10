@@ -14,6 +14,8 @@ interface ChatState {
   unreadCount: number;
   currentUserId: string | null;
   currentPartnerId: string | null;
+  currentMatchDate: string | null;
+  lastReadCheckTime: number;
   setMessages: (messages: ChatMessageData[]) => void;
   setCurrentMessage: (message: string) => void;
   addMessage: (message: ChatMessageData) => void;
@@ -31,6 +33,18 @@ interface ChatState {
 
 const supabase = createClientComponentClient();
 
+// 디바운싱 헬퍼
+const createDebouncer = () => {
+  let timeoutId: NodeJS.Timeout | null = null;
+  
+  return (callback: () => void, delay: number) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(callback, delay);
+  };
+};
+
+const readStatusDebouncer = createDebouncer();
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   currentMessage: '',
@@ -41,6 +55,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   unreadCount: 0,
   currentUserId: null,
   currentPartnerId: null,
+  currentMatchDate: null,
+  lastReadCheckTime: 0,
 
   setMessages: (messages) => set({ 
     messages: messages.sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()) 
@@ -80,7 +96,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (error) throw error;
 
-      // 사용자 이름 가져오기
+      // 사용자 이름 가져오기 (캐싱 고려)
       let senderName = '사용자';
       const { data: profileData } = await supabase
         .from('profiles')
@@ -104,8 +120,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       set({ currentMessage: '', isSending: false });
       
-      // 메시지 전송 후 읽음 상태 체크 (이전 메시지들의 읽음 상태 확인)
-      setTimeout(() => {
+      // 메시지 전송 후 읽음 상태 체크 (디바운싱)
+      readStatusDebouncer(() => {
         console.log('[ChatStore] 메시지 전송 후 읽음 상태 체크');
         get().refreshReadStatus();
       }, 1000);
@@ -117,7 +133,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   markMessagesAsRead: async (messageIds: string[], userId: string) => {
     if (messageIds.length === 0) return;
     
-    console.log('[ChatStore] 읽음 처리 시작:', { messageIds, userId });
+    console.log('[ChatStore] 읽음 처리 시작:', messageIds.length, '개 메시지');
     
     try {
       // 배치로 읽음 표시 저장
@@ -132,34 +148,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .insert(readReceipts);
 
       if (error && error.code !== '23505') { // UNIQUE 제약 오류는 무시
-        console.error('읽음 표시 저장 오류:', error);
+        console.error('[ChatStore] 읽음 표시 저장 오류:', error);
         return;
       }
 
       console.log('[ChatStore] 읽음 표시 저장 완료');
       
-      // 로컬 상태 업데이트
+      // 로컬 상태 즉시 업데이트
+      const now = new Date().toISOString();
       messageIds.forEach(messageId => {
-        get().updateMessageReadStatus(messageId, true, new Date().toISOString());
+        get().updateMessageReadStatus(messageId, true, now);
       });
 
-      // 읽음 처리 후 전체 읽음 상태 새로고침 (상대방이 내 메시지를 읽었는지도 확인)
-      setTimeout(() => {
-        console.log('[ChatStore] 읽음 처리 완료 후 전체 상태 새로고침');
+      // 디바운싱된 전체 상태 새로고침
+      readStatusDebouncer(() => {
+        console.log('[ChatStore] 읽음 처리 후 전체 상태 새로고침');
         get().refreshReadStatus();
-      }, 300);
+      }, 500);
 
     } catch (err) {
-      console.error('메시지 읽음 표시 오류:', err);
+      console.error('[ChatStore] 메시지 읽음 표시 오류:', err);
     }
   },
 
   refreshReadStatus: async () => {
-    const { messages, currentUserId, currentPartnerId } = get();
+    const { messages, currentUserId, currentPartnerId, lastReadCheckTime } = get();
+    
+    // 중복 체크 방지 (최소 2초 간격)
+    const now = Date.now();
+    if (now - lastReadCheckTime < 2000) {
+      console.log('[ChatStore] 읽음 상태 체크 스킵 (너무 빈번함)');
+      return;
+    }
+    
     if (!currentUserId || !currentPartnerId || messages.length === 0) return;
 
     try {
       console.log('[ChatStore] 읽음 상태 새로고침 시작');
+      set({ lastReadCheckTime: now });
       
       const messageIds = messages.map(msg => msg.id);
       
@@ -169,38 +195,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .in('message_id', messageIds);
 
       if (error) {
-        console.error('읽음 상태 조회 오류:', error);
+        console.error('[ChatStore] 읽음 상태 조회 오류:', error);
         return;
       }
 
-      // 읽음 상태 업데이트
-      if (readReceipts) {
+      // 읽음 상태 업데이트 (변경사항이 있을 때만)
+      if (readReceipts && readReceipts.length > 0) {
+        let hasChanges = false;
+        
         readReceipts.forEach(receipt => {
           const message = messages.find(msg => msg.id === receipt.message_id);
-          if (message && receipt.user_id === message.receiver_id) {
+          if (message && receipt.user_id === message.receiver_id && !message.is_read) {
             get().updateMessageReadStatus(receipt.message_id, true, receipt.read_at);
+            hasChanges = true;
           }
         });
-      }
 
-      console.log('[ChatStore] 읽음 상태 새로고침 완료');
+        if (hasChanges) {
+          console.log('[ChatStore] 읽음 상태 업데이트 완료');
+        } else {
+          console.log('[ChatStore] 읽음 상태 변경사항 없음');
+        }
+      }
     } catch (err) {
-      console.error('읽음 상태 새로고침 오류:', err);
+      console.error('[ChatStore] 읽음 상태 새로고침 오류:', err);
     }
   },
 
   subscribeToChatMessages: (currentUser: User | null, partnerId: string | null, matchDate: string | null) => {
-    get().unsubscribeFromChatMessages();
-  
     if (!currentUser || !partnerId || !matchDate) {
       return;
     }
-
-    console.log('[ChatStore] 채팅 구독 시작:', { currentUser: currentUser.id, partnerId, matchDate });
-
-    // 현재 사용자와 파트너 ID 저장
-    set({ currentUserId: currentUser.id, currentPartnerId: partnerId });
-
+  
+    // 이미 같은 채팅방을 구독 중인지 확인
+    const state = get();
+    if (
+      state.currentUserId === currentUser.id &&
+      state.currentPartnerId === partnerId &&
+      state.currentMatchDate === matchDate &&
+      state.chatChannel
+    ) {
+      console.log('[ChatStore] 이미 같은 채팅방 구독 중, 재구독 스킵');
+      return;
+    }
+  
+    // 기존 구독 해제
+    get().unsubscribeFromChatMessages();
+  
+    console.log('[ChatStore] 새로운 채팅 구독 시작:', { 
+      currentUser: currentUser.id, 
+      partnerId, 
+      matchDate 
+    });
+  
+    // 현재 사용자와 파트너 ID, 매치 날짜 저장
+    set({ 
+      currentUserId: currentUser.id, 
+      currentPartnerId: partnerId,
+      currentMatchDate: matchDate 
+    });
+  
     const channel = supabase
       .channel(`chat-${matchDate}-${[currentUser.id, partnerId].sort().join('-')}`)
       .on<ChatMessageData>(
@@ -213,32 +267,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         (payload) => {
           const newMessage = payload.new as ChatMessageData;
-          console.log('[ChatStore] 새 메시지 수신:', newMessage);
           
           if (newMessage &&
               ((newMessage.sender_id === currentUser.id && newMessage.receiver_id === partnerId) ||
                (newMessage.sender_id === partnerId && newMessage.receiver_id === currentUser.id))
              )
            {
-                if (!get().messages.some(msg => msg.id === newMessage.id)) {
+                const currentMessages = get().messages;
+                if (!currentMessages.some(msg => msg.id === newMessage.id)) {
                     console.log('[ChatStore] 메시지 추가:', newMessage.id);
                     get().addMessage(newMessage);
                     
                     // 내가 받은 메시지라면 자동으로 읽음 표시
                     if (newMessage.receiver_id === currentUser.id) {
-                      console.log('[ChatStore] 받은 메시지 자동 읽음 처리:', newMessage.id);
-                      // 약간의 지연 후 읽음 처리 (UI 업데이트 후)
+                      console.log('[ChatStore] 받은 메시지 자동 읽음 처리');
                       setTimeout(() => {
                         get().markMessagesAsRead([newMessage.id], currentUser.id);
                       }, 100);
                     }
                     
-                    // 메시지 수신 시마다 읽음 상태 새로고침 (내가 보낸 메시지의 읽음 상태 확인)
+                    // 상대방 메시지 수신 시 읽음 상태 새로고침 (디바운싱)
                     if (newMessage.sender_id === partnerId) {
-                      console.log('[ChatStore] 상대방 메시지 수신으로 인한 읽음 상태 새로고침');
-                      setTimeout(() => {
+                      readStatusDebouncer(() => {
+                        console.log('[ChatStore] 상대방 메시지 수신 - 읽음 상태 체크');
                         get().refreshReadStatus();
-                      }, 500);
+                      }, 1000);
                     }
                 }
            }
@@ -250,21 +303,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
             set({ error: `Chat connection failed: ${status}` });
          }
       });
-
+  
     set({ chatChannel: channel });
 
-    // 초기 메시지 로드
+    // 초기 메시지 로드 (최적화)
     const fetchInitialMessages = async () => {
       try {
-          const currentUserId = currentUser?.id;
-          const partnerUserId = partnerId;
-   
-          if (typeof currentUserId !== 'string' || !currentUserId ||
-              typeof partnerUserId !== 'string' || !partnerUserId || !matchDate) {
-              set({ error: '사용자 ID 또는 상대방 ID가 유효하지 않아 메시지를 불러올 수 없습니다.' });
-              return;
-          }
-   
           console.log('[ChatStore] 초기 메시지 로드 시작');
           
           // 메시지와 읽음 상태를 함께 조회
@@ -279,13 +323,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
               `)
               .eq('match_date', matchDate)
               .eq('is_deleted', false)
-              .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${partnerUserId}),and(sender_id.eq.${partnerUserId},receiver_id.eq.${currentUserId})`)
+              .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${partnerId}),and(sender_id.eq.${partnerId},receiver_id.eq.${currentUser.id})`)
               .order('sent_at', { ascending: true });
    
           if (messagesError) throw messagesError;
-
-          console.log('[ChatStore] 초기 메시지 로드 완료:', messages?.length);
-
+  
+          console.log('[ChatStore] 초기 메시지 로드 완료:', messages?.length || 0);
+  
           // 메시지 데이터 가공 (읽음 상태 포함)
           const processedMessages = (messages || []).map(msg => {
             const readReceipts = Array.isArray(msg.message_read_receipts) 
@@ -302,57 +346,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
               read_at: readReceipt?.read_at
             };
           });
-
+  
           get().setMessages(processedMessages);
           set({ error: null });
-
+  
           // 내가 받은 읽지 않은 메시지들을 읽음 표시
           const unreadReceivedMessages = processedMessages
-            .filter(msg => msg.receiver_id === currentUserId && !msg.is_read)
+            .filter(msg => msg.receiver_id === currentUser.id && !msg.is_read)
             .map(msg => msg.id);
           
-          console.log('[ChatStore] 읽지 않은 받은 메시지:', unreadReceivedMessages);
-          
           if (unreadReceivedMessages.length > 0) {
-            await get().markMessagesAsRead(unreadReceivedMessages, currentUserId);
+            console.log('[ChatStore] 읽지 않은 메시지 개수:', unreadReceivedMessages.length);
+            await get().markMessagesAsRead(unreadReceivedMessages, currentUser.id);
           }
    
       } catch(err: any) {
            console.error('[ChatStore] 초기 메시지 로드 오류:', err);
            set({ error: err.message || 'Failed to load messages' });
       }
-   }
+    }
     
     fetchInitialMessages();
     
-    // 읽음 표시 구독을 별도로 시작
+    // 읽음 표시 구독을 별도로 시작 (지연)
     setTimeout(() => {
       get().subscribeToReadReceipts(currentUser, partnerId);
     }, 1000);
   },
 
   subscribeToReadReceipts: (currentUser: User | null, partnerId: string | null) => {
-    // 이미 구독 중이면 중복 구독 방지
-    const { readReceiptsChannel } = get();
-    if (readReceiptsChannel) {
-      console.log('[ChatStore] 읽음 표시 이미 구독 중, 중복 구독 방지');
-      return;
-    }
-
-    get().unsubscribeFromReadReceipts();
-
     if (!currentUser || !partnerId) {
       console.log('[ChatStore] 읽음 표시 구독 조건 미충족');
       return;
     }
 
-    console.log('[ChatStore] 읽음 표시 구독 시작:', { 
-      currentUser: currentUser.id, 
-      partnerId 
-    });
+    // 이미 같은 채널을 구독 중인지 확인
+    const state = get();
+    if (
+      state.readReceiptsChannel &&
+      state.currentUserId === currentUser.id &&
+      state.currentPartnerId === partnerId
+    ) {
+      console.log('[ChatStore] 이미 읽음 표시 구독 중, 재구독 스킵');
+      return;
+    }
+
+    // 기존 구독 해제
+    get().unsubscribeFromReadReceipts();
+
+    console.log('[ChatStore] 읽음 표시 구독 시작');
 
     // 고유한 채널명 생성
-    const channelName = `read-receipts-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const channelName = `read-receipts-${currentUser.id}-${partnerId}-${Date.now()}`;
     
     const channel = supabase
       .channel(channelName)
@@ -365,7 +410,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         async (payload) => {
           const readReceipt = payload.new as MessageReadReceipt;
-          console.log('[ChatStore] 읽음 표시 수신:', readReceipt.message_id);
           
           const messages = get().messages;
           const targetMessage = messages.find(msg => msg.id === readReceipt.message_id);
@@ -374,8 +418,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // 내가 보낸 메시지를 상대방이 읽었는지 확인
             if (targetMessage.sender_id === currentUser.id && 
                 readReceipt.user_id === partnerId &&
-                targetMessage.receiver_id === partnerId) {
-              console.log('[ChatStore] ✅ 내 메시지 읽음 상태 실시간 업데이트:', targetMessage.id);
+                targetMessage.receiver_id === partnerId &&
+                !targetMessage.is_read) {
+              console.log('[ChatStore] 내 메시지 읽음 상태 실시간 업데이트');
               get().updateMessageReadStatus(
                 readReceipt.message_id, 
                 true, 
@@ -388,10 +433,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .subscribe((status, error) => {
         console.log('[ChatStore] 읽음 표시 구독 상태:', status);
         
-        if (status === 'SUBSCRIBED') {
-          console.log('[ChatStore] ✅ 읽음 표시 구독 성공');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[ChatStore] ❌ 읽음 표시 구독 오류:', status, error);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[ChatStore] 읽음 표시 구독 오류:', status, error);
         }
       });
 
@@ -403,7 +446,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (chatChannel) {
       console.log('[ChatStore] 채팅 구독 해제');
       supabase.removeChannel(chatChannel);
-      set({ chatChannel: null });
+      set({ 
+        chatChannel: null,
+        currentMatchDate: null 
+      });
     }
   },
 
@@ -426,7 +472,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       isSending: false, 
       error: null,
       currentUserId: null,
-      currentPartnerId: null
+      currentPartnerId: null,
+      currentMatchDate: null,
+      lastReadCheckTime: 0
     });
   },
 
@@ -442,7 +490,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ unreadCount: data.length });
       }
     } catch (err) {
-      console.error('읽지 않은 메시지 수 조회 오류:', err);
+      console.error('[ChatStore] 읽지 않은 메시지 수 조회 오류:', err);
     }
   }
 }));

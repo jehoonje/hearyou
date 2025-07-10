@@ -1,13 +1,15 @@
-// hooks/usePushNotifications.ts
+// hooks/usePushNotifications.ts (수정된 버전)
 import { useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useAuth } from './useAuth';
 import { useRouter } from 'next/navigation';
+import { useMatchStore } from '../../store/matchStore';
 
 export const usePushNotifications = () => {
   const { user } = useAuth();
   const supabase = createClientComponentClient();
   const router = useRouter();
+  const { fetchCurrentMatch } = useMatchStore();
 
   useEffect(() => {
     console.log('[usePushNotifications] 훅 실행, user:', user?.id);
@@ -78,10 +80,29 @@ export const usePushNotifications = () => {
     const handleNotification = (notification: any) => {
       console.log('[Web] 알림 수신:', notification);
       
+      const notificationData = notification.request?.content?.data;
+      
       // 알림 처리 로직
-      if (notification.request?.content?.data?.type === 'chat_message') {
+      if (notificationData?.type === 'chat_message') {
         // 채팅 메시지 알림 처리
-        // 토스트 표시 등
+        showNotificationToast({
+          title: '새 메시지',
+          message: notification.request?.content?.body || '새로운 메시지가 도착했습니다.',
+          type: 'message'
+        });
+      } else if (notificationData?.type === 'new_match') {
+        // 매칭 알림 처리
+        console.log('[Web] 새 매칭 알림:', notificationData);
+        
+        // 매치 정보 새로고침
+        fetchCurrentMatch(user);
+        
+        // 매칭 성공 토스트 표시
+        showNotificationToast({
+          title: '🎉 매칭 성공!',
+          message: notification.request?.content?.body || '새로운 친구와 매칭되었습니다!',
+          type: 'match'
+        });
       }
     };
 
@@ -90,9 +111,13 @@ export const usePushNotifications = () => {
     // 채팅 화면 이동 핸들러
     const navigateToChat = (chatData: any) => {
       console.log('[Web] 채팅으로 이동:', chatData);
-      // 채팅 화면으로 라우팅
-      if (chatData?.senderId) {
-        // 매칭 상태 확인 후 채팅 열기
+      
+      if (chatData?.type === 'new_match') {
+        // 매칭 알림에서 채팅으로 이동
+        fetchCurrentMatch(user); // 매치 정보 새로고침
+        router.push('/'); // 메인 화면으로 이동 (자동으로 매치 정보 표시됨)
+      } else if (chatData?.senderId) {
+        // 일반 채팅 메시지 알림
         router.push(`/?chat=${chatData.senderId}`);
       }
     };
@@ -104,5 +129,26 @@ export const usePushNotifications = () => {
       window.removeEventListener('pushtoken', tokenListener as EventListener);
       console.log('[Web] pushtoken 이벤트 리스너 제거');
     };
-  }, [user, supabase, router]);
+  }, [user, supabase, router, fetchCurrentMatch]);
 };
+
+// 토스트 표시 함수 (실제 구현은 프로젝트에 맞게 수정)
+function showNotificationToast({ title, message, type }: {
+  title: string;
+  message: string;
+  type: 'message' | 'match';
+}) {
+  // 여기에 실제 토스트 표시 로직 구현
+  // 예: react-toastify, chakra-ui toast 등 사용
+  console.log('[Toast]', type, title, message);
+  
+  // 임시로 브라우저 기본 알림 사용
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, {
+      body: message,
+      icon: '/icon-192.png', // 앱 아이콘 경로
+      badge: '/icon-72.png',
+      tag: type === 'match' ? 'match-notification' : 'message-notification',
+    });
+  }
+}

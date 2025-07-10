@@ -1,6 +1,7 @@
+// src/app/contexts/AuthContext.tsx
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { supabase } from '../../lib/supabase';
@@ -48,7 +49,7 @@ export function AuthProvider({
   children: React.ReactNode;
   initialSession: Session | null;
 }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(initialSession?.user || null);
   const [session, setSession] = useState<Session | null>(initialSession);
   const [isDemoUser, setIsDemoUser] = useState(false); 
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
@@ -62,6 +63,10 @@ export function AuthProvider({
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  
+  // Auth listener 초기화 여부 추적
+  const authListenerInitialized = useRef(false);
+  const nativeAuthHandlerRef = useRef<((data: any) => void) | null>(null);
 
   const resetFormErrors = useCallback(() => {
     setEmailError(null);
@@ -99,20 +104,25 @@ export function AuthProvider({
     setAuthError(null);
   }, [resetFormErrors]);
 
-  // ✅ 하나의 useEffect로 통합하여 중복 제거
+  // Auth 상태 변경 리스너 - 한 번만 등록
   useEffect(() => {
-    // 데모 사용자인 경우 auth 상태 변경 감지하지 않음
-    if (isDemoUser) {
-      console.log('[AuthContext] 데모 모드 - auth 리스너 비활성화');
+    // 이미 초기화되었거나 데모 사용자면 스킵
+    if (authListenerInitialized.current || isDemoUser) {
       return;
     }
 
     console.log('[AuthContext] auth 리스너 등록');
+    authListenerInitialized.current = true;
     
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[AuthContext] 인증 상태 변경:', _event, session?.user?.email);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION은 무시
+      if (event === 'INITIAL_SESSION') {
+        return;
+      }
+      
+      console.log('[AuthContext] 인증 상태 변경:', event, session?.user?.email);
       
       // 데모 상태가 아닌 경우에만 업데이트
       if (!isDemoUser) {
@@ -126,10 +136,11 @@ export function AuthProvider({
     return () => {
       console.log('[AuthContext] auth 리스너 정리');
       subscription.unsubscribe();
+      authListenerInitialized.current = false;
     };
-  }, [isDemoUser]); // isDemoUser 의존성만 유지
+  }, []); // isDemoUser 의존성 제거
 
-  // 네이티브 앱과의 통신을 위한 리스너
+  // 네이티브 앱과의 통신을 위한 리스너 - 한 번만 등록
   useEffect(() => {
     // 네이티브 인증 처리 함수
     const handleNativeAuth = async (data: { token?: string; nonce?: string; error?: string }) => {
@@ -159,7 +170,6 @@ export function AuthProvider({
             setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다: ' + error.message);
           } else {
             console.log('[AuthContext] Apple 로그인 성공!', authData);
-            // 성공 시 onAuthStateChange가 자동으로 처리
           }
         } catch (error: any) {
           console.error('[AuthContext] Apple 로그인 처리 중 오류:', error);
@@ -170,10 +180,15 @@ export function AuthProvider({
       }
     };
 
-    // 전역 함수로 등록
+    // 이전 핸들러가 있으면 먼저 제거
+    if (nativeAuthHandlerRef.current) {
+      window.removeEventListener('nativeauth', nativeAuthHandlerRef.current as EventListener);
+    }
+
+    // 새 핸들러 등록
+    nativeAuthHandlerRef.current = handleNativeAuth;
     window.handleNativeAuth = handleNativeAuth;
 
-    // 이벤트 리스너로도 등록 (이중 안전장치)
     const handleNativeAuthEvent = (event: CustomEvent) => {
       console.log('[AuthContext] nativeauth 이벤트 수신:', event.detail);
       handleNativeAuth(event.detail);
@@ -181,15 +196,15 @@ export function AuthProvider({
 
     window.addEventListener('nativeauth', handleNativeAuthEvent as EventListener);
 
-    // 디버깅을 위한 로그
     console.log('[AuthContext] Native auth 리스너 등록 완료');
 
     return () => {
       delete window.handleNativeAuth;
       window.removeEventListener('nativeauth', handleNativeAuthEvent as EventListener);
+      nativeAuthHandlerRef.current = null;
       console.log('[AuthContext] Native auth 리스너 정리 완료');
     };
-  }, []); // 빈 의존성 배열로 한 번만 실행
+  }, []); // 빈 의존성 배열
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +230,6 @@ export function AuthProvider({
       if (error) throw error;
       
       console.log('[AuthContext] 로그인 성공');
-      // 로그인 성공 시 데모 상태 확실히 해제
       setIsDemoUser(false);
       
     } catch (error) {
@@ -261,8 +275,6 @@ export function AuthProvider({
       
       console.log('[AuthContext] 회원가입 성공');
       setShowVerificationModal(true);
-      
-      // 회원가입 시에도 데모 상태 해제
       setIsDemoUser(false);
       
     } catch (error) {
@@ -292,7 +304,6 @@ export function AuthProvider({
 
       console.log('[AuthContext] 로그아웃 시작');
       
-      // 일반 사용자 로그아웃
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -307,7 +318,7 @@ export function AuthProvider({
       setAuthView('login');
       setAuthMessage('');
       setAuthError(null);
-      setIsDemoUser(false); // 확실히 데모 상태 해제
+      setIsDemoUser(false);
       
     } catch (error) {
       console.error('[AuthContext] 로그아웃 오류:', error);

@@ -1,16 +1,165 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User, Session } from '@supabase/supabase-js';
-import { Database } from '../types/supabase';
-import { supabase } from '../lib/supabase'; // 공유 클라이언트 import
+import { supabase } from '../lib/supabase';
+
+// 싱글톤 Auth 매니저
+class AuthManager {
+  private static instance: AuthManager;
+  private authSubscription: any = null;
+  private listeners: Set<(event: string, session: Session | null) => void> = new Set();
+  private currentSession: Session | null = null;
+  private currentUser: User | null = null;
+  private isInitialized = false;
+
+  static getInstance() {
+    if (!AuthManager.instance) {
+      AuthManager.instance = new AuthManager();
+    }
+    return AuthManager.instance;
+  }
+
+  async initialize() {
+    if (this.isInitialized) return;
+    
+    console.log('[AuthManager] 초기화 시작');
+    this.isInitialized = true;
+
+    // 초기 세션 가져오기
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      this.currentSession = session;
+      this.currentUser = session?.user || null;
+    } catch (error) {
+      console.error('[AuthManager] 초기 세션 로드 실패:', error);
+    }
+
+    // Auth 상태 변경 리스너 등록 (한 번만)
+    if (!this.authSubscription) {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        // INITIAL_SESSION은 로그 없이 무시
+        if (event === 'INITIAL_SESSION') {
+          return;
+        }
+        
+        console.log('[AuthManager] 인증 상태 변경:', event);
+        
+        this.currentSession = session;
+        this.currentUser = session?.user || null;
+        
+        // 모든 리스너에 이벤트 전달
+        this.listeners.forEach(listener => {
+          try {
+            listener(event, session);
+          } catch (error) {
+            console.error('[AuthManager] 리스너 실행 오류:', error);
+          }
+        });
+      });
+
+      this.authSubscription = authListener;
+    }
+  }
+
+  addListener(listener: (event: string, session: Session | null) => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  getCurrentSession() {
+    return this.currentSession;
+  }
+
+  getCurrentUser() {
+    return this.currentUser;
+  }
+
+  cleanup() {
+    if (this.authSubscription) {
+      this.authSubscription.subscription.unsubscribe();
+      this.authSubscription = null;
+    }
+    this.listeners.clear();
+    this.isInitialized = false;
+  }
+}
+
+// 전역 인스턴스
+const authManager = AuthManager.getInstance();
+
+// 싱글톤 이벤트 매니저 (기존 코드 재사용)
+class AuthEventManager {
+  private static instance: AuthEventManager;
+  private isListenerRegistered = false;
+  private callbacks: Set<(data: any) => void> = new Set();
+
+  static getInstance() {
+    if (!AuthEventManager.instance) {
+      AuthEventManager.instance = new AuthEventManager();
+    }
+    return AuthEventManager.instance;
+  }
+
+  registerCallback(callback: (data: any) => void) {
+    this.callbacks.add(callback);
+    
+    if (!this.isListenerRegistered) {
+      this.setupListener();
+    }
+    
+    return () => {
+      this.callbacks.delete(callback);
+      if (this.callbacks.size === 0) {
+        this.removeListener();
+      }
+    };
+  }
+
+  private setupListener() {
+    if (this.isListenerRegistered) return;
+    
+    console.log('[AuthEventManager] nativeauth 이벤트 리스너 등록');
+    window.addEventListener('nativeauth', this.handleNativeAuth as EventListener);
+    window.handleNativeAuth = this.handleNativeAuth;
+    this.isListenerRegistered = true;
+  }
+
+  private removeListener() {
+    if (!this.isListenerRegistered) return;
+    
+    console.log('[AuthEventManager] nativeauth 이벤트 리스너 제거');
+    window.removeEventListener('nativeauth', this.handleNativeAuth as EventListener);
+    delete window.handleNativeAuth;
+    this.isListenerRegistered = false;
+  }
+
+  private handleNativeAuth = (event: Event | any) => {
+    const data = event.detail || event;
+    console.log('[AuthEventManager] nativeauth 이벤트 수신:', data);
+    
+    this.callbacks.forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('[AuthEventManager] 콜백 실행 오류:', error);
+      }
+    });
+  };
+}
+
+const authEventManager = AuthEventManager.getInstance();
 
 export function useAuth(initialSession: Session | null = null) {
   const searchParams = useSearchParams();
 
   // 인증 상태 관리
-  const [user, setUser] = useState<User | null>(initialSession?.user || null);
+  const [user, setUser] = useState<User | null>(() => {
+    // 초기값은 AuthManager나 initialSession에서 가져옴
+    return authManager.getCurrentUser() || initialSession?.user || null;
+  });
   const [authView, setAuthView] = useState<'login' | 'signup'>('login');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -29,14 +178,9 @@ export function useAuth(initialSession: Session | null = null) {
   // 이메일 확인 모달
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  // 회원가입 직후 상태를 추적하는 ref 추가
+  // refs
   const justSignedUpRef = useRef(false);
-
-  // 메시지 자동 제거를 위한 타이머 ref
   const messageTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 안정화된 supabase 클라이언트 ref
-  const supabaseRef = useRef(supabase);
 
   // 이메일 형식 검증 함수
   const validateEmail = useCallback((email: string): boolean => {
@@ -52,55 +196,64 @@ export function useAuth(initialSession: Session | null = null) {
     setAuthError(null);
   }, []);
 
-  // 메시지 설정 함수 (3초 후 자동 제거) - 의존성 제거
+  // 메시지 설정 함수 (3초 후 자동 제거)
   const setAuthMessageWithTimer = useCallback((message: string) => {
     setAuthMessage(message);
     
-    // 기존 타이머 제거
     if (messageTimerRef.current) {
       clearTimeout(messageTimerRef.current);
     }
     
-    // 3초 후 메시지 제거
     messageTimerRef.current = setTimeout(() => {
       setAuthMessage(null);
       messageTimerRef.current = null;
     }, 3000);
-  }, []); // 의존성 제거
+  }, []);
 
-  // 세션 갱신 함수 (429 오류 처리 포함) - 의존성 안정화
-  const refreshSession = useCallback(
-    async (retryDelay = 0): Promise<void> => {
-      if (retryDelay) {
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-      }
-      try {
-        const { data: { session }, error } = await supabaseRef.current.auth.getSession();
-        if (error) {
-          if (error.status === 429) {
-            console.warn('429 Too Many Requests, 10초 후 재시도...');
-            return refreshSession(10000); // 10초 대기 후 재시도
-          }
-          throw error;
-        }
-        setUser(session?.user || null);
-      } catch (error: any) {
-        console.error('세션 갱신 오류:', error.message);
-        setAuthError(error.message || '세션 갱신에 실패했습니다.');
-      }
-    },
-    [] // 의존성 제거
-  );
-
-  // 네이티브 인증 처리 - 한 번만 등록
+  // AuthManager 초기화 및 리스너 등록
   useEffect(() => {
-    let isSubscribed = true;
+    let mounted = true;
 
-    // 네이티브 Apple 인증 데이터 처리 함수
-    const handleNativeAuth = async (data: { token?: string; error?: string }) => {
-      if (!isSubscribed) return;
+    // AuthManager 초기화
+    authManager.initialize();
+
+    // Auth 상태 변경 리스너 등록
+    const unsubscribe = authManager.addListener((event, session) => {
+      if (!mounted) return;
+
+      setUser(session?.user || null);
       
-      console.log('[useAuth] 네이티브 인증 데이터 수신:', data);
+      if (event === 'SIGNED_IN' && session?.user) {
+        if (justSignedUpRef.current && !session.user.email_confirmed_at) {
+          setShowVerificationModal(true);
+          justSignedUpRef.current = false;
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setShowVerificationModal(false);
+        setAuthView('login');
+        justSignedUpRef.current = false;
+      }
+    });
+
+    // URL 파라미터 처리
+    const urlMessage = searchParams?.get('message');
+    if (urlMessage && mounted) {
+      setAuthMessageWithTimer(urlMessage);
+    }
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+      if (messageTimerRef.current) {
+        clearTimeout(messageTimerRef.current);
+      }
+    };
+  }, [searchParams, setAuthMessageWithTimer]);
+
+  // 네이티브 인증 처리
+  useEffect(() => {
+    const handleNativeAuth = async (data: { token?: string; error?: string }) => {
+      console.log('[useAuth] 네이티브 인증 데이터 처리');
       
       if (data.error) {
         console.error('[useAuth] Apple 로그인 오류:', data.error);
@@ -114,7 +267,7 @@ export function useAuth(initialSession: Session | null = null) {
         setAuthLoading(true);
 
         try {
-          const { data: authData, error } = await supabaseRef.current.auth.signInWithIdToken({
+          const { data: authData, error } = await supabase.auth.signInWithIdToken({
             provider: 'apple',
             token: data.token,
           });
@@ -123,9 +276,8 @@ export function useAuth(initialSession: Session | null = null) {
             console.error('[useAuth] Supabase Apple 인증 오류:', error);
             setAuthError('Apple 계정으로 로그인하는 중 문제가 발생했습니다.');
           } else {
-            console.log('[useAuth] Apple 로그인 성공:', authData);
+            console.log('[useAuth] Apple 로그인 성공');
             setAuthError(null);
-            // setUser는 onAuthStateChange에서 자동으로 처리됨
           }
         } catch (error: any) {
           console.error('[useAuth] Apple 로그인 처리 중 오류:', error);
@@ -136,76 +288,11 @@ export function useAuth(initialSession: Session | null = null) {
       }
     };
 
-    // nativeauth 이벤트 리스너 등록
-    const handleNativeAuthEvent = (event: CustomEvent) => {
-      if (!isSubscribed) return;
-      const authData = event.detail;
-      console.log('[useAuth] nativeauth 이벤트 수신:', authData);
-      handleNativeAuth(authData);
-    };
-
-    console.log('[useAuth] nativeauth 이벤트 리스너 등록');
-    window.addEventListener('nativeauth', handleNativeAuthEvent as EventListener);
+    // 싱글톤 이벤트 매니저에 콜백 등록
+    const unregister = authEventManager.registerCallback(handleNativeAuth);
     
-    // 전역 함수도 설정 (호환성을 위해)
-    window.handleNativeAuth = handleNativeAuth;
-
-    return () => {
-      console.log('[useAuth] nativeauth 이벤트 리스너 제거');
-      isSubscribed = false;
-      window.removeEventListener('nativeauth', handleNativeAuthEvent as EventListener);
-      delete window.handleNativeAuth;
-    };
-  }, []); // 빈 의존성 배열
-
-  // 초기화 및 인증 상태 감지 - 한 번만 실행
-  useEffect(() => {
-    let isSubscribed = true;
-
-    // URL 파라미터에서 메시지 가져오기 (한 번만)
-    const urlMessage = searchParams?.get('message');
-    if (urlMessage) {
-      setAuthMessageWithTimer(urlMessage);
-    }
-
-    // 초기 세션이 있으면 추가 확인 불필요
-    if (initialSession?.user) {
-      setUser(initialSession.user);
-    } else {
-      // 초기 세션 확인 (한 번만 실행)
-      refreshSession();
-    }
-
-    // 인증 상태 변경 리스너
-    const { data: authListener } = supabaseRef.current.auth.onAuthStateChange((event, session) => {
-      if (!isSubscribed) return;
-      
-      console.log('Auth state change:', event);
-      setUser(session?.user || null);
-      
-      // SIGNED_IN 이벤트 처리 수정
-      if (event === 'SIGNED_IN' && session?.user) {
-        // 회원가입 직후이고, 이메일이 확인되지 않은 경우에만 모달 표시
-        if (justSignedUpRef.current && !session.user.email_confirmed_at) {
-          setShowVerificationModal(true);
-          justSignedUpRef.current = false; // 플래그 리셋
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setShowVerificationModal(false);
-        setAuthView('login');
-        justSignedUpRef.current = false; // 로그아웃 시 플래그 리셋
-      }
-    });
-
-    return () => {
-      isSubscribed = false;
-      authListener.subscription.unsubscribe();
-      // 타이머 정리
-      if (messageTimerRef.current) {
-        clearTimeout(messageTimerRef.current);
-      }
-    };
-  }, []); // 빈 의존성 배열로 한 번만 실행
+    return unregister;
+  }, []);
 
   // 로그인 처리
   const handleLogin = useCallback(
@@ -213,7 +300,6 @@ export function useAuth(initialSession: Session | null = null) {
       e.preventDefault();
       resetFormErrors();
 
-      // 입력값 검증
       if (!email.trim()) {
         setEmailError('이메일을 입력해주세요');
         return;
@@ -232,7 +318,7 @@ export function useAuth(initialSession: Session | null = null) {
       setAuthLoading(true);
 
       try {
-        const { error } = await supabaseRef.current.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
@@ -244,7 +330,6 @@ export function useAuth(initialSession: Session | null = null) {
             setAuthError(error.message);
           }
         } else {
-          // 로그인 성공 시 회원가입 플래그가 false인지 확인
           justSignedUpRef.current = false;
         }
       } catch (err: any) {
@@ -262,7 +347,6 @@ export function useAuth(initialSession: Session | null = null) {
       e.preventDefault();
       resetFormErrors();
   
-      // 입력값 검증
       if (!email.trim()) {
         setEmailError('이메일을 입력해주세요');
         return;
@@ -286,9 +370,9 @@ export function useAuth(initialSession: Session | null = null) {
       setAuthLoading(true);
   
       try {
-        console.log('회원가입 시도:', { email, username });
+        console.log('[useAuth] 회원가입 시도');
         
-        const { data, error } = await supabaseRef.current.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password: password,
           options: {
@@ -300,29 +384,20 @@ export function useAuth(initialSession: Session | null = null) {
         });
   
         if (error) {
-          console.error('회원가입 에러:', error);
+          console.error('[useAuth] 회원가입 에러:', error);
           if (error.message.includes('already registered')) {
             setEmailError('이미 등록된 이메일 주소입니다');
           } else {
             setAuthError(error.message);
           }
         } else {
-          console.log('회원가입 성공');
-          
-          // 회원가입 성공 시
+          console.log('[useAuth] 회원가입 성공');
           justSignedUpRef.current = true;
-          
-          // 성공 메시지 설정 (타이머 없이)
           setAuthMessage('회원가입이 완료되었습니다! 이메일을 확인하여 계정을 활성화해주세요.');
-          
-          // 모달 표시
           setShowVerificationModal(true);
-          
-          // 여기서는 폼 초기화나 authView 변경을 하지 않음!
-          // 모달이 닫힐 때 처리하도록 함
         }
       } catch (err: any) {
-        console.error('회원가입 예외 발생:', err);
+        console.error('[useAuth] 회원가입 예외:', err);
         setAuthError(err.message || '회원가입 중 오류가 발생했습니다.');
       } finally {
         setAuthLoading(false);
@@ -334,10 +409,8 @@ export function useAuth(initialSession: Session | null = null) {
   // 로그아웃 처리
   const handleLogout = useCallback(async () => {
     try {
-      await supabaseRef.current.auth.signOut();
+      await supabase.auth.signOut();
       setUser(null);
-      
-      // 추가 상태 초기화
       setEmail('');
       setPassword('');
       setUsername('');
@@ -345,32 +418,26 @@ export function useAuth(initialSession: Session | null = null) {
       setAuthMessage('');
       setAuthError(null);
       justSignedUpRef.current = false;
-      
     } catch (error: any) {
       setAuthError(error.message || '로그아웃에 실패했습니다.');
-      // 에러가 있어도 로컬 상태는 초기화
       setUser(null);
     }
   }, []);
 
   // 회원가입 완료 후 처리
   const handleVerificationComplete = useCallback(() => {
-    console.log('이메일 확인 모달 닫기');
+    console.log('[useAuth] 이메일 확인 모달 닫기');
     
     setShowVerificationModal(false);
-    
-    // 모달이 닫힌 후에 폼 초기화 및 첫 화면으로 이동
     setEmail('');
     setPassword('');
     setUsername('');
     setAuthView('login');
     
-    // 메시지는 유지하되, 타이머 설정
     if (messageTimerRef.current) {
       clearTimeout(messageTimerRef.current);
     }
     
-    // 5초 후 메시지 제거 (모달 닫힌 후 충분히 볼 수 있도록)
     messageTimerRef.current = setTimeout(() => {
       setAuthMessage(null);
       messageTimerRef.current = null;
@@ -386,7 +453,7 @@ export function useAuth(initialSession: Session | null = null) {
     authLoading,
     authError,
     authMessage,
-    setAuthMessage: setAuthMessageWithTimer, // 타이머 버전으로 대체
+    setAuthMessage: setAuthMessageWithTimer,
     email,
     setEmail,
     password,
