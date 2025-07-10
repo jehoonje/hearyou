@@ -43,15 +43,12 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [blockSubscription, setBlockSubscription] = useState<any>(null);
-  
-  // 키보드 상태 관리
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 키보드 상태 관리를 위한 state 추가
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  
-  // 구독 상태 추적
-  const isSubscribedRef = useRef(false);
-  const lastSubscriptionParamsRef = useRef<string>('');
 
   const supabase = createClientComponentClient();
   const chatPartnerId = activeChatPartnerId;
@@ -70,7 +67,32 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     }
   }, [user, supabase]);
 
-  // 차단 사용자 구독 - 한 번만 설정
+  // 🆕 읽음 상태 즉시 전파 함수 추가
+const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
+  if (!user || !chatPartnerId || messageIds.length === 0) return;
+  
+  try {
+    console.log('[ChatInterface] 📤 상대방에게 읽음 상태 즉시 전파:', messageIds.length, '개');
+    
+    // 현재 채팅 채널로 읽음 상태 즉시 브로드캐스트
+    const chatChannel = useChatStore.getState().chatChannel;
+    if (chatChannel) {
+      await chatChannel.send({
+        type: 'broadcast',
+        event: 'messages_read',
+        payload: {
+          readByUserId: user.id,
+          messageIds: messageIds,
+          timestamp: new Date().toISOString()
+        }
+      });
+      console.log('[ChatInterface] ✅ 읽음 상태 브로드캐스트 전송 완료');
+    }
+  } catch (error) {
+    console.error('[ChatInterface] ❌ 읽음 상태 브로드캐스트 실패:', error);
+  }
+}, [user?.id, chatPartnerId]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -117,7 +139,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  // 키보드 및 viewport 감지
+  // 키보드 및 viewport 감지를 위한 useEffect
   useEffect(() => {
     const initialViewportHeight = window.innerHeight;
     setViewportHeight(initialViewportHeight);
@@ -127,12 +149,14 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
         window.visualViewport?.height || window.innerHeight;
       const heightDifference = initialViewportHeight - currentViewportHeight;
 
+      // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
       const keyboardIsOpen = heightDifference > 150;
 
       setViewportHeight(currentViewportHeight);
       setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
       setIsKeyboardOpen(keyboardIsOpen);
 
+      // 키보드가 열렸을 때 메시지 끝으로 스크롤
       if (keyboardIsOpen) {
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -140,12 +164,14 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
       }
     };
 
+    // visualViewport API 사용 (모던 브라우저)
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", handleResize);
       return () => {
         window.visualViewport?.removeEventListener("resize", handleResize);
       };
     } else {
+      // 폴백: window resize 이벤트 사용
       window.addEventListener("resize", handleResize);
       return () => {
         window.removeEventListener("resize", handleResize);
@@ -160,56 +186,44 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     }, 1000);
   }, [onClose]);
 
-  // 채팅 구독 관리 - 최적화
+  // 채팅 구독 관리 (안정화)
   useEffect(() => {
+    console.log('[ChatInterface] 채팅 구독 useEffect 실행', {
+      user: !!user,
+      chatPartnerId,
+      matchDate: currentMatch?.matchDate,
+      blockedUsersCount: blockedUsers.length,
+      show
+    });
+
     // 필수 조건 체크
     if (!user || !chatPartnerId || !currentMatch?.matchDate || !show) {
-      if (isSubscribedRef.current) {
-        console.log('[ChatInterface] 채팅 구독 조건 미충족, 구독 해제');
-        unsubscribeFromChatMessages();
-        isSubscribedRef.current = false;
-        lastSubscriptionParamsRef.current = '';
-      }
+      console.log('[ChatInterface] 채팅 구독 조건 미충족, 구독 해제');
+      unsubscribeFromChatMessages();
       return;
     }
 
     // 차단된 사용자 체크
     if (blockedUsers.includes(chatPartnerId)) {
-      if (isSubscribedRef.current) {
-        console.log('[ChatInterface] 차단된 사용자, 구독 해제');
-        unsubscribeFromChatMessages();
-        isSubscribedRef.current = false;
-        lastSubscriptionParamsRef.current = '';
-      }
-      return;
-    }
-
-    // 현재 구독 파라미터
-    const currentParams = `${user.id}-${chatPartnerId}-${currentMatch.matchDate}`;
-    
-    // 이미 같은 파라미터로 구독 중이면 스킵
-    if (isSubscribedRef.current && lastSubscriptionParamsRef.current === currentParams) {
+      console.log('[ChatInterface] 차단된 사용자, 구독 해제');
+      unsubscribeFromChatMessages();
       return;
     }
 
     console.log('[ChatInterface] 채팅 구독 시작');
     subscribeToChatMessages(user, chatPartnerId, currentMatch.matchDate);
-    isSubscribedRef.current = true;
-    lastSubscriptionParamsRef.current = currentParams;
 
     // 클린업
     return () => {
       console.log('[ChatInterface] 채팅 구독 클린업');
       unsubscribeFromChatMessages();
-      isSubscribedRef.current = false;
-      lastSubscriptionParamsRef.current = '';
     };
   }, [
-    user?.id,
+    user?.id, // user 객체 대신 user.id만 의존성으로
     chatPartnerId,
     currentMatch?.matchDate,
     show,
-    blockedUsers.includes(chatPartnerId || '') // 차단 상태만 체크
+    blockedUsers.join(',') // 배열을 문자열로 변환하여 안정적인 비교
   ]);
 
   const toggleMenu = useCallback(() => {
@@ -339,6 +353,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   // 채팅창이 열릴 때 배지 제거
   useEffect(() => {
     if (show && window.ReactNativeWebView) {
+      // 네이티브 앱에서 실행 중일 때 배지 제거
       window.ReactNativeWebView.postMessage(
         JSON.stringify({
           type: "CLEAR_BADGE",
@@ -347,33 +362,75 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     }
   }, [show]);
 
-  // 메시지 읽음 처리 - 최적화
+  // 메시지 읽음 처리 (간소화)
   useEffect(() => {
     if (!user || !show || isChatInvalid || messages.length === 0) return;
-
+  
     const unreadMessages = messages.filter(
       msg => msg.receiver_id === user.id && !msg.is_read
     );
     
     if (unreadMessages.length === 0) return;
-
+  
     const unreadIds = unreadMessages.map(msg => msg.id);
-    console.log('[ChatInterface] 읽지 않은 메시지 읽음 처리:', unreadIds.length, '개');
+    console.log('[ChatInterface] 📖 읽지 않은 메시지 읽음 처리:', unreadIds.length, '개');
     
-    // 디바운싱 적용
     const timer = setTimeout(async () => {
       try {
+        // 1. DB에 읽음 상태 저장
         await useChatStore.getState().markMessagesAsRead(unreadIds, user.id);
+        
+        // 2. 즉시 상대방에게 읽음 상태 전파
+        await notifyReadStatusToPartner(unreadIds);
+        
+        console.log('[ChatInterface] ✅ 읽음 처리 및 전파 완료');
       } catch (error) {
-        console.error('[ChatInterface] 메시지 읽음 처리 실패:', error);
+        console.error('[ChatInterface] ❌ 메시지 읽음 처리 실패:', error);
       }
     }, 300);
-
-    return () => clearTimeout(timer);
-  }, [messages, user?.id, show, isChatInvalid]); // messages.length 대신 messages 사용
-
-  // 읽음 상태 체크는 chatStore에서 처리하므로 제거
   
+    return () => clearTimeout(timer);
+  }, [messages, user?.id, show, isChatInvalid, notifyReadStatusToPartner]);
+
+  // 디바운싱된 읽음 상태 체크 (메시지 변경 시)
+  useEffect(() => {
+    if (!user || !show || isChatInvalid) return;
+
+    console.log("[ChatInterface] 메시지 변경 감지 - 읽음 상태 체크 예약");
+
+    // 디바운싱: 1초 내에 연속된 메시지 변경이 있으면 마지막 것만 실행
+    const debouncedRefresh = setTimeout(() => {
+      console.log("[ChatInterface] 디바운싱된 읽음 상태 체크 실행");
+      useChatStore.getState().refreshReadStatus();
+    }, 1000);
+
+    return () => clearTimeout(debouncedRefresh);
+  }, [messages.length, user?.id, show, isChatInvalid]);
+
+  // 주기적 읽음 상태 체크 (최소화)
+  useEffect(() => {
+    if (!user || !show || isChatInvalid) return;
+
+    console.log('[ChatInterface] 주기적 읽음 상태 체크 설정');
+
+    // 초기 체크 (3초 후)
+    const initialTimer = setTimeout(() => {
+      console.log('[ChatInterface] 초기 읽음 상태 체크');
+      useChatStore.getState().refreshReadStatus();
+    }, 3000);
+
+    // 주기적 체크 (15초마다)
+    // const interval = setInterval(() => {
+    //   console.log('[ChatInterface] 주기적 읽음 상태 체크');
+    //   useChatStore.getState().refreshReadStatus();
+    // }, 15000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      // clearInterval(interval);
+    };
+  }, [user?.id, show, isChatInvalid]);
+
   // 채팅창 포커스 관리
   useEffect(() => {
     if (!show) return;
@@ -394,7 +451,7 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     };
   }, [show]);
 
-  // 스크롤 관리
+  // 스크롤 관리 (분리)
   useEffect(() => {
     if (show && messages.length > 0) {
       const timer = setTimeout(() => {

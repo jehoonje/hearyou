@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { Database } from "../types/supabase";
 import { cache } from "react";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { LanguageDatabaseSync } from "../components/LanguageDatabaseSync";
 
 // 세션 캐싱 함수
 const getCachedSession = cache(async () => {
@@ -86,7 +87,10 @@ export default async function RootLayout({
           </filter>
         </svg>
         <LanguageProvider>
-          <AuthProvider initialSession={session}>{children}</AuthProvider>
+          <AuthProvider initialSession={session}>
+            <LanguageDatabaseSync />
+            {children}
+          </AuthProvider>
         </LanguageProvider>
       </body>
     </html>
