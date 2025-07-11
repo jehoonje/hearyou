@@ -490,7 +490,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
         style={{
           height: `${viewportHeight}px`,
           maxHeight: `${viewportHeight}px`,
-          transform: `translateY(${isKeyboardOpen ? -keyboardHeight : 0}px)`,
+          transform: `translateY(${isKeyboardOpen ? keyboardHeight : 0}px)`,
         }}
       >
         {/* Header */}
