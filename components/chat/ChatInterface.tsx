@@ -144,36 +144,45 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     const initialViewportHeight = window.innerHeight;
     setViewportHeight(initialViewportHeight);
 
+    let resizeTimeout: NodeJS.Timeout;
+
     const handleResize = () => {
-      const currentViewportHeight =
-        window.visualViewport?.height || window.innerHeight;
-      const heightDifference = initialViewportHeight - currentViewportHeight;
+      clearTimeout(resizeTimeout);
+      
+      // 부드러운 전환을 위해 디바운싱 적용
+      resizeTimeout = setTimeout(() => {
+        const currentViewportHeight =
+          window.visualViewport?.height || window.innerHeight;
+        const heightDifference = initialViewportHeight - currentViewportHeight;
 
-      // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
-      const keyboardIsOpen = heightDifference > 150;
+        // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
+        const keyboardIsOpen = heightDifference > 150;
 
-      setViewportHeight(currentViewportHeight);
-      setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
-      setIsKeyboardOpen(keyboardIsOpen);
+        setViewportHeight(initialViewportHeight); // 항상 초기 높이 사용
+        setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
+        setIsKeyboardOpen(keyboardIsOpen);
 
-      // 키보드가 열렸을 때 메시지 끝으로 스크롤
-      if (keyboardIsOpen) {
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-      }
+        // 키보드가 열렸을 때 메시지 끝으로 스크롤
+        if (keyboardIsOpen) {
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 200);
+        }
+      }, 50); // 50ms 디바운싱
     };
 
     // visualViewport API 사용 (모던 브라우저)
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", handleResize);
       return () => {
+        clearTimeout(resizeTimeout);
         window.visualViewport?.removeEventListener("resize", handleResize);
       };
     } else {
       // 폴백: window resize 이벤트 사용
       window.addEventListener("resize", handleResize);
       return () => {
+        clearTimeout(resizeTimeout);
         window.removeEventListener("resize", handleResize);
       };
     }
@@ -456,22 +465,21 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     if (show && messages.length > 0) {
       const timer = setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      }, isKeyboardOpen ? 200 : 100);
       
       return () => clearTimeout(timer);
     }
-  }, [messages.length, show]);
+  }, [messages.length, show, isKeyboardOpen]);
 
   return (
     <div
-      className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-1000 ease-in-out ${
+      className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-500 ease-in-out ${
         show ? "opacity-100" : "opacity-0"
       }`}
       style={{
         display: "flex",
-        alignItems: isKeyboardOpen ? "flex-start" : "center",
+        alignItems: "flex-start",
         justifyContent: "center",
-        paddingTop: isKeyboardOpen ? "20px" : "0",
       }}
     >
       <div
@@ -481,12 +489,13 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
           rounded-xl shadow-2xl shadow-black/40 bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
           border border-white/20
-          transition-all duration-300 ease-in-out
+          transition-all duration-500 ease-out
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
         style={{
-          height: isKeyboardOpen ? `${viewportHeight - 40}px` : "648px",
-          maxHeight: isKeyboardOpen ? `${viewportHeight - 40}px` : "648px",
+          height: `${viewportHeight}px`,
+          maxHeight: `${viewportHeight}px`,
+          transform: `translateY(${isKeyboardOpen ? keyboardHeight : 0}px)`,
         }}
       >
         {/* Header */}
@@ -559,11 +568,11 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
         {/* Messages Area */}
         <div className="relative flex-grow overflow-hidden min-h-0">
           <div
-            className={`absolute inset-0 p-4 overflow-y-auto scrollbar-thin transition-opacity duration-300 ${
+            className={`absolute inset-0 p-4 overflow-y-auto scrollbar-thin transition-all duration-500 ease-out ${
               isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
             }`}
             style={{
-              paddingBottom: isKeyboardOpen ? "20px" : "16px",
+              paddingBottom: isKeyboardOpen ? "8px" : "16px",
             }}
           >
             {messages.length === 0 && !isChatInvalid && (
@@ -608,13 +617,13 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
 
         {/* Input Area */}
         <div
-          className={`flex-shrink-0 border-t border-white/10 ${
+          className={`flex-shrink-0 border-t border-white/10 transition-all duration-500 ease-out ${
             isChatInvalid ? "opacity-50" : ""
           }`}
           style={{
             paddingBottom: isKeyboardOpen
-              ? "env(safe-area-inset-bottom, 0px)"
-              : "0px",
+              ? "8px"
+              : "env(safe-area-inset-bottom, 16px)",
           }}
         >
           <ChatInput isDisabled={isChatInvalid} />

@@ -14,6 +14,7 @@ interface MatchState {
   activeChatPartnerId: string | null;
   matchStatusMessage: string | null;
   matchChannel: RealtimeChannel | null;
+  noMatchErrorShown: boolean; // 에러 표시 여부 추적
   fetchCurrentMatch: (currentUser: User | null, isCalledFromSubscription?: boolean) => Promise<void>;
   setActiveChatPartnerId: (partnerId: string | null) => void;
   subscribeToMatchChanges: (currentUser: User | null) => void; // 반환 타입은 void로 유지 (구현 기준)
@@ -58,6 +59,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   activeChatPartnerId: null,
   matchStatusMessage: null,
   matchChannel: null,
+  noMatchErrorShown: false,
 
   setActiveChatPartnerId: (partnerId) => {
     // //console.log('Setting active chat partner:', partnerId);
@@ -211,8 +213,17 @@ export const useMatchStore = create<MatchState>((set, get) => ({
           set({error: null}); // 성공 시 스토어 에러 초기화
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('매치 변경 구독 오류:', status, err);
-          // 에러 상태 설정 및 채널 정보 제거
-          set({ error: '아쉽지만 오늘은 대화가 가능한 분이 없네요.', matchChannel: null });
+          // 에러가 아직 표시되지 않았을 때만 설정
+          if (!get().noMatchErrorShown) {
+            set({ 
+              error: '아쉽지만 오늘은 대화가 가능한 분이 없네요.', 
+              matchChannel: null,
+              noMatchErrorShown: true // 에러 표시됨 표시
+            });
+          } else {
+            // 이미 에러를 표시했으면 채널만 제거
+            set({ matchChannel: null });
+          }
           // 필요 시 재시도 로직 추가 가능
         } else if (status === 'CLOSED') {
              //console.log('매치 변경 구독 채널 명시적 닫힘');
@@ -253,7 +264,8 @@ export const useMatchStore = create<MatchState>((set, get) => ({
         error: null,
         activeChatPartnerId: null,
         matchStatusMessage: null,
-        matchChannel: null // 채널도 null로 설정
+        matchChannel: null, // 채널도 null로 설정
+        noMatchErrorShown: false // 에러 표시 플래그 초기화
     });
   },
 }));
