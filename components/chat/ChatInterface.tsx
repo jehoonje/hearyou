@@ -148,27 +148,22 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
 
     const handleResize = () => {
       clearTimeout(resizeTimeout);
-      
-      // 부드러운 전환을 위해 디바운싱 적용
       resizeTimeout = setTimeout(() => {
         const currentViewportHeight =
           window.visualViewport?.height || window.innerHeight;
         const heightDifference = initialViewportHeight - currentViewportHeight;
-
-        // 키보드가 열렸는지 판단 (높이 차이가 150px 이상이면 키보드로 간주)
+        
+        setViewportHeight(currentViewportHeight); // 수정: initial 대신 current 사용
         const keyboardIsOpen = heightDifference > 150;
-
-        setViewportHeight(initialViewportHeight); // 항상 초기 높이 사용
-        setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
+        setKeyboardHeight(heightDifference);
         setIsKeyboardOpen(keyboardIsOpen);
-
-        // 키보드가 열렸을 때 메시지 끝으로 스크롤
+    
         if (keyboardIsOpen) {
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
           }, 200);
         }
-      }, 50); // 50ms 디바운싱
+      }, 50);
     };
 
     // visualViewport API 사용 (모던 브라우저)
@@ -495,7 +490,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
         style={{
           height: `${viewportHeight}px`,
           maxHeight: `${viewportHeight}px`,
-          transform: `translateY(${isKeyboardOpen ? keyboardHeight : 0}px)`,
+          transform: `translateY(${isKeyboardOpen ? -keyboardHeight : 0}px)`,
         }}
       >
         {/* Header */}
