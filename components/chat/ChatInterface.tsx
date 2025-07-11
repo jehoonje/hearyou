@@ -45,9 +45,10 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const [blockSubscription, setBlockSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 키보드 상태 관리를 위한 state 추가
+  // 키보드 상태 관리를 위한 state
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  const [availableHeight, setAvailableHeight] = useState(window.innerHeight);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   const supabase = createClientComponentClient();
@@ -139,48 +140,80 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     return () => clearTimeout(timer);
   }, []);
 
-  // 키보드 및 viewport 감지를 위한 useEffect
+  // 키보드 및 viewport 감지를 위한 useEffect - 완전히 재작성
   useEffect(() => {
-    const initialViewportHeight = window.innerHeight;
-    setViewportHeight(initialViewportHeight);
+    const initialHeight = window.innerHeight;
+    setViewportHeight(initialHeight);
+    setAvailableHeight(initialHeight);
 
     let resizeTimeout: NodeJS.Timeout;
 
-    const handleResize = () => {
+    const handleViewportChange = () => {
       clearTimeout(resizeTimeout);
+      
       resizeTimeout = setTimeout(() => {
-        const currentViewportHeight =
-          window.visualViewport?.height || window.innerHeight;
-        const heightDifference = initialViewportHeight - currentViewportHeight;
+        // visualViewport가 있으면 사용, 없으면 window.innerHeight 사용
+        const currentHeight = window.visualViewport?.height || window.innerHeight;
+        const heightDifference = initialHeight - currentHeight;
         
-        setViewportHeight(currentViewportHeight); // 수정: initial 대신 current 사용
-        const keyboardIsOpen = heightDifference > 150;
-        setKeyboardHeight(heightDifference);
+        // 키보드가 열렸는지 판단 (높이 차이가 100px 이상이면 키보드로 간주)
+        const keyboardIsOpen = heightDifference > 100;
+        
+        console.log('Viewport changed:', {
+          initialHeight,
+          currentHeight,
+          heightDifference,
+          keyboardIsOpen
+        });
+
+        setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
+        setAvailableHeight(currentHeight);
         setIsKeyboardOpen(keyboardIsOpen);
-    
+
+        // 키보드가 열렸을 때 메시지 끝으로 스크롤
         if (keyboardIsOpen) {
           setTimeout(() => {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-          }, 200);
+          }, 100);
         }
       }, 50);
     };
 
-    // visualViewport API 사용 (모던 브라우저)
+    // visualViewport API 사용 (모던 브라우저 및 웹뷰)
     if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", handleResize);
-      return () => {
-        clearTimeout(resizeTimeout);
-        window.visualViewport?.removeEventListener("resize", handleResize);
-      };
+      window.visualViewport.addEventListener("resize", handleViewportChange);
+      // 초기 값 설정
+      handleViewportChange();
     } else {
       // 폴백: window resize 이벤트 사용
-      window.addEventListener("resize", handleResize);
-      return () => {
-        clearTimeout(resizeTimeout);
-        window.removeEventListener("resize", handleResize);
-      };
+      window.addEventListener("resize", handleViewportChange);
     }
+
+    // 포커스 이벤트도 추가로 감지
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        setTimeout(handleViewportChange, 100);
+      }
+    };
+
+    const handleBlur = () => {
+      setTimeout(handleViewportChange, 100);
+    };
+
+    document.addEventListener("focusin", handleFocus);
+    document.addEventListener("focusout", handleBlur);
+
+    return () => {
+      clearTimeout(resizeTimeout);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleViewportChange);
+      } else {
+        window.removeEventListener("resize", handleViewportChange);
+      }
+      document.removeEventListener("focusin", handleFocus);
+      document.removeEventListener("focusout", handleBlur);
+    };
   }, []);
 
   const handleClose = useCallback(() => {
@@ -423,15 +456,8 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
       useChatStore.getState().refreshReadStatus();
     }, 3000);
 
-    // 주기적 체크 (15초마다)
-    // const interval = setInterval(() => {
-    //   console.log('[ChatInterface] 주기적 읽음 상태 체크');
-    //   useChatStore.getState().refreshReadStatus();
-    // }, 15000);
-
     return () => {
       clearTimeout(initialTimer);
-      // clearInterval(interval);
     };
   }, [user?.id, show, isChatInvalid]);
 
@@ -484,16 +510,20 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
           rounded-xl shadow-2xl shadow-black/40 bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
           border border-white/20
-          transition-all duration-500 ease-out
+          transition-all duration-300 ease-out
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
         style={{
-          height: `${viewportHeight}px`,
-          maxHeight: `${viewportHeight}px`,
-          transform: `translateY(${isKeyboardOpen ? keyboardHeight : 0}px)`,
+          position: 'fixed',
+          top: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          height: `${availableHeight}px`,
+          maxHeight: '100vh',
+          touchAction: 'none',
         }}
       >
-        {/* Header */}
+        {/* Header - 상단 고정 */}
         <div className="p-4 border-b border-white/10 flex items-center flex-shrink-0">
           <button
             onClick={handleClose}
@@ -560,14 +590,15 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
           )}
         </div>
 
-        {/* Messages Area */}
+        {/* Messages Area - 가변 높이 */}
         <div className="relative flex-grow overflow-hidden min-h-0">
           <div
-            className={`absolute inset-0 p-4 overflow-y-auto scrollbar-thin transition-all duration-500 ease-out ${
+            className={`absolute inset-0 p-4 overflow-y-auto overflow-x-hidden scrollbar-thin transition-all duration-300 ${
               isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
             }`}
             style={{
-              paddingBottom: isKeyboardOpen ? "8px" : "16px",
+              paddingBottom: '16px',
+              WebkitOverflowScrolling: 'touch',
             }}
           >
             {messages.length === 0 && !isChatInvalid && (
@@ -610,15 +641,13 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
           )}
         </div>
 
-        {/* Input Area */}
+        {/* Input Area - 하단 고정 */}
         <div
-          className={`flex-shrink-0 border-t border-white/10 transition-all duration-500 ease-out ${
+          className={`flex-shrink-0 border-t border-white/10 transition-all duration-300 ${
             isChatInvalid ? "opacity-50" : ""
           }`}
           style={{
-            paddingBottom: isKeyboardOpen
-              ? "8px"
-              : "env(safe-area-inset-bottom, 16px)",
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           }}
         >
           <ChatInput isDisabled={isChatInvalid} />
