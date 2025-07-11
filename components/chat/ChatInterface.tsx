@@ -134,10 +134,9 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
 
   // Mount/Unmount 애니메이션
   useEffect(() => {
-    const timer = setTimeout(() => {
+    requestAnimationFrame(() => {
       setShow(true);
-    }, 10);
-    return () => clearTimeout(timer);
+    });
   }, []);
 
   // 키보드 및 viewport 감지를 위한 useEffect - 완전히 재작성
@@ -146,37 +145,31 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     setViewportHeight(initialHeight);
     setAvailableHeight(initialHeight);
 
-    let resizeTimeout: NodeJS.Timeout;
-
     const handleViewportChange = () => {
-      clearTimeout(resizeTimeout);
+      // 즉시 실행 - 디바운싱 제거
+      const currentHeight = window.visualViewport?.height || window.innerHeight;
+      const heightDifference = initialHeight - currentHeight;
       
-      resizeTimeout = setTimeout(() => {
-        // visualViewport가 있으면 사용, 없으면 window.innerHeight 사용
-        const currentHeight = window.visualViewport?.height || window.innerHeight;
-        const heightDifference = initialHeight - currentHeight;
-        
-        // 키보드가 열렸는지 판단 (높이 차이가 100px 이상이면 키보드로 간주)
-        const keyboardIsOpen = heightDifference > 100;
-        
-        console.log('Viewport changed:', {
-          initialHeight,
-          currentHeight,
-          heightDifference,
-          keyboardIsOpen
+      // 키보드가 열렸는지 판단 (높이 차이가 100px 이상이면 키보드로 간주)
+      const keyboardIsOpen = heightDifference > 100;
+      
+      console.log('Viewport changed:', {
+        initialHeight,
+        currentHeight,
+        heightDifference,
+        keyboardIsOpen
+      });
+
+      setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
+      setAvailableHeight(currentHeight);
+      setIsKeyboardOpen(keyboardIsOpen);
+
+      // 키보드가 열렸을 때 즉시 스크롤
+      if (keyboardIsOpen) {
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
         });
-
-        setKeyboardHeight(keyboardIsOpen ? heightDifference : 0);
-        setAvailableHeight(currentHeight);
-        setIsKeyboardOpen(keyboardIsOpen);
-
-        // 키보드가 열렸을 때 메시지 끝으로 스크롤
-        if (keyboardIsOpen) {
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-          }, 100);
-        }
-      }, 50);
+      }
     };
 
     // visualViewport API 사용 (모던 브라우저 및 웹뷰)
@@ -193,19 +186,18 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     const handleFocus = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-        setTimeout(handleViewportChange, 100);
+        handleViewportChange();
       }
     };
 
     const handleBlur = () => {
-      setTimeout(handleViewportChange, 100);
+      handleViewportChange();
     };
 
     document.addEventListener("focusin", handleFocus);
     document.addEventListener("focusout", handleBlur);
 
     return () => {
-      clearTimeout(resizeTimeout);
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", handleViewportChange);
       } else {
@@ -220,7 +212,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     setShow(false);
     setTimeout(() => {
       onClose();
-    }, 1000);
+    }, 200);
   }, [onClose]);
 
   // 채팅 구독 관리 (안정화)
@@ -484,17 +476,15 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
   // 스크롤 관리 (분리)
   useEffect(() => {
     if (show && messages.length > 0) {
-      const timer = setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, isKeyboardOpen ? 200 : 100);
-      
-      return () => clearTimeout(timer);
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: isKeyboardOpen ? "instant" : "smooth" });
+      });
     }
   }, [messages.length, show, isKeyboardOpen]);
 
   return (
     <div
-      className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-500 ease-in-out ${
+      className={`fixed inset-0 bg-black/40 z-50 pointer-events-auto backdrop-blur-sm transition-opacity duration-200 ease-out ${
         show ? "opacity-100" : "opacity-0"
       }`}
       style={{
@@ -510,7 +500,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
           rounded-xl shadow-2xl shadow-black/40 bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
           border border-white/20
-          transition-all duration-300 ease-out
+          transition-all duration-150 ease-out
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
         style={{
@@ -521,6 +511,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
           height: `${availableHeight}px`,
           maxHeight: '100vh',
           touchAction: 'none',
+          willChange: 'height',
         }}
       >
         {/* Header - 상단 고정 */}
@@ -593,12 +584,13 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
         {/* Messages Area - 가변 높이 */}
         <div className="relative flex-grow overflow-hidden min-h-0">
           <div
-            className={`absolute inset-0 p-4 overflow-y-auto overflow-x-hidden scrollbar-thin transition-all duration-300 ${
+            className={`absolute inset-0 p-4 overflow-y-auto overflow-x-hidden scrollbar-thin transition-opacity duration-150 ${
               isChatInvalid ? "opacity-30 filter blur-[2px]" : "opacity-100"
             }`}
             style={{
               paddingBottom: '16px',
               WebkitOverflowScrolling: 'touch',
+              willChange: 'scroll-position',
             }}
           >
             {messages.length === 0 && !isChatInvalid && (
@@ -643,7 +635,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
 
         {/* Input Area - 하단 고정 */}
         <div
-          className={`flex-shrink-0 border-t border-white/10 transition-all duration-300 ${
+          className={`flex-shrink-0 border-t border-white/10 transition-opacity duration-150 ${
             isChatInvalid ? "opacity-50" : ""
           }`}
           style={{
