@@ -528,10 +528,10 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
       <div
         ref={chatContainerRef}
         className={`
-          w-[375px] max-w-md flex flex-col overflow-hidden
+          w-full max-w-md flex flex-col overflow-hidden
           rounded-xl shadow-2xl shadow-black/40 bg-transparent
           backdrop-filter backdrop-blur-lg -webkit-backdrop-filter backdrop-blur-lg
-          border border-white/20
+          
           transition-all duration-300 ease-out
           ${show ? "opacity-100 scale-100" : "opacity-0 scale-95"}
         `}
@@ -583,7 +583,7 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="absolute right-[-14px] top-12 w-48 bg-gray-800/50 backdrop-blur-md shadow-lg border border-white/10 overflow-hidden z-10"
+                    className="absolute right-[-14px] top-12 w-48 bg-black/50 backdrop-blur-md shadow-lg border-b-2 border-l-2 border-white/10 overflow-hidden z-10"
                   >
                     <button
                       onClick={() => {

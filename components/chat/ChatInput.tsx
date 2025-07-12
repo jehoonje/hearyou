@@ -133,7 +133,7 @@ const ChatInput = memo<ChatInputProps>(({ isDisabled = false }) => {
   const showSendButton = currentMessage.trim().length > 0;
 
   return (
-    <form onSubmit={handleSend} className="p-3 bg-black/10">
+    <form onSubmit={handleSend} className="p-3 mx-1 bg-black/10">
       {/* 경고 메시지 */}
       {(contentWarning || chatError) && !isDisabled && (
         <div className="mb-2 px-1 flex items-center gap-2">

@@ -160,7 +160,7 @@ export const translations: Record<string, Translations> = {
       unblock: '차단해제',
       unblocking: '해제 중',
       unblockConfirm: '{name}님의 차단을 해제하시겠습니까?',
-      unblockNotice: '차단을 해제하면 다음 매칭부터 해당 사용자와 다시 매칭될 수 있습니다.',
+      unblockNotice: '차단을 해제하면 해당 사용자와 다시 매칭될 수 있습니다.',
       blockedOnDate: '에 차단됨',
       noBlockedUsers: '차단된 사용자가 없습니다.',
       unknownUser: '알 수 없는 사용자',
