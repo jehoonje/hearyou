@@ -30,8 +30,12 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
     activeChatPartnerId,
     currentMatch,
   } = useMatchStore();
-  const { messages, subscribeToChatMessages, unsubscribeFromChatMessages } =
-    useChatStore();
+  const { 
+    messages, 
+    subscribeToChatMessages, 
+    unsubscribeFromChatMessages,
+    setChatOpen 
+  } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const [show, setShow] = useState(false);
@@ -132,13 +136,23 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     };
   }, [user?.id, supabase, loadBlockedUsers]);
 
-  // Mount/Unmount 애니메이션
+  // Mount/Unmount 애니메이션 및 채팅창 상태 관리
   useEffect(() => {
     const timer = setTimeout(() => {
       setShow(true);
     }, 10);
-    return () => clearTimeout(timer);
-  }, []);
+    
+    // 채팅창 열림 상태 설정
+    setChatOpen(true);
+    console.log('[ChatInterface] 채팅창 열림');
+    
+    return () => {
+      clearTimeout(timer);
+      // 채팅창 닫힘 상태 설정
+      setChatOpen(false);
+      console.log('[ChatInterface] 채팅창 닫힘');
+    };
+  }, [setChatOpen]);
 
   // 키보드 및 viewport 감지를 위한 useEffect - 완전히 재작성
   useEffect(() => {
@@ -399,6 +413,34 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     }
   }, [show]);
 
+  // 백그라운드/포그라운드 전환 감지
+  useEffect(() => {
+    if (!show) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // 백그라운드로 전환 시 채팅창 닫힘 상태로 설정
+        setChatOpen(false);
+        console.log('[ChatInterface] 앱 백그라운드 - 채팅창 닫힘 상태 전송');
+      } else if (document.visibilityState === 'visible') {
+        // 포그라운드로 복귀 시 채팅창 열림 상태로 설정
+        setChatOpen(true);
+        console.log('[ChatInterface] 앱 포그라운드 - 채팅창 열림 상태 전송');
+        
+        // 읽음 상태 체크
+        setTimeout(() => {
+          useChatStore.getState().refreshReadStatus();
+        }, 1000);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [show, setChatOpen]);
+
   // 메시지 읽음 처리 (간소화)
   useEffect(() => {
     if (!user || !show || isChatInvalid || messages.length === 0) return;
@@ -460,26 +502,6 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
       clearTimeout(initialTimer);
     };
   }, [user?.id, show, isChatInvalid]);
-
-  // 채팅창 포커스 관리
-  useEffect(() => {
-    if (!show) return;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[ChatInterface] 앱 포커스 복귀 - 읽음 상태 체크');
-        setTimeout(() => {
-          useChatStore.getState().refreshReadStatus();
-        }, 1000);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [show]);
 
   // 스크롤 관리 (분리)
   useEffect(() => {

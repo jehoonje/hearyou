@@ -1,4 +1,4 @@
-// store/chatStore.ts - 완전히 수정된 버전
+// store/chatStore.ts - 채팅창 상태에 따른 알림 제어 버전
 import { create } from 'zustand';
 import { ChatMessageData, MessageReadReceipt } from '../types';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -21,6 +21,10 @@ interface ChatState {
   maxReconnectAttempts: number;
   backgroundTime: number | null;
   
+  // 채팅창 열림 상태 관리
+  isChatOpen: boolean;
+  partnerChatOpen: boolean;
+  
   setMessages: (messages: ChatMessageData[]) => void;
   setCurrentMessage: (message: string) => void;
   addMessage: (message: ChatMessageData) => void;
@@ -38,6 +42,8 @@ interface ChatState {
   handleAppForeground: () => void;
   reconnectChannels: () => void;
   resetConnectionState: () => void;
+  setChatOpen: (isOpen: boolean) => void;
+  broadcastChatStatus: (isOpen: boolean) => void;
 }
 
 const supabase = createClientComponentClient();
@@ -70,6 +76,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   reconnectAttempts: 0,
   maxReconnectAttempts: 3,
   backgroundTime: null,
+  isChatOpen: false,
+  partnerChatOpen: false,
 
   setMessages: (messages) => set({ 
     messages: messages.sort((a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()) 
@@ -89,8 +97,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     )
   })),
 
+  setChatOpen: (isOpen) => {
+    console.log('[ChatStore] 채팅창 상태 변경:', isOpen);
+    set({ isChatOpen: isOpen });
+    // 상태가 변경되면 즉시 브로드캐스트
+    get().broadcastChatStatus(isOpen);
+  },
+
+  broadcastChatStatus: (isOpen) => {
+    const { chatChannel, currentUserId } = get();
+    if (chatChannel && currentUserId) {
+      console.log('[ChatStore] 채팅창 상태 브로드캐스트:', isOpen);
+      chatChannel.send({
+        type: 'broadcast',
+        event: 'chat_status',
+        payload: {
+          userId: currentUserId,
+          isChatOpen: isOpen,
+          timestamp: new Date().toISOString()
+        }
+      }).catch(err => {
+        console.error('[ChatStore] 채팅창 상태 브로드캐스트 실패:', err);
+      });
+    }
+  },
+
   sendMessage: async (sender: User | null, receiverId: string | null, matchDate: string | null) => {
-    const { currentMessage, isConnected } = get();
+    const { currentMessage, isConnected, partnerChatOpen } = get();
     if (!currentMessage.trim() || !sender || !receiverId || !matchDate) return;
 
     if (!isConnected) {
@@ -115,25 +148,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (error) throw error;
 
-      let senderName = '사용자';
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', sender.id)
-        .single();
-      
-      if (profileData?.username) {
-        senderName = profileData.username;
-      }
-
-      await supabase.functions.invoke('send-push-notification', {
-        body: {
-          receiverId,
-          message: currentMessage.trim(),
-          senderId: sender.id,
-          senderName: senderName
+      // 상대방이 채팅창을 열고 있지 않을 때만 푸시 알림 전송
+      if (!partnerChatOpen) {
+        console.log('[ChatStore] 상대방 채팅창 닫혀있음, 푸시 알림 전송');
+        
+        let senderName = '사용자';
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', sender.id)
+          .single();
+        
+        if (profileData?.username) {
+          senderName = profileData.username;
         }
-      });
+
+        await supabase.functions.invoke('send-push-notification', {
+          body: {
+            receiverId,
+            message: currentMessage.trim(),
+            senderId: sender.id,
+            senderName: senderName
+          }
+        });
+      } else {
+        console.log('[ChatStore] 상대방 채팅창 열려있음, 푸시 알림 생략');
+      }
 
       set({ currentMessage: '', isSending: false });
       
@@ -181,7 +221,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         try {
           await chatChannel.send({
             type: 'broadcast',
-            event: 'messages_read', // 통일된 이벤트 이름
+            event: 'messages_read',
             payload: {
               readByUserId: userId,
               messageIds: messageIds,
@@ -254,8 +294,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('[ChatStore] 앱 백그라운드 진입');
     set({ 
       backgroundTime: Date.now(),
-      isConnected: false 
+      isConnected: false,
+      isChatOpen: false 
     });
+    // 백그라운드 진입 시 채팅창 닫힘 상태 브로드캐스트
+    get().broadcastChatStatus(false);
   },
 
   handleAppForeground: () => {
@@ -348,7 +391,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentUserId: currentUser.id, 
       currentPartnerId: partnerId,
       currentMatchDate: matchDate,
-      isConnected: false
+      isConnected: false,
+      partnerChatOpen: false // 초기화
     });
 
     const channel = supabase
@@ -406,6 +450,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         }
       })
+      .on('broadcast', { event: 'chat_status' }, (payload) => {
+        console.log('[ChatStore] 채팅창 상태 브로드캐스트 수신:', payload);
+        
+        const { userId, isChatOpen } = payload.payload;
+        
+        // 상대방의 채팅창 상태 업데이트
+        if (userId === partnerId) {
+          console.log('[ChatStore] 상대방 채팅창 상태 업데이트:', isChatOpen);
+          set({ partnerChatOpen: isChatOpen });
+        }
+      })
       .subscribe((status, err) => {
          console.log('[ChatStore] 채팅 구독 상태:', status);
          
@@ -415,6 +470,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
              error: null,
              reconnectAttempts: 0
            });
+           
+           // 구독 성공 시 현재 채팅창 상태 브로드캐스트
+           const { isChatOpen } = get();
+           get().broadcastChatStatus(isChatOpen);
          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
            console.error('[ChatStore] 채팅 채널 오류:', status, err);
            set({ 
@@ -499,14 +558,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   unsubscribeFromChatMessages: () => {
-    const { chatChannel } = get();
+    const { chatChannel, isChatOpen } = get();
     if (chatChannel) {
       console.log('[ChatStore] 채팅 구독 해제');
+      
+      // 구독 해제 전에 채팅창 닫힘 상태 브로드캐스트
+      if (isChatOpen) {
+        get().broadcastChatStatus(false);
+      }
+      
       supabase.removeChannel(chatChannel);
       set({ 
         chatChannel: null,
         currentMatchDate: null,
-        isConnected: false
+        isConnected: false,
+        isChatOpen: false,
+        partnerChatOpen: false
       });
     }
   },
@@ -528,7 +595,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentUserId: null,
       currentPartnerId: null,
       currentMatchDate: null,
-      lastReadCheckTime: 0
+      lastReadCheckTime: 0,
+      isChatOpen: false,
+      partnerChatOpen: false
     });
   },
 
