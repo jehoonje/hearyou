@@ -5,11 +5,17 @@ import { Shield, Eye, Flag, Ban, Clock, AlertTriangle } from 'lucide-react';
 
 interface PrivacyPolicyModalProps {
   isOpen: boolean;
-  onAgree: () => void;
-  onDisagree: () => void;
+  onAgree?: () => void;
+  onDisagree?: () => void;
+  viewOnly?: boolean; // 보기 전용 모드 추가
 }
 
-const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree, onDisagree }) => {
+const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ 
+  isOpen, 
+  onAgree, 
+  onDisagree,
+  viewOnly = false // 기본값은 false로 기존 동작 유지
+}) => {
   const [show, setShow] = useState(false);
   const { t, language } = useLanguage();
 
@@ -19,6 +25,13 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
     }, 10);
     return () => clearTimeout(timer);
   }, [isOpen]);
+
+  // 뒤로가기 핸들러
+  const handleBack = () => {
+    if (viewOnly && onAgree) {
+      onAgree(); // viewOnly 모드에서는 onAgree가 모달 닫기 역할
+    }
+  };
 
   // 커뮤니티 가이드라인 내용 (언어별)
   const communityGuidelines = {
@@ -298,6 +311,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
           className="fixed top-10 bg-black/80 rounded-xl flex items-center justify-center z-50 pointer-events-auto"
+          onClick={viewOnly ? handleBack : undefined}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -305,9 +319,10 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="w-[365px] h-[500px] max-w-md flex flex-col overflow-hidden rounded-xl shadow-2xl shadow-black/40 bg-transparent backdrop-blur-lg border-none p-6"
+            onClick={(e:any) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-white font-mono mb-4">
-              {currentContent.title}
+              {viewOnly ? (language === "ko" ? "운영 정책" : "Privacy Policy") : currentContent.title}
             </h2>
             
             <div className="text-sm text-gray-300 mb-6 max-h-[400px] overflow-y-auto show-scrollbar">
@@ -360,18 +375,29 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({ isOpen, onAgree
             </div>
             
             <div className="flex text-sm justify-end space-x-4">
-              <button
-                onClick={onDisagree}
-                className="px-4 py-1 text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50"
-              >
-                {t.modal.disagree}
-              </button>
-              <button
-                onClick={onAgree}
-                className="px-6 bg-[#376ECA] hover:bg-gray-200 text-white hover:text-black rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FE4848]"
-              >
-                {t.modal.agree}
-              </button>
+              {viewOnly ? (
+                <button
+                  onClick={handleBack}
+                  className="px-6 w-full bg-[#376ECA] hover:bg-gray-200 text-white hover:text-black rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FE4848]"
+                >
+                  {language === "ko" ? "뒤로가기" : "Back"}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={onDisagree}
+                    className="px-4 py-1 text-gray-300 hover:text-white hover:bg-white/10 rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50"
+                  >
+                    {t.modal.disagree}
+                  </button>
+                  <button
+                    onClick={onAgree}
+                    className="px-6 bg-[#376ECA] hover:bg-gray-200 text-white hover:text-black rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FE4848]"
+                  >
+                    {t.modal.agree}
+                  </button>
+                </>
+              )}
             </div>
           </motion.div>
         </motion.div>

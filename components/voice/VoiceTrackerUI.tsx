@@ -14,6 +14,7 @@ import MicToggleButton from "./MicToggleButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import BlockedUsersManager from "../settings/BlockedUsersManager";
+import PrivacyPolicyModal from "../../components/PrivacyPolicyModal";
 
 interface VoiceTrackerUIProps {
   volume: number;
@@ -26,6 +27,8 @@ interface VoiceTrackerUIProps {
   userEmail: string;
   onLogout: () => void;
 }
+
+type ModalView = 'main' | 'account' | 'profile' | 'nickname';
 
 const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
   ({
@@ -63,6 +66,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     );
     const [noMatchMessage, setNoMatchMessage] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalView, setModalView] = useState<ModalView>('main');
     const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false);
     const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] =
       useState(false);
@@ -70,8 +74,19 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
       null
     );
-    const [deleteConfirmText, setDeleteConfirmText] = useState(""); // 추가: 확인 텍스트
+    const [deleteConfirmText, setDeleteConfirmText] = useState("");
     const [isBlockedUsersModalOpen, setIsBlockedUsersModalOpen] = useState(false);
+    
+    // 닉네임 변경 관련 상태
+    const [newNickname, setNewNickname] = useState("");
+    const [currentNickname, setCurrentNickname] = useState("");
+    const [nicknameLoading, setNicknameLoading] = useState(false);
+    const [nicknameError, setNicknameError] = useState<string | null>(null);
+    const [nicknameSuccess, setNicknameSuccess] = useState(false);
+    
+    // 운영 정책 모달 상태
+    const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+    
     const supabase = createClientComponentClient();
     const deleteConfirmationText =
       language === "ko" ? "탈퇴하겠습니다" : "DELETE MY ACCOUNT";
@@ -110,6 +125,25 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       subscribeToMatchChanges,
       unsubscribeFromMatchChanges,
     ]);
+
+    // 현재 닉네임 가져오기
+    useEffect(() => {
+      if (user && !isDemoUser) {
+        const fetchProfile = async () => {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .single();
+          
+          if (data) {
+            setCurrentNickname(data.username || '');
+            setNewNickname(data.username || '');
+          }
+        };
+        fetchProfile();
+      }
+    }, [user, isDemoUser, supabase]);
 
     const hasMatchKeyword = keywordList.some(
       (keyword) => keyword.keyword === "매치"
@@ -187,16 +221,20 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     // 도움말 모달 열기/닫기
     const openModal = useCallback(() => {
       setIsModalOpen(true);
+      setModalView('main');
     }, []);
 
     const closeModal = useCallback(() => {
       setIsModalOpen(false);
+      setModalView('main');
+      setNicknameError(null);
+      setNicknameSuccess(false);
     }, []);
 
     // 즐겨찾기 안내 모달 열기/닫기
     const openBookmarkModal = useCallback(() => {
       setIsBookmarkModalOpen(true);
-      closeModal(); // 도움말 모달 닫기
+      closeModal();
     }, []);
 
     const closeBookmarkModal = useCallback(() => {
@@ -222,12 +260,13 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     const openDeleteAccountModal = useCallback(() => {
       setIsDeleteAccountModalOpen(true);
       setDeleteAccountError(null);
-      closeModal(); // 도움말 모달 닫기
+      closeModal();
     }, []);
 
     const closeDeleteAccountModal = useCallback(() => {
       setIsDeleteAccountModalOpen(false);
       setDeleteAccountError(null);
+      setDeleteConfirmText("");
     }, []);
 
     // 회원 탈퇴 처리 함수
@@ -319,13 +358,75 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       t.modal.deleteAccountSuccess,
     ]);
 
-    // 차단 목록 관리 모달 열기/닫기 (추가)
+    // 차단 목록 관리 모달 열기/닫기
     const openBlockedUsersModal = useCallback(() => {
       setIsBlockedUsersModalOpen(true);
       closeModal();
     }, [closeModal]);
+    
     const closeBlockedUsersModal = useCallback(() => setIsBlockedUsersModalOpen(false), []);
 
+    // 운영 정책 모달 열기/닫기
+    const openPolicyModal = useCallback(() => {
+      setIsPolicyModalOpen(true);
+      closeModal();
+    }, [closeModal]);
+    
+    const closePolicyModal = useCallback(() => {
+      setIsPolicyModalOpen(false);
+    }, []);
+
+    // 닉네임 변경 처리
+    const handleNicknameChange = useCallback(async () => {
+      if (!user || !newNickname.trim()) return;
+      
+      if (newNickname === currentNickname) {
+        setNicknameError(
+          language === "ko" 
+            ? "현재 닉네임과 동일합니다." 
+            : "Same as current nickname."
+        );
+        return;
+      }
+      
+      setNicknameLoading(true);
+      setNicknameError(null);
+      setNicknameSuccess(false);
+      
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ username: newNickname.trim() })
+          .eq('id', user.id);
+        
+        if (error) throw error;
+        
+        setCurrentNickname(newNickname.trim());
+        setNicknameSuccess(true);
+        
+        setTimeout(() => {
+          setModalView('profile');
+          setNicknameSuccess(false);
+        }, 1500);
+        
+      } catch (error: any) {
+        console.error('닉네임 변경 오류:', error);
+        setNicknameError(
+          language === "ko"
+            ? "닉네임 변경에 실패했습니다."
+            : "Failed to change nickname."
+        );
+      } finally {
+        setNicknameLoading(false);
+      }
+    }, [user, newNickname, currentNickname, supabase, language]);
+
+    // 모달 뷰 전환 함수
+    const navigateToView = useCallback((view: ModalView) => {
+      setModalView(view);
+      setNicknameError(null);
+      setNicknameSuccess(false);
+    }, []);
 
     return (
       <>
@@ -366,14 +467,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               <div className="flex items-center space-x-1">
                 {!isDemoUser && (
                   <>
-                    {/* <button
-                      onClick={runManualMatchmaking}
-                      className={`btn-aero-yellow ${
-                        isMatchButtonDisabled ? "" : ""
-                      }`}
-                    >
-                      {isMatchmakingRunning ? t.voice.matching : t.common.match}
-                    </button> */}
                     {currentMatch && !isMatchLoading && (
                       <button onClick={openChat} className="btn-aero-green">
                         {t.common.chat}
@@ -445,14 +538,22 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
 
         {isChatOpen && <ChatInterface onClose={closeChat} />}
 
-        {/* 차단 목록 관리 모달 렌더링 (추가) */}
+        {/* 차단 목록 관리 모달 렌더링 */}
         <BlockedUsersManager 
           isOpen={isBlockedUsersModalOpen}
           onClose={closeBlockedUsersModal}
         />
 
-        {/* 도움말 모달 */}
-        <AnimatePresence>
+        {/* 운영 정책 모달 */}
+        <PrivacyPolicyModal
+          isOpen={isPolicyModalOpen}
+          onAgree={closePolicyModal}
+          onDisagree={closePolicyModal}
+          viewOnly={true}
+        />
+
+        {/* 도움말 모달 - 다단계 뷰 지원 */}
+        <AnimatePresence mode="wait">
           {isModalOpen && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -463,6 +564,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               onClick={closeModal}
             >
               <motion.div
+                key={modalView}
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
@@ -471,30 +573,121 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 onClick={(e: any) => e.stopPropagation()}
               >
                 <div className="flex flex-col space-y-4">
-                  <button onClick={handleFeedback} className="btn-aero-yellow">
-                    {t.common.feedback}
-                  </button>
-                  <button
-                    onClick={openBookmarkModal}
-                    className="btn-aero-green"
-                  >
-                    {t.common.bookmark}
-                  </button>
-                  {!isDemoUser && ( // 차단 목록 관리 버튼 추가
-                    <button
-                      onClick={openBlockedUsersModal}
-                      className="btn-aero-gray hover:bg-gray-600 hover:border-gray-600 transition-colors"
-                    >
-                      {t.settings.manageBlockedList}
-                    </button>
+                  {modalView === 'main' && (
+                    <>
+                      <button onClick={handleFeedback} className="btn-aero-yellow">
+                        {t.common.feedback}
+                      </button>
+                      <button onClick={openBookmarkModal} className="btn-aero-green">
+                        {t.common.bookmark}
+                      </button>
+                      {!isDemoUser && (
+                        <button
+                          onClick={() => navigateToView('account')}
+                          className="btn-aero-gray hover:bg-gray-600 hover:border-gray-600 transition-colors"
+                        >
+                          {language === "ko" ? "회원 정보 관리" : "Account Management"}
+                        </button>
+                      )}
+                    </>
                   )}
-                  {!isDemoUser && (
-                    <button
-                      onClick={openDeleteAccountModal}
-                      className="btn-aero-gray hover:bg-red-600 hover:border-red-600 transition-colors"
-                    >
-                      {t.modal.deleteAccountTitle}
-                    </button>
+                  
+                  {modalView === 'account' && (
+                    <>
+                      <button
+                        onClick={() => navigateToView('profile')}
+                        className="btn-aero-yellow"
+                      >
+                        {language === "ko" ? "회원 정보 변경" : "Edit Profile"}
+                      </button>
+                      <button
+                        onClick={openBlockedUsersModal}
+                        className="btn-aero-gray hover:bg-gray-600 hover:border-gray-600 transition-colors"
+                      >
+                        {t.settings.manageBlockedList}
+                      </button>
+                      <button
+                        onClick={openPolicyModal}
+                        className="btn-aero-green"
+                      >
+                        {language === "ko" ? "운영 정책" : "Privacy Policy"}
+                      </button>
+                      <button
+                        onClick={() => navigateToView('main')}
+                        className="btn-aero-gray"
+                      >
+                        {language === "ko" ? "뒤로가기" : "Back"}
+                      </button>
+                    </>
+                  )}
+                  
+                  {modalView === 'profile' && (
+                    <>
+                      <button
+                        onClick={() => navigateToView('nickname')}
+                        className="btn-aero-yellow"
+                      >
+                        {language === "ko" ? "닉네임 변경" : "Change Nickname"}
+                      </button>
+                      <button
+                        onClick={openDeleteAccountModal}
+                        className="btn-aero-gray hover:bg-red-600 hover:border-red-600 transition-colors"
+                      >
+                        {t.modal.deleteAccountTitle}
+                      </button>
+                      <button
+                        onClick={() => navigateToView('account')}
+                        className="btn-aero-gray"
+                      >
+                        {language === "ko" ? "뒤로가기" : "Back"}
+                      </button>
+                    </>
+                  )}
+                  
+                  {modalView === 'nickname' && (
+                    <>
+                      <div className="text-white text-sm font-mono mb-2">
+                        <p className="mb-1">
+                          {language === "ko" ? "현재 닉네임: " : "Current nickname: "}
+                          <span className="font-bold">{currentNickname}</span>
+                        </p>
+                      </div>
+                      <input
+                        type="text"
+                        value={newNickname}
+                        onChange={(e) => setNewNickname(e.target.value)}
+                        placeholder={language === "ko" ? "새 닉네임 입력" : "Enter new nickname"}
+                        className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-yellow-500"
+                        disabled={nicknameLoading}
+                        maxLength={20}
+                      />
+                      {nicknameError && (
+                        <div className="p-2 bg-red-900/30 border border-red-500 rounded text-red-400 text-sm">
+                          {nicknameError}
+                        </div>
+                      )}
+                      {nicknameSuccess && (
+                        <div className="p-2 bg-green-900/30 border border-green-500 rounded text-green-400 text-sm">
+                          {language === "ko" ? "닉네임이 변경되었습니다!" : "Nickname changed successfully!"}
+                        </div>
+                      )}
+                      <button
+                        onClick={handleNicknameChange}
+                        className="btn-aero-yellow disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={nicknameLoading || !newNickname.trim() || newNickname === currentNickname}
+                      >
+                        {nicknameLoading 
+                          ? (language === "ko" ? "변경 중..." : "Changing...")
+                          : (language === "ko" ? "변경하기" : "Change")
+                        }
+                      </button>
+                      <button
+                        onClick={() => navigateToView('profile')}
+                        className="btn-aero-gray"
+                      >
+                        {language === "ko" ? "뒤로가기" : "Back"}
+                      </button>
+                    </>
                   )}
                 </div>
               </motion.div>
@@ -573,10 +766,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 className="p-6 shadow-lg w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
-                {/* <h2 className="text-lg text-center font-mono font-semibold mb-4 text-red-400">
-                  회원 탈퇴
-                </h2> */}
-
                 <div className="text-sm font-mono text-white mb-4">
                   <p className="mb-2">{t.modal.deleteAccountWarning}</p>
                   <ul className="list-disc list-inside space-y-1 text-xs">
