@@ -176,7 +176,7 @@ const ChatMessage = memo<ChatMessageProps>(
                   {message.message_text}
                 </p>
               </div>
-
+{/* 
               {!isSender && (
                 <button
                   onClick={toggleOptions}
@@ -194,7 +194,7 @@ const ChatMessage = memo<ChatMessageProps>(
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="absolute left-full ml-2 top-0 bg-gray-800/50 backdrop-blur-md rounded-lg shadow-lg border border-white/10 overflow-hidden z-10"
+                    className="absolute left-full ml-2 top-0 bg-black/20 backdrop-blur-md rounded-lg shadow-lg border border-white/10 overflow-hidden z-10"
                   >
                     <button
                       onClick={(e) => {
@@ -202,14 +202,14 @@ const ChatMessage = memo<ChatMessageProps>(
                         setShowOptions(false);
                         setShowReportModal(true);
                       }}
-                      className="px-4 py-2 text-left text-yellow-400 hover:bg-white/10 flex items-center gap-2 transition-colors text-sm whitespace-nowrap"
+                      className="px-4 py-2 text-left text-yellow-400 hover:bg-gray-400 flex items-center gap-2 transition-colors text-sm whitespace-nowrap"
                     >
                       <Flag size={14} />
                       <span>{t.chat.reportUser}</span>
                     </button>
                   </motion.div>
                 </AnimatePresence>
-              )}
+              )} */}
             </div>
 
             {isSender && <div className="w-2"></div>}

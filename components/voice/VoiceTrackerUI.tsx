@@ -459,7 +459,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60"
               onClick={closeModal}
             >
               <motion.div
@@ -467,7 +467,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white/20 w-full p-6 shadow-lg bottom-40"
+                className="w-full p-6 shadow-lg bottom-40"
                 onClick={(e: any) => e.stopPropagation()}
               >
                 <div className="flex flex-col space-y-4">
@@ -510,7 +510,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
               onClick={closeBookmarkModal}
             >
               <motion.div
@@ -518,13 +518,13 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white/80 p-6 shadow-lg w-full"
+                className="p-6 shadow-lg w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
-                <h2 className="text-sm text-black text-center font-mono font-semibold mb-4">
+                <h2 className="text-sm text-white text-center font-mono font-semibold mb-4">
                   {t.bookmark.title}
                 </h2>
-                <p className="text-sm font-mono text-black mb-4">
+                <p className="text-sm font-mono text-white mb-4">
                   {navigator.userAgent.match(/Android|iPhone|iPad/i)
                     ? t.bookmark.mobileInstructions
                         .split("\n")
@@ -562,7 +562,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4"
               onClick={closeDeleteAccountModal}
             >
               <motion.div
@@ -570,14 +570,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white/80 p-6 shadow-lg w-full"
+                className="p-6 shadow-lg w-full"
                 onClick={(e: any) => e.stopPropagation()}
               >
                 {/* <h2 className="text-lg text-center font-mono font-semibold mb-4 text-red-400">
                   회원 탈퇴
                 </h2> */}
 
-                <div className="text-sm font-mono text-black mb-4">
+                <div className="text-sm font-mono text-white mb-4">
                   <p className="mb-2">{t.modal.deleteAccountWarning}</p>
                   <ul className="list-disc list-inside space-y-1 text-xs">
                     <li>{t.modal.deleteAccountWarnings.keywords}</li>
@@ -590,14 +590,14 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 </div>
 
                 <div className="mb-4">
-                  <p className="text-sm font-mono text-black mb-2">
+                  <p className="text-sm font-mono text-white mb-2">
                     {t.modal.deleteAccountConfirm}
                   </p>
                   <input
                     type="text"
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder="탈퇴하겠습니다"
+                    placeholder=""
                     className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-red-500"
                     disabled={deleteAccountLoading}
                   />

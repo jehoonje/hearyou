@@ -95,7 +95,7 @@ canvas {
 
 /* 기본 버튼 스타일 (.btn-aero) */
 .btn-aero {
-  @apply px-4 py-1 rounded-lg text-sm font-mono font-semibold cursor-pointer transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900/80 focus:ring-blue-400 focus:ring-opacity-70; /* 포커스 스타일 추가 */
+  @apply px-4 py-1 rounded-md text-sm font-mono font-semibold cursor-pointer transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900/80 focus:ring-blue-400 focus:ring-opacity-70; /* 포커스 스타일 추가 */
   /* 텍스트 그림자 (가독성 위해 유지 및 강화) */
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
   /* 반투명 효과 및 유리 질감 */
