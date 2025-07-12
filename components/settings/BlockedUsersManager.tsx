@@ -1,7 +1,7 @@
 // src/components/settings/BlockedUsersManager.tsx - 수정된 버전
 import { useState, useEffect, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../app/contexts/AuthContext';
 import { useLanguage } from '../../app/contexts/LanguageContext';
 import { Ban, Trash2, RefreshCw, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
