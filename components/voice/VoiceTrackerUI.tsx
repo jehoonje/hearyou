@@ -659,6 +659,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                       </div>
                       <input
                         type="text"
+                        required
                         value={newNickname}
                         onChange={(e) => setNewNickname(e.target.value)}
                         placeholder={language === "ko" ? "새 닉네임 입력" : "Enter new nickname"}

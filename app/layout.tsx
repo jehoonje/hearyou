@@ -26,7 +26,12 @@ export const metadata: Metadata = {
   title: "Univoice | 목소리로 연결되는 또 다른 우주",
   description:
     "매일 정해진 시간, 당신의 목소리가 들려주는 이야기를 분석해 비슷한 관심사를 가진 사람들과 연결해드립니다. 목소리로 시작되는 새로운 인연, Univoice에서 만나보세요.",
-  openGraph: {
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1
+  },
+    openGraph: {
     title: "Univoice | 목소리로 연결되는 또 다른 우주",
     description:
       "매일 정해진 시간, 당신의 목소리가 들려주는 이야기를 분석해 비슷한 관심사를 가진 사람들과 연결해드립니다. 목소리로 시작되는 새로운 인연, Univoice에서 만나보세요.",
