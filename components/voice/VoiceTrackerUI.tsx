@@ -663,7 +663,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                         value={newNickname}
                         onChange={(e) => setNewNickname(e.target.value)}
                         placeholder={language === "ko" ? "새 닉네임 입력" : "Enter new nickname"}
-                        className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-yellow-500"
+                        className="w-full glass-effect px-3 py-2 text-black font-mono text-base focus:outline-none focus:border-yellow-500"
                         disabled={nicknameLoading}
                         maxLength={20}
                       />
@@ -793,7 +793,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
                     placeholder=""
-                    className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-red-500"
+                    className="w-full glass-effect px-3 py-2 text-black font-mono text-base focus:outline-none focus:border-red-500"
                     disabled={deleteAccountLoading}
                   />
                 </div>
