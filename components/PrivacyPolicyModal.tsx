@@ -310,7 +310,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: 'easeInOut' }}
-          className="fixed top-10 bg-black/80 rounded-xl flex items-center justify-center z-50 pointer-events-auto"
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 pointer-events-auto"
           onClick={viewOnly ? handleBack : undefined}
         >
           <motion.div
@@ -318,14 +318,14 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="w-[365px] h-[500px] max-w-md flex flex-col overflow-hidden rounded-xl shadow-2xl shadow-black/40 bg-transparent backdrop-blur-lg border-none p-6"
+            className="w-full h-full max-w-4xl max-h-[100vh] mx-4 my-4 flex flex-col overflow-hidden rounded-xl shadow-2xl shadow-black/40 bg-transparent backdrop-blur-lg border-none p-6"
             onClick={(e:any) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-white font-mono mb-4">
               {viewOnly ? (language === "ko" ? "운영 정책" : "Privacy Policy") : currentContent.title}
             </h2>
             
-            <div className="text-sm text-gray-300 mb-6 max-h-[400px] overflow-y-auto show-scrollbar">
+            <div className="text-sm text-gray-300 mb-6 flex-1 overflow-y-auto show-scrollbar">
               {/* 커뮤니티 안전 가이드라인 섹션 추가 */}
               <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                 <div className="flex items-center gap-2 mb-3">
@@ -378,7 +378,7 @@ const PrivacyPolicyModal: React.FC<PrivacyPolicyModalProps> = ({
               {viewOnly ? (
                 <button
                   onClick={handleBack}
-                  className="px-6 w-full bg-[#376ECA] hover:bg-gray-200 text-white hover:text-black rounded-full transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FE4848]"
+                  className="btn-aero-gray w-full"
                 >
                   {language === "ko" ? "뒤로가기" : "Back"}
                 </button>

@@ -404,6 +404,11 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
         setCurrentNickname(newNickname.trim());
         setNicknameSuccess(true);
         
+        // 매치 정보 새로고침 (닉네임 변경 반영)
+        if (currentMatch) {
+          await fetchCurrentMatch(user);
+        }
+        
         setTimeout(() => {
           setModalView('profile');
           setNicknameSuccess(false);
@@ -419,7 +424,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
       } finally {
         setNicknameLoading(false);
       }
-    }, [user, newNickname, currentNickname, supabase, language]);
+    }, [user, newNickname, currentNickname, supabase, language, currentMatch, fetchCurrentMatch]);
 
     // 모달 뷰 전환 함수
     const navigateToView = useCallback((view: ModalView) => {
