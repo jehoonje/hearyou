@@ -150,7 +150,22 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     );
 
     const openChat = useCallback(() => {
+      // user 인증 상태가 아직 로드되지 않았으면 기다림
+      if (!user) {
+        console.log('[VoiceTrackerUI] 사용자 인증 정보 로딩 중, 채팅 진입 대기');
+        alert(
+          language === "ko"
+            ? "사용자 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요."
+            : "Loading user information. Please try again in a moment."
+        );
+        return;
+      }
+
       if (currentMatch?.partner) {
+        console.log('[VoiceTrackerUI] 채팅 진입:', {
+          user: user.id,
+          partner: currentMatch.partner.userId
+        });
         setActiveChatPartnerId(currentMatch.partner.userId);
         setIsChatOpen(true);
       } else {
@@ -160,7 +175,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
             : "No current match found."
         );
       }
-    }, [currentMatch?.partner, setActiveChatPartnerId, language]);
+    }, [currentMatch?.partner, setActiveChatPartnerId, language, user]);
 
     const closeChat = useCallback(() => {
       setActiveChatPartnerId(null);
@@ -541,7 +556,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
           </div>
         </div>
 
-        {isChatOpen && <ChatInterface onClose={closeChat} />}
+        {isChatOpen && <ChatInterface onClose={closeChat} currentUser={user} />}
 
         {/* 차단 목록 관리 모달 렌더링 */}
         <BlockedUsersManager 
@@ -659,11 +674,10 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                       </div>
                       <input
                         type="text"
-                        required
                         value={newNickname}
                         onChange={(e) => setNewNickname(e.target.value)}
                         placeholder={language === "ko" ? "새 닉네임 입력" : "Enter new nickname"}
-                        className="w-full glass-effect px-3 py-2 text-black font-mono text-base focus:outline-none focus:border-yellow-500"
+                        className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-yellow-500"
                         disabled={nicknameLoading}
                         maxLength={20}
                       />
@@ -793,7 +807,7 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
                     placeholder=""
-                    className="w-full glass-effect px-3 py-2 text-black font-mono text-base focus:outline-none focus:border-red-500"
+                    className="w-full glass-effect px-3 py-2 text-black font-mono text-sm focus:outline-none focus:border-red-500"
                     disabled={deleteAccountLoading}
                   />
                 </div>

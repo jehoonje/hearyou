@@ -19,11 +19,27 @@ import { useLanguage } from "../../app/contexts/LanguageContext";
 
 interface ChatInterfaceProps {
   onClose: () => void;
+  currentUser?: any; // VoiceTrackerUI에서 전달받을 user prop
 }
 
-const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
+const ChatInterface = memo<ChatInterfaceProps>(({ onClose, currentUser }) => {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  
+  // prop으로 받은 user를 우선 사용, 없으면 auth에서 가져온 user 사용
+  const user = currentUser || authUser;
+  
+  console.log('[ChatInterface] Props 및 User 상태:', {
+    currentUserProp: currentUser,
+    currentUserType: typeof currentUser,
+    currentUserId: currentUser?.id,
+    authUser: authUser,
+    authUserType: typeof authUser,
+    authUserId: authUser?.id,
+    finalUser: user,
+    finalUserType: typeof user,
+    finalUserId: user?.id
+  });
   const {
     matchedUserProfile,
     matchStatusMessage,
@@ -62,13 +78,23 @@ const ChatInterface = memo<ChatInterfaceProps>(({ onClose }) => {
   const loadBlockedUsers = useCallback(async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from("blocked_users")
-      .select("blocked_user_id")
-      .eq("user_id", user.id);
+    try {
+      const { data, error } = await supabase
+        .from("blocked_users")
+        .select("blocked_user_id")
+        .eq("user_id", user.id);
 
-    if (data) {
-      setBlockedUsers(data.map((item) => item.blocked_user_id));
+      if (error) {
+        console.error('[ChatInterface] 차단 목록 로드 실패:', error);
+        return;
+      }
+
+      if (data) {
+        setBlockedUsers(data.map((item) => item.blocked_user_id));
+        console.log('[ChatInterface] 차단 목록 로드 완료:', data.length, '명');
+      }
+    } catch (error) {
+      console.error('[ChatInterface] 차단 목록 로드 예외:', error);
     }
   }, [user, supabase]);
 
@@ -98,9 +124,14 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
   }
 }, [user?.id, chatPartnerId]);
 
+  // 차단된 사용자 목록 로드 및 구독 설정
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      console.log('[ChatInterface] user가 없어서 차단 목록 로드 스킵');
+      return;
+    }
 
+    // 차단된 사용자 목록 로드 (비동기)
     loadBlockedUsers();
 
     const subscription = supabase
@@ -134,13 +165,14 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
         supabase.removeChannel(subscription);
       }
     };
-  }, [user?.id, supabase, loadBlockedUsers]);
+  }, [user?.id, supabase, loadBlockedUsers]); // user?.id로 의존성 수정
 
   // Mount/Unmount 애니메이션 및 채팅창 상태 관리
   useEffect(() => {
+    // 약간의 지연 후 show 상태를 true로 변경
     const timer = setTimeout(() => {
       setShow(true);
-    }, 10);
+    }, 50); // 10ms에서 50ms로 증가
     
     // 채팅창 열림 상태 설정
     setChatOpen(true);
@@ -237,25 +269,43 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
     }, 1000);
   }, [onClose]);
 
-  // 채팅 구독 관리 (안정화)
+  // 채팅 구독 관리 - 사용자 인증 상태 로딩 기다리기
   useEffect(() => {
     console.log('[ChatInterface] 채팅 구독 useEffect 실행', {
-      user: !!user,
+      currentUser: !!currentUser,
+      authUser: !!authUser,
+      finalUser: !!user,
       chatPartnerId,
       matchDate: currentMatch?.matchDate,
       blockedUsersCount: blockedUsers.length,
       show
     });
 
+    // show가 false이면 아직 애니메이션 진행 중이므로 기다림
+    if (!show) {
+      console.log('[ChatInterface] 애니메이션 진행 중, 구독 대기');
+      return;
+    }
+
+    // user가 아직 로드되지 않았으면 기다림 (user가 null이나 undefined일 때)
+    if (user === null || user === undefined) {
+      console.log('[ChatInterface] 사용자 인증 정보 로딩 중, 구독 대기');
+      return;
+    }
+
     // 필수 조건 체크
-    if (!user || !chatPartnerId || !currentMatch?.matchDate || !show) {
-      console.log('[ChatInterface] 채팅 구독 조건 미충족, 구독 해제');
+    if (!user || !chatPartnerId || !currentMatch?.matchDate) {
+      console.log('[ChatInterface] 채팅 구독 조건 미충족, 구독 해제', {
+        hasUser: !!user,
+        hasChatPartnerId: !!chatPartnerId,
+        hasMatchDate: !!currentMatch?.matchDate
+      });
       unsubscribeFromChatMessages();
       return;
     }
 
-    // 차단된 사용자 체크
-    if (blockedUsers.includes(chatPartnerId)) {
+    // 차단된 사용자 체크 (차단 목록이 로드되지 않았더라도 진행)
+    if (blockedUsers.length > 0 && blockedUsers.includes(chatPartnerId)) {
       console.log('[ChatInterface] 차단된 사용자, 구독 해제');
       unsubscribeFromChatMessages();
       return;
@@ -270,7 +320,8 @@ const notifyReadStatusToPartner = useCallback(async (messageIds: string[]) => {
       unsubscribeFromChatMessages();
     };
   }, [
-    user?.id, // user 객체 대신 user.id만 의존성으로
+    currentUser?.id, // prop으로 받은 user ID
+    authUser?.id, // auth에서 가져온 user ID
     chatPartnerId,
     currentMatch?.matchDate,
     show,

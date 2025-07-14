@@ -369,7 +369,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   subscribeToChatMessages: (currentUser: User | null, partnerId: string | null, matchDate: string | null) => {
-    if (!currentUser || !partnerId || !matchDate) return;
+    console.log('[ChatStore] subscribeToChatMessages 호출됨:', { 
+      currentUser: !!currentUser, 
+      partnerId, 
+      matchDate,
+      현재상태: {
+        currentUserId: get().currentUserId,
+        currentPartnerId: get().currentPartnerId,
+        currentMatchDate: get().currentMatchDate,
+        isConnected: get().isConnected
+      }
+    });
+    
+    if (!currentUser || !partnerId || !matchDate) {
+      console.log('[ChatStore] 필수 파라미터 누락으로 구독 중단');
+      return;
+    }
 
     const state = get();
     if (
