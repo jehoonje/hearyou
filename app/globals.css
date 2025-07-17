@@ -257,77 +257,110 @@ canvas {
   backdrop-filter: url(#frosted);
 }
 
-/* --- Mic Toggle Button 스타일 (반투명 크리스탈) --- */
-.mic-toggle-aero {
-  @apply relative inline-flex items-center h-7 w-14 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900/80 focus:ring-blue-400 focus:ring-opacity-70; /* 포커스 스타일 추가 */
-  /* 트랙 반투명 효과 */
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-bottom-color: rgba(0, 0, 0, 0.1);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2),
-    /* 내부 그림자 */ 0 1px 1px rgba(255, 255, 255, 0.1); /* 외부 하이라이트 약하게 */
-}
-
-.mic-toggle-aero.disabled {
-  @apply opacity-50 cursor-not-allowed;
-  filter: grayscale(70%); /* 비활성화 시 채도 더 감소 */
-  backdrop-filter: blur(2px); /* 흐림 효과 약하게 */
-  -webkit-backdrop-filter: blur(2px);
-}
-
-/* OFF 상태 배경 (반투명 회색) */
-.mic-toggle-aero.off {
+/* --- 원형 토글 버튼 스타일 (마이크 & 음악) --- */
+.circle-toggle-btn {
+  @apply relative w-8 h-8 rounded-full cursor-pointer transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900/80 focus:ring-blue-400 focus:ring-opacity-70 flex items-center justify-center;
+  
+  /* 기본 상태 (OFF) - 반투명 회색 */
   background: linear-gradient(
     to bottom,
-    rgba(190, 190, 190, 0.6),
-    rgba(140, 140, 140, 0.65)
+    rgba(190, 190, 190, 0.75),
+    rgba(140, 140, 140, 0.8)
   );
+  
+  /* 3D 효과를 위한 테두리 */
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom-color: rgba(0, 0, 0, 0.2);
+  border-right-color: rgba(255, 255, 255, 0.1);
+  border-left-color: rgba(255, 255, 255, 0.1);
+  
+  /* 유리 질감 효과 */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  
+  /* 3D 그림자 효과 */
+  box-shadow:
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.25);
 }
-/* ON 상태 배경 (반투명 진한 초록색) */
-.mic-toggle-aero.on {
+
+.circle-toggle-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.5),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.1),
+    0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.circle-toggle-btn:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+/* 마이크 ON 상태 - 초록 배경 */
+.circle-toggle-btn.mic-active {
   background: linear-gradient(
     to bottom,
-    rgba(22, 163, 74, 0.7),
-    rgba(21, 128, 61, 0.75)
-  ); /* 버튼보다 약간 더 투명하게 */
+    rgba(22, 163, 74, 0.8),
+    rgba(21, 128, 61, 0.85)
+  );
   border-color: rgba(255, 255, 255, 0.3);
   border-bottom-color: rgba(20, 83, 45, 0.3);
+  border-right-color: rgba(255, 255, 255, 0.1);
+  border-left-color: rgba(255, 255, 255, 0.1);
 }
 
-/* 움직이는 동그라미 (Thumb) 스타일 - 불투명 유리/메탈 느낌 */
-.mic-toggle-thumb-aero {
-  @apply inline-block w-5 h-5 transform rounded-full ring-0 transition-transform duration-300 ease-in-out;
-  /* 불투명하고 광택있는 재질 */
+.circle-toggle-btn.mic-active:hover {
   background: linear-gradient(
     to bottom,
-    #ffffff,
-    #e0e0e0
-  ); /* 밝은 흰색/회색 그라데이션 */
-  border: 1px solid rgba(0, 0, 0, 0.2); /* 어두운 테두리로 구분 */
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 1),
-    /* 강한 내부 상단 하이라이트 */ inset 0 -1px 1px rgba(0, 0, 0, 0.1),
-    0 3px 5px rgba(0, 0, 0, 0.3); /* 더 강한 외부 그림자 */
+    rgba(34, 197, 94, 0.85),
+    rgba(22, 163, 74, 0.9)
+  );
 }
 
-/* Thumb 위치 조정 - 이전과 동일 */
-.mic-toggle-thumb-aero.on {
-  transform: translateX(32px);
-}
-.mic-toggle-thumb-aero.off {
-  transform: translateX(4px);
+/* 음악 ON 상태 - 노랑 배경 */
+.circle-toggle-btn.music-active {
+  background: linear-gradient(
+    to bottom,
+    rgba(250, 204, 21, 0.8),
+    rgba(234, 179, 8, 0.85)
+  );
+  border-color: rgba(255, 255, 255, 0.4);
+  border-bottom-color: rgba(161, 98, 7, 0.3);
+  border-right-color: rgba(255, 255, 255, 0.1);
+  border-left-color: rgba(255, 255, 255, 0.1);
 }
 
-/* ON/OFF 텍스트 스타일 - 이전과 동일 (텍스트 그림자 중요) */
-.mic-toggle-text {
-  @apply absolute text-[10px] font-bold transition-opacity duration-200 ease-in-out select-none pointer-events-none;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6); /* 가독성 위해 그림자 유지 */
+.circle-toggle-btn.music-active:hover {
+  background: linear-gradient(
+    to bottom,
+    rgba(253, 224, 71, 0.85),
+    rgba(250, 204, 21, 0.9)
+  );
 }
-.mic-toggle-text.on {
-  @apply left-2.5 text-white;
+
+/* 아이콘 스타일 */
+.circle-toggle-icon {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
-.mic-toggle-text.off {
-  @apply right-2 text-gray-200;
+
+/* 마이크 ON 상태의 아이콘 - 흰색 */
+.circle-toggle-btn.mic-active .circle-toggle-icon {
+  color: white;
+}
+
+/* 음악 ON 상태의 아이콘 - 검정 */
+.circle-toggle-btn.music-active .circle-toggle-icon {
+  color: black;
+}
+
+/* 비활성화 상태 */
+.circle-toggle-btn:disabled {
+  @apply opacity-50 cursor-not-allowed;
+  filter: grayscale(70%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .tutorial-highlight {
@@ -390,4 +423,3 @@ canvas {
     padding-right: max(var(--sar), 0px);
   }
 }
-

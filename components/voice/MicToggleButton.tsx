@@ -39,9 +39,9 @@ const MicToggleButton: React.FC<MicToggleButtonProps> = ({
       className={`circle-toggle-btn ${listening ? 'mic-active' : ''}`}
     >
       {listening ? (
-        <Mic size={20} className="circle-toggle-icon" />
+        <Mic size={16} className="circle-toggle-icon" />
       ) : (
-        <MicOff size={20} className="circle-toggle-icon" />
+        <MicOff size={16} className="circle-toggle-icon" />
       )}
     </button>
   );

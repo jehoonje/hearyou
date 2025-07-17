@@ -86,10 +86,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     const [nicknameError, setNicknameError] = useState<string | null>(null);
     const [nicknameSuccess, setNicknameSuccess] = useState(false);
 
-    // 마이크 및 음악 버튼 토글
-    const [isListening, setIsListening] = useState(false);
-    const [forceMusicStop, setForceMusicStop] = useState(false);
-
     // 운영 정책 모달 상태
     const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
 
@@ -154,19 +150,6 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
     const hasMatchKeyword = keywordList.some(
       (keyword) => keyword.keyword === "매치"
     );
-
-    // 마이크 시작 시 음악 끄기
-    const handleMicStart = () => {
-      setForceMusicStop(true);
-      setTimeout(() => setForceMusicStop(false), 100);
-    };
-
-    // 음악 시작 시 마이크 끄기
-    const handleMusicStart = () => {
-      if (isListening) {
-        setIsListening(false);
-      }
-    };
 
     const openChat = useCallback(() => {
       // user 인증 상태가 아직 로드되지 않았으면 기다림
@@ -510,14 +493,10 @@ const VoiceTrackerUI = memo<VoiceTrackerUIProps>(
                 data-tutorial-target="mic-button"
               >
                 <MicToggleButton
-                  listening={isListening}
+                  listening={listening}
                   onClick={toggleListening}
-                  onMicStart={handleMicStart}
                 />
-                <MusicToggleButton
-                  onMusicStart={handleMusicStart}
-                  forceStop={forceMusicStop}
-                />
+                <MusicToggleButton/>
               </div>
               <div className="flex items-center space-x-1">
                 {!isDemoUser && (

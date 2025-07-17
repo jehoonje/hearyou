@@ -49,7 +49,7 @@ export const translations: Record<string, Translations> = {
     voice: {
       emptyKeyword: '아직 등록된 키워드가 없습니다.',
       micButtonLabel: '마이크 토글',
-      speakInstruction: '스위치 버튼을 누르고 말씀해보세요.',
+      speakInstruction: '마이크 버튼을 누르고 말씀해보세요.',
       detectedKeywords: '감지된 키워드:',
       audioError: '오디오 오류:',
       matchmaking: '매치메이킹',
