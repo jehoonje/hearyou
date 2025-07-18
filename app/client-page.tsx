@@ -11,7 +11,8 @@ import { useAuth } from "../app/contexts/AuthContext";
 import { useAudioAnalysis } from "../hooks/useAudioAnalysis";
 import { useKeywords } from "../hooks/useKeywords";
 import { Keyword } from "../types";
-import { usePushNotifications } from './hooks/usePushNotifications';
+import UpdateNotification from "../components/UpdateNotification";
+import { usePushNotifications } from "./hooks/usePushNotifications";
 import ResponsiveWrapper from "../components/ResponsiveWrapper";
 import { Session, User } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,6 +49,7 @@ function MainContent({
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [contentVisible, setContentVisible] = useState(false);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [deviceLanguage, setDeviceLanguage] = useState<string>("ko");
 
   const [showInAppBanner, setShowInAppBanner] = useState<boolean>(false);
   const [detectedAppName, setDetectedAppName] = useState<string | null>(null);
@@ -65,15 +67,26 @@ function MainContent({
   useEffect(() => {
     if (window.ReactNativeWebView) {
       setIsNativeApp(true);
-      
+
       // CSS 변수로 안전 영역 설정
-      document.documentElement.style.setProperty('--sat', `env(safe-area-inset-top, 0px)`);
-      document.documentElement.style.setProperty('--sab', `env(safe-area-inset-bottom, 0px)`);
-      document.documentElement.style.setProperty('--sal', `env(safe-area-inset-left, 0px)`);
-      document.documentElement.style.setProperty('--sar', `env(safe-area-inset-right, 0px)`);
+      document.documentElement.style.setProperty(
+        "--sat",
+        `env(safe-area-inset-top, 0px)`
+      );
+      document.documentElement.style.setProperty(
+        "--sab",
+        `env(safe-area-inset-bottom, 0px)`
+      );
+      document.documentElement.style.setProperty(
+        "--sal",
+        `env(safe-area-inset-left, 0px)`
+      );
+      document.documentElement.style.setProperty(
+        "--sar",
+        `env(safe-area-inset-right, 0px)`
+      );
     }
   }, []);
-  
 
   useEffect(() => {
     if (window.ReactNativeWebView) {
@@ -117,6 +130,38 @@ function MainContent({
     }
   }, [loadingProgress, isNativeApp]);
 
+  // 네이티브 앱에서 언어 정보 수신
+  useEffect(() => {
+    const handleLanguageChange = (event: CustomEvent<{ language: string }>) => {
+      setDeviceLanguage(event.detail.language);
+    };
+
+    // 네이티브 앱에서 설정한 언어 확인
+    const nativeLanguage = (window as any).__EXPO_LANGUAGE__;
+    if (nativeLanguage) {
+      setDeviceLanguage(nativeLanguage);
+    }
+
+    window.addEventListener("languagechange", handleLanguageChange as any);
+
+    return () => {
+      window.removeEventListener("languagechange", handleLanguageChange as any);
+    };
+  }, []);
+
+  // 앱 로드 완료 후 버전 체크 수행
+  useEffect(() => {
+    if (contentVisible && isNativeApp) {
+      // 초기 버전 체크
+      checkAppVersion();
+
+      // 주기적으로 버전 체크 (1시간마다)
+      const interval = setInterval(checkAppVersion, 60 * 60 * 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [contentVisible, isNativeApp, deviceLanguage]);
+
   useEffect(() => {
     setIsMounted(true);
     const appName = detectInAppBrowser();
@@ -145,6 +190,47 @@ function MainContent({
     },
     [addOrUpdateKeyword]
   );
+
+  // 버전 체크 함수
+  const checkAppVersion = async () => {
+    // 네이티브 앱이 아니면 버전 체크 수행하지 않음
+    if (!window.ReactNativeWebView) return;
+
+    try {
+      // 앱 버전 정보 가져오기 (네이티브 앱에서 제공해야 함)
+      const appVersion = (window as any).__APP_VERSION__ || "1.0.0";
+      const buildNumber = (window as any).__BUILD_NUMBER__ || "1";
+
+      const response = await fetch("/api/version-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          platform: "ios",
+          currentVersion: appVersion,
+          buildNumber: buildNumber,
+          language: deviceLanguage || "ko", // deviceLanguage를 사용하거나 기본값
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Version check failed");
+      }
+
+      const versionInfo = await response.json();
+
+      if (versionInfo.needsUpdate) {
+        // UpdateNotification 컴포넌트에 정보 전달
+        const updateEvent = new CustomEvent("appupdate", {
+          detail: versionInfo,
+        });
+        window.dispatchEvent(updateEvent);
+      }
+    } catch (error) {
+      console.error("[Version Check] Error:", error);
+    }
+  };
 
   const {
     volume,
@@ -306,15 +392,19 @@ function MainContent({
     <ResponsiveWrapper baseWidth={400} baseHeight={668}>
       <div
         className={
-          isNativeApp 
+          isNativeApp
             ? "w-full h-full bg-black text-white overflow-hidden relative font-mono"
             : "w-[400px] h-[668px] bg-black text-white mx-auto overflow-hidden relative font-mono"
         }
-        style={isNativeApp ? {
-          width: '100%',
-          height: '100%',
-          position: 'relative'
-        } : undefined}
+        style={
+          isNativeApp
+            ? {
+                width: "100%",
+                height: "100%",
+                position: "relative",
+              }
+            : undefined
+        }
         // *** 튜토리얼 활성 시에는 onPointer 이벤트들이 위쪽 조건문에서 막히므로 여기 로직은 유지 ***
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -328,6 +418,8 @@ function MainContent({
             onClose={handleCloseBanner}
           />
         )}
+
+        <UpdateNotification />
 
         {/* Gradient Background (변경 없음) */}
         <AnimatePresence>
