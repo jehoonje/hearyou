@@ -24,9 +24,9 @@ interface VersionConfig {
 // 버전 정보 관리 (실제로는 DB나 환경변수에서 관리)
 const VERSION_CONFIG: { ios: VersionConfig } = {
   ios: {
-    latestVersion: '1.2.0',
-    minimumVersion: '1.1.0', // 이 버전 미만은 강제 업데이트
-    updateUrl: 'https://apps.apple.com/app/id123456789', // 실제 앱 ID로 변경 필요
+    latestVersion: '1.1.0',
+    minimumVersion: '1.0.0', // 이 버전 미만은 강제 업데이트
+    updateUrl: 'https://apps.apple.com/app/id6746652650', // 실제 앱 ID로 변경 필요
     updateMessages: {
       ko: {
         optional: '새로운 버전이 출시되었습니다. 업데이트하시면 더 나은 경험을 즐기실 수 있습니다.',
